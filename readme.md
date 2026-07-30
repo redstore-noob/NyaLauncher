@@ -40,6 +40,10 @@
     <td><span style="color: #28a745;">✅ 已完成</span></td>
   </tr>
   <tr>
+    <td>🎮 离线账号启动</td>
+    <td><span style="color: #28a745;">✅ 已完成</span></td>
+  </tr>
+  <tr>
     <td>🔌 插件系统</td>
     <td><span style="color: #28a745;">🚧 开发中</span></td>
   </tr>
@@ -60,6 +64,19 @@
     <td><span style="color: #ff0000;">🤔 后续可能上线，且可能属于可选内容</span></td>
   </tr>
 </table>
+
+---
+
+## 🎮 离线启动
+
+- 支持扫描 Minecraft 根目录及 `versions/版本号` 独立实例目录。
+- 支持离线用户名校验与稳定 UUID 生成，不读取或依赖在线账号令牌。
+- 支持版本继承、现代与旧版启动参数、操作系统规则及 classpath 构建。
+- 支持安全解压 natives，并在游戏退出后清理临时文件。
+- 根据版本 JSON 的 Java 要求，从 Minecraft runtime、`NYALAUNCHER_JAVA`、`JAVA_HOME` 或 `PATH` 自动选择匹配的 Java。
+- 启动页提供目录扫描、版本选择、离线用户名、运行状态和退出代码提示。
+
+> 离线账号不能进入要求正版认证的服务器；启动前需确保目标版本、依赖库和资源文件已经完整安装。
 
 ---
 
