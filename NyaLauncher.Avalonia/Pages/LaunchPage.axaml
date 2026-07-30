@@ -21,7 +21,7 @@
             VerticalAlignment="Center"
             HorizontalAlignment="Stretch">
       <Border Padding="32">
-        <Grid RowDefinitions="*,Auto">
+        <Grid RowDefinitions="*,Auto,Auto,Auto">
         <!-- 装饰区域 -->
         <StackPanel Grid.Row="0"
                     VerticalAlignment="Center"
@@ -48,11 +48,37 @@
                      Foreground="#6B6B80" />
         </StackPanel>
 
+        <!-- Minecraft 目录 -->
+        <Border Grid.Row="1"
+                Background="#2A2A3E"
+                CornerRadius="10"
+                Padding="12,8"
+                Margin="0,24,0,12">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <TextBlock Text="游戏目录"
+                       FontSize="12"
+                       Foreground="#8B8B9E"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0" />
+            <TextBox x:Name="MinecraftPathBox"
+                     Grid.Column="1"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     FontSize="13"
+                     PlaceholderText="Minecraft 根目录或 versions\版本号 目录" />
+            <Button Grid.Column="2"
+                    Content="重新扫描"
+                    Padding="12,5"
+                    FontSize="12"
+                    Click="OnRescanClick" />
+          </Grid>
+        </Border>
+
         <!-- 底部控制和启动按钮 -->
-        <Grid Grid.Row="1"
+        <Grid Grid.Row="2"
               ColumnDefinitions="*,*,Auto"
               HorizontalAlignment="Stretch"
-              Margin="0,24,0,0">
+              Margin="0">
 
           <!-- 版本选择 -->
           <Border Grid.Column="0" Margin="0,0,8,0"
@@ -63,19 +89,11 @@
               <TextBlock Text="游戏版本"
                          FontSize="11"
                          Foreground="#8B8B9E" />
-              <ComboBox PlaceholderText="选择版本..."
+              <ComboBox x:Name="VersionSelector"
+                        PlaceholderText="未找到已安装版本"
                         Background="Transparent"
                         BorderThickness="0"
-                        FontSize="14">
-                <ComboBox.Items>
-                  <ComboBoxItem Content="1.21.1" IsSelected="True" />
-                  <ComboBoxItem Content="1.20.4" />
-                  <ComboBoxItem Content="1.19.2" />
-                  <ComboBoxItem Content="1.16.5" />
-                  <ComboBoxItem Content="1.12.2" />
-                  <ComboBoxItem Content="1.8.9" />
-                </ComboBox.Items>
-              </ComboBox>
+                        FontSize="14" />
             </StackPanel>
           </Border>
 
@@ -85,24 +103,22 @@
                   CornerRadius="10"
                   Padding="12,6">
             <StackPanel Spacing="4">
-              <TextBlock Text="启动账号"
+              <TextBlock Text="离线用户名"
                          FontSize="11"
                          Foreground="#8B8B9E" />
-              <ComboBox PlaceholderText="选择账号..."
-                        Background="Transparent"
-                        BorderThickness="0"
-                        FontSize="14">
-                <ComboBox.Items>
-                  <ComboBoxItem Content="Player_01 (离线)" IsSelected="True" />
-                  <ComboBoxItem Content="添加新账号..." />
-                </ComboBox.Items>
-              </ComboBox>
+              <TextBox x:Name="OfflineUsernameBox"
+                       Text="Player_01"
+                       MaxLength="16"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       FontSize="14" />
             </StackPanel>
           </Border>
 
           <!-- 启动按钮 -->
           <Border Grid.Column="2" Margin="16,0,0,0">
-            <Button Content="启动游戏"
+            <Button x:Name="LaunchButton"
+                    Content="离线启动"
                     Width="160"
                     Height="48"
                     FontSize="16"
@@ -110,6 +126,7 @@
                     Background="{StaticResource SystemAccentColor}"
                     Foreground="White"
                     CornerRadius="12"
+                    Click="OnLaunchClick"
                     Cursor="Hand">
               <Button.Styles>
                 <Style Selector="Button:hover">
@@ -119,6 +136,14 @@
             </Button>
           </Border>
         </Grid>
+        <TextBlock x:Name="LaunchStatusText"
+                   Grid.Row="3"
+                   Text="正在查找本地 Minecraft 版本…"
+                   FontSize="12"
+                   Foreground="#8B8B9E"
+                   TextWrapping="Wrap"
+                   HorizontalAlignment="Center"
+                   Margin="0,18,0,0" />
       </Grid>
       </Border>
     </Border>
