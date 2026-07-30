@@ -22,43 +22,49 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
         int? requiredMajorVersion = null,
         string? runtimeDirectory = null)
     {
-        var candidates = new List<string?>();
+        var candidates = new List<(string? Path, bool IsPreferred)>();
 
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
-            candidates.Add(configuredPath);
+            candidates.Add((configuredPath, true));
         }
 
-        candidates.Add(Environment.GetEnvironmentVariable("NYALAUNCHER_JAVA"));
+        candidates.Add((Environment.GetEnvironmentVariable("NYALAUNCHER_JAVA"), true));
 
         var configuredRuntime = !string.IsNullOrWhiteSpace(runtimeDirectory)
             ? runtimeDirectory
             : Environment.GetEnvironmentVariable("NYALAUNCHER_JAVA_RUNTIME");
-        candidates.AddRange(EnumerateRuntimeJavaExecutables(configuredRuntime));
+        candidates.AddRange(EnumerateRuntimeJavaExecutables(configuredRuntime)
+            .Select(javaExecutable => ((string?)javaExecutable, false)));
 
         var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
         if (!string.IsNullOrWhiteSpace(javaHome))
         {
-            candidates.Add(Path.Combine(javaHome, "bin", GetExecutableName()));
+            candidates.Add((Path.Combine(javaHome, "bin", GetExecutableName()), false));
         }
 
         var path = Environment.GetEnvironmentVariable("PATH");
         if (!string.IsNullOrWhiteSpace(path))
         {
             candidates.AddRange(path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-                .Select(directory => Path.Combine(directory.Trim().Trim('"'), GetExecutableName())));
+                .Select(directory =>
+                    ((string?)Path.Combine(directory.Trim().Trim('"'), GetExecutableName()), false)));
         }
 
         var discoveredVersions = new List<int>();
-        foreach (var candidate in candidates
-                     .Where(value => !string.IsNullOrWhiteSpace(value))
-                     .Select(value => Environment.ExpandEnvironmentVariables(value!))
-                     .Distinct(GetPathComparer()))
+        var compatibleCandidates = new List<(string Path, int MajorVersion, int Index)>();
+        var visitedPaths = new HashSet<string>(GetPathComparer());
+        for (var index = 0; index < candidates.Count; index++)
         {
-            if (!File.Exists(candidate))
+            var candidate = candidates[index];
+            if (string.IsNullOrWhiteSpace(candidate.Path))
                 continue;
 
-            var fullPath = Path.GetFullPath(candidate);
+            var expandedPath = Environment.ExpandEnvironmentVariables(candidate.Path);
+            if (!visitedPaths.Add(expandedPath) || !File.Exists(expandedPath))
+                continue;
+
+            var fullPath = Path.GetFullPath(expandedPath);
             if (requiredMajorVersion is null)
                 return fullPath;
 
@@ -66,19 +72,34 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
             if (detectedVersion is int majorVersion)
             {
                 discoveredVersions.Add(majorVersion);
-                if (majorVersion == requiredMajorVersion)
+                if (majorVersion < requiredMajorVersion)
+                    continue;
+
+                // 显式配置优先；自动探测则在扫描完成后选择最接近最低要求的版本。
+                if (candidate.IsPreferred)
                     return fullPath;
+
+                compatibleCandidates.Add((fullPath, majorVersion, index));
             }
         }
 
+        if (compatibleCandidates.Count > 0)
+        {
+            return compatibleCandidates
+                .OrderBy(candidate => candidate.MajorVersion)
+                .ThenBy(candidate => candidate.Index)
+                .First()
+                .Path;
+        }
+
         var requirement = requiredMajorVersion is int required
-            ? $"该 Minecraft 版本需要 Java {required}。"
+            ? $"该 Minecraft 版本至少需要 Java {required}。"
             : string.Empty;
         var discovered = discoveredVersions.Count > 0
             ? $" 已检测到 Java {string.Join("、", discoveredVersions.Distinct().Order())}。"
             : string.Empty;
         throw new MinecraftLaunchException(
-            $"{requirement}{discovered} 请配置匹配版本的 JAVA_HOME、NYALAUNCHER_JAVA 或 runtime 目录。");
+            $"{requirement}{discovered} 请配置兼容版本的 JAVA_HOME、NYALAUNCHER_JAVA 或 runtime 目录。");
     }
 
     private static string GetExecutableName() => OperatingSystem.IsWindows() ? "java.exe" : "java";

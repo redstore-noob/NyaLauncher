@@ -73,7 +73,8 @@
 - 支持离线用户名校验与稳定 UUID 生成，不读取或依赖在线账号令牌。
 - 支持版本继承、现代与旧版启动参数、操作系统规则及 classpath 构建。
 - 支持安全解压 natives，并在游戏退出后清理临时文件。
-- 根据版本 JSON 的 Java 要求，从 Minecraft runtime、`NYALAUNCHER_JAVA`、`JAVA_HOME` 或 `PATH` 自动选择匹配的 Java。
+- 根据版本 JSON 的最低 Java 要求，从 Minecraft runtime、`NYALAUNCHER_JAVA`、`JAVA_HOME` 或 `PATH` 自动选择最接近要求的兼容版本；显式配置时允许使用更高主版本。
+- classpath 合并会区分普通库、`natives-*`、`unsafe` 等 Maven classifier，避免同名 LWJGL 依赖相互覆盖。
 - 启动页提供目录扫描、版本选择、离线用户名、运行状态和退出代码提示。
 
 > 离线账号不能进入要求正版认证的服务器；启动前需确保目标版本、依赖库和资源文件已经完整安装。
@@ -114,6 +115,10 @@ dotnet build -c Release
 ---
 
 ## 更新日志
+近期改动
+- 修复版本继承时 classpath 依赖索引覆盖问题。
+- Java 版本要求改为最低版本约束，支持使用更高主版本启动；已验证 Minecraft 1.21.4 可使用 Java 21 与 Java 25。
+
 v0.1.0pre1
 - 将用户界面中的GUI拆分成独立库(NyaLauncher.Avalonia.Animations)
 - 改善了出现的部分抽搐现象

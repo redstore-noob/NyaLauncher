@@ -180,8 +180,17 @@ internal sealed class MinecraftVersionProfileLoader
             return Guid.NewGuid().ToString("N");
         }
 
-        var parts = name.Split(':');
-        return parts.Length >= 2 ? $"{parts[0]}:{parts[1]}" : name;
+        var extensionSeparator = name.IndexOf('@');
+        var extension = extensionSeparator >= 0 ? name[extensionSeparator..] : string.Empty;
+        var coordinate = extensionSeparator >= 0 ? name[..extensionSeparator] : name;
+        var parts = coordinate.Split(':');
+        if (parts.Length < 3)
+            return name;
+
+        // 继承版本可覆盖同一 group/artifact/classifier 的旧版本，
+        // 但普通 JAR、natives-* 和 unsafe 等 classifier 必须同时保留。
+        var classifier = parts.Length >= 4 ? parts[3] : string.Empty;
+        return $"{parts[0]}:{parts[1]}:{classifier}{extension}";
     }
 
     private static string GetVersionJsonPath(string minecraftDirectory, string versionId) =>

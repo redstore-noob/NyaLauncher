@@ -94,7 +94,7 @@ public partial class LaunchPage : UserControl
             _gameProcess = result.Process;
             _gameProcess.Exited += OnGameExited;
             var javaHint = result.RequiredJavaMajorVersion is int javaMajor
-                ? $"（该版本要求 Java {javaMajor}）"
+                ? $"（至少需要 Java {javaMajor}，兼容更高版本）"
                 : string.Empty;
             LaunchStatusText.Text =
                 $"已启动 {result.VersionId}，离线用户名：{result.Username} {javaHint}";
