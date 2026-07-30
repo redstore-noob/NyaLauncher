@@ -1,11 +1,5 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-
-  <!-- ============================================ -->
-  <!-- 交互元素 Q 弹动效 — Interactive Effects       -->
-  <!-- ============================================ -->
-
-  <!-- ===== 1. 基础按钮样式 ===== -->
   <Style Selector="Button">
     <Setter Property="Background" Value="#2D2D44" />
     <Setter Property="Foreground" Value="#CCCCDD" />
@@ -21,25 +15,17 @@
       </Transitions>
     </Setter>
   </Style>
-
-  <!-- Button 悬停：提亮 + 描边光效 -->
   <Style Selector="Button:hover">
     <Setter Property="Background" Value="#3D3D5C" />
     <Setter Property="BorderBrush" Value="#7C5CBF" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
-
-  <!-- Button 按下：更深颜色 -->
   <Style Selector="Button:pressed">
     <Setter Property="Background" Value="#252538" />
   </Style>
-
-  <!-- Button 禁用 -->
   <Style Selector="Button:disabled">
     <Setter Property="Opacity" Value="0.45" />
   </Style>
-
-  <!-- ===== 2. 主要按钮（强调色） ===== -->
   <Style Selector="Button.Primary">
     <Setter Property="Background" Value="#7C5CBF" />
     <Setter Property="Foreground" Value="#FFFFFF" />
@@ -52,8 +38,6 @@
   <Style Selector="Button.Primary:pressed">
     <Setter Property="Background" Value="#6A4DA8" />
   </Style>
-
-  <!-- ===== 3. 危险按钮 ===== -->
   <Style Selector="Button.Danger">
     <Setter Property="Background" Value="#BF5C5C" />
     <Setter Property="Foreground" Value="#FFFFFF" />
@@ -66,8 +50,6 @@
   <Style Selector="Button.Danger:pressed">
     <Setter Property="Background" Value="#A84D4D" />
   </Style>
-
-  <!-- ===== 4. ComboBox ===== -->
   <Style Selector="ComboBox">
     <Setter Property="Background" Value="#1E1E2E" />
     <Setter Property="Foreground" Value="#CCCCDD" />
@@ -91,8 +73,6 @@
     <Setter Property="BorderBrush" Value="#7C5CBF" />
     <Setter Property="BorderThickness" Value="2" />
   </Style>
-
-  <!-- ComboBox 弹出项 -->
   <Style Selector="ComboBoxItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="#CCCCDD" />
@@ -106,8 +86,6 @@
     <Setter Property="Background" Value="#7C5CBF" />
     <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
-
-  <!-- ComboBox 弹出浮层美化 -->
   <Style Selector="ComboBox Popup > Border">
     <Setter Property="Background" Value="#1E1E2E" />
     <Setter Property="CornerRadius" Value="10" />
@@ -116,8 +94,6 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="BoxShadow" Value="0 8 24 #40000000" />
   </Style>
-
-  <!-- ===== 5. TextBox ===== -->
   <Style Selector="TextBox">
     <Setter Property="Background" Value="#1E1E2E" />
     <Setter Property="Foreground" Value="#CCCCDD" />
@@ -139,8 +115,6 @@
     <Setter Property="BorderBrush" Value="#7C5CBF" />
     <Setter Property="BorderThickness" Value="2" />
   </Style>
-
-  <!-- ===== 6. TabStripItem ===== -->
   <Style Selector="TabStripItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="#6B6B80" />
@@ -167,15 +141,11 @@
     <Setter Property="Foreground" Value="#FFFFFF" />
     <Setter Property="Background" Value="#1E1E30" />
   </Style>
-
-  <!-- ===== 7. TabItem 内容区域 ===== -->
   <Style Selector="TabItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="Margin" Value="0,8,0,0" />
   </Style>
-
-  <!-- ===== 8. ScrollBar ===== -->
   <Style Selector="ScrollBar">
     <Setter Property="Background" Value="Transparent" />
   </Style>
@@ -189,8 +159,6 @@
   <Style Selector="ScrollBar Thumb:pressed">
     <Setter Property="Background" Value="#7A7A90" />
   </Style>
-
-  <!-- ===== 9. CheckBox ===== -->
   <Style Selector="CheckBox">
     <Setter Property="Foreground" Value="#CCCCDD" />
     <Setter Property="FontSize" Value="13" />
@@ -200,8 +168,6 @@
   <Style Selector="CheckBox:hover">
     <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
-
-  <!-- ===== 10. RadioButton ===== -->
   <Style Selector="RadioButton">
     <Setter Property="Foreground" Value="#CCCCDD" />
     <Setter Property="FontSize" Value="13" />
@@ -211,8 +177,6 @@
   <Style Selector="RadioButton:hover">
     <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
-
-  <!-- ===== 11. ListBoxItem ===== -->
   <Style Selector="ListBoxItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="#CCCCDD" />
@@ -227,8 +191,6 @@
     <Setter Property="Background" Value="#7C5CBF" />
     <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
-
-  <!-- ===== 12. 导航项（侧栏用） ===== -->
   <Style Selector="Border.NavItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="CornerRadius" Value="10" />
@@ -245,8 +207,6 @@
   <Style Selector="Border.NavItem > Grid > TextBlock:last-child">
     <Setter Property="Opacity" Value="0" />
   </Style>
-
-  <!-- ===== 13. 项目卡片悬停（下载页用） ===== -->
   <Style Selector="Border.ProjectCard">
     <Setter Property="Background" Value="#1A1A2E" />
     <Setter Property="CornerRadius" Value="12" />
@@ -264,8 +224,6 @@
     <Setter Property="Background" Value="#22223A" />
     <Setter Property="BorderBrush" Value="#3A3A58" />
   </Style>
-
-  <!-- ===== 14. Slider ===== -->
   <Style Selector="Slider">
     <Setter Property="Background" Value="Transparent" />
   </Style>
@@ -284,16 +242,12 @@
   <Style Selector="Slider Thumb:pressed">
     <Setter Property="Background" Value="#6A4DA8" />
   </Style>
-
-  <!-- ===== 15. ToggleSwitch ===== -->
   <Style Selector="ToggleSwitch">
     <Setter Property="Foreground" Value="#CCCCDD" />
     <Setter Property="FontSize" Value="13" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="RenderTransformOrigin" Value="50%,50%" />
   </Style>
-
-  <!-- ===== 16. ToolTip ===== -->
   <Style Selector="ToolTip">
     <Setter Property="Background" Value="#1E1E30" />
     <Setter Property="Foreground" Value="#CCCCDD" />
@@ -303,15 +257,10 @@
     <Setter Property="BorderBrush" Value="#3A3A50" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
-
-  <!-- ===== 18. ScrollViewer ===== -->
   <Style Selector="ScrollViewer">
     <Setter Property="Background" Value="Transparent" />
   </Style>
-
-  <!-- ===== 19. SelectableTextBlock / TextBlock ===== -->
   <Style Selector="TextBlock">
     <Setter Property="Foreground" Value="#CCCCDD" />
   </Style>
-
 </Styles>

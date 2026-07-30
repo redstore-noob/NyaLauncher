@@ -4,9 +4,11 @@
 **/out/
 **/publish/
 
-# Visual Studio / VS Code
+# Visual Studio / VS Code / Codex
 .vs/
 .vscode/
+.appdata/
+.localappdata/
 *.suo
 *.user
 *.userosscache

@@ -19,5 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NyaLauncher.Core\NyaLauncher.Core.csproj" />
+    <ProjectReference Include="..\NyaLauncher.Avalonia.Animations\NyaLauncher.Avalonia.Animations.csproj" />
   </ItemGroup>
 </Project>

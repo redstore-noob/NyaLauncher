@@ -93,7 +93,7 @@
 
         <!-- 底部版本信息 -->
         <TextBlock Grid.Row="2"
-                   Text="v0.1.0 alpha"
+                   Text="v0.1.0pre1"
                    FontSize="12"
                    Foreground="#4A4A60"
                    Margin="24,0,0,20"
@@ -132,8 +132,7 @@
     <Border Grid.Column="1" Background="{StaticResource ContentBackground}">
       <Grid>
         <!-- 页面容器 -->
-        <Grid x:Name="ContentArea">
-        </Grid>
+        <ContentControl x:Name="ContentHost" />
 
         <!-- 水波纹特效层（不拦截鼠标事件） -->
         <Canvas x:Name="RippleLayer" IsHitTestVisible="False" />

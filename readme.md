@@ -93,3 +93,11 @@ dotnet restore
 dotnet build -c Release
 ```
 > 再次声明:该项目目前仍处于不完善状态，任何可能出现的使用中/构建时的问题全部在允许的范围内。
+
+---
+
+## 更新日志
+v0.1.0pre1
+- 将用户界面中的GUI拆分成独立库(NyaLauncher.Avalonia.Animations)
+- 改善了出现的部分抽搐现象
+![v0.1.0pre1主界面截图](img/v0.1.0pre1.png)

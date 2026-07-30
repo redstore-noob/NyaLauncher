@@ -26,6 +26,6 @@
     </Style>
 
     <!-- 交互元素 Q 弹动效 -->
-    <StyleInclude Source="/Styles/InteractiveEffects.axaml" />
+    <StyleInclude Source="avares://NyaLauncher.Avalonia.Animations/Styles/InteractiveEffects.axaml" />
   </Application.Styles>
 </Application>

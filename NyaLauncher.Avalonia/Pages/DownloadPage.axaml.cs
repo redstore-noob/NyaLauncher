@@ -5,11 +5,10 @@ using System.Linq;
 using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using NyaLauncher.Avalonia.Helpers;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Models;
 
@@ -19,21 +18,18 @@ public partial class DownloadPage : UserControl
 {
     private const int PageSize = 50;
 
-    // 原始完整数据
     private List<MinecraftVersion>? _allVersions;
     private List<ModrinthProject>? _allMods;
     private List<ModrinthProject>? _allModpacks;
     private List<ModrinthProject>? _allShaders;
     private List<ModrinthProject>? _allResourcepacks;
 
-    // 当前筛选后的完整列表
     private List<MinecraftVersion>? _versionFiltered;
     private List<ModrinthProject>? _modFiltered;
     private List<ModrinthProject>? _modpackFiltered;
     private List<ModrinthProject>? _shaderFiltered;
     private List<ModrinthProject>? _resourcepackFiltered;
 
-    // 当前页码
     private int _versionPage = 1;
     private int _modPage = 1;
     private int _modpackPage = 1;
@@ -43,17 +39,31 @@ public partial class DownloadPage : UserControl
     private int _loadingCount;
     private const int TotalLoads = 5;
     private bool _isRefreshing;
+    private bool _initialListEffectsQueued;
 
     public DownloadPage()
     {
         InitializeComponent();
         LoadingOverlay.IsVisible = true;
-        _ = System.Threading.Tasks.Task.Run(LoadAllAsync);
-
-        // 加载旋转动画
+        AttachedToVisualTree += OnAttachedToVisualTree;
+        _ = LoadAllAsync();
         StartSpinnerAnimation();
+    }
 
-        // 全局动效由 MainWindow.SwitchToPage 在页面切换时统一附加
+    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (_initialListEffectsQueued)
+            return;
+
+        _initialListEffectsQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            QueueListItemEffects(VersionList);
+            QueueListItemEffects(ModList);
+            QueueListItemEffects(ModpackList);
+            QueueListItemEffects(ShaderList);
+            QueueListItemEffects(ResourcepackList);
+        }, DispatcherPriority.Loaded);
     }
 
     private void StartSpinnerAnimation()
@@ -86,10 +96,7 @@ public partial class DownloadPage : UserControl
             LoadCategoryAsync("材质包", v => _allResourcepacks = v, ResourcepackList, ResourcepackCountText, ModrinthSearch.GetResourcePacksAsync)
         );
 
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            LoadingOverlay.IsVisible = false;
-        });
+        await Dispatcher.UIThread.InvokeAsync(() => LoadingOverlay.IsVisible = false);
     }
 
     private async System.Threading.Tasks.Task LoadVersionsAsync()
@@ -115,7 +122,7 @@ public partial class DownloadPage : UserControl
                 SignalLoadComplete();
             });
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -129,10 +136,10 @@ public partial class DownloadPage : UserControl
 
     private async System.Threading.Tasks.Task LoadCategoryAsync(
         string categoryName,
-        System.Action<List<ModrinthProject>> storeFunc,
+        Action<List<ModrinthProject>> storeFunc,
         ItemsControl listControl,
         TextBlock countText,
-        System.Func<int, System.Threading.Tasks.Task<List<ModrinthProject>>> fetchFunc)
+        Func<int, System.Threading.Tasks.Task<List<ModrinthProject>>> fetchFunc)
     {
         try
         {
@@ -148,15 +155,12 @@ public partial class DownloadPage : UserControl
             {
                 storeFunc(items);
                 countText.Text = $"来自 Modrinth · 共 {items.Count} 个{categoryName}";
-
-                // 初始加载后显示第一页
                 listControl.ItemsSource = new ObservableCollection<ModrinthProject>(items);
-                _ = BounceBehavior.AttachListItemEffectsAsync(listControl, 1.03, RippleBehavior.GlobalRippleLayer);
-
+                QueueListItemEffects(listControl);
                 SignalLoadComplete();
             });
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -170,35 +174,15 @@ public partial class DownloadPage : UserControl
     {
         var completed = Interlocked.Increment(ref _loadingCount);
         if (completed >= TotalLoads)
-        {
             LoadingOverlay.IsVisible = false;
-        }
     }
 
-    // ===================== 分页辅助 =====================
-
-    private static void ApplyPagination<T>(List<T> source, int page, out List<T> pageItems, out int totalPages)
-    {
-        totalPages = (source.Count + PageSize - 1) / PageSize;
-        if (totalPages < 1) totalPages = 1;
-        if (page < 1) page = 1;
-        if (page > totalPages) page = totalPages;
-
-        pageItems = source
-            .Skip((page - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
-    }
-
-    private static void UpdatePageUI(TextBlock pageText, Button prevBtn, Button nextBtn,
-        int page, int totalPages, string countPrefix, int totalCount)
+    private static void UpdatePageUI(TextBlock pageText, Button prevBtn, Button nextBtn, int page, int totalPages)
     {
         pageText.Text = $"第 {page} 页 / 共 {totalPages} 页";
         prevBtn.IsEnabled = page > 1;
         nextBtn.IsEnabled = page < totalPages;
     }
-
-    // ===================== 版本筛选 + 分页 =====================
 
     private void ApplyFilter()
     {
@@ -215,7 +199,7 @@ public partial class DownloadPage : UserControl
         var searchText = VersionSearchBox?.Text ?? "";
         _versionFiltered = VersionFilter.Apply(_allVersions, filterKey)
             .Where(v => string.IsNullOrWhiteSpace(searchText) ||
-                        v.Id.Contains(searchText, System.StringComparison.OrdinalIgnoreCase))
+                        v.Id.Contains(searchText, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         _versionPage = 1;
@@ -225,19 +209,15 @@ public partial class DownloadPage : UserControl
     private void ShowVersionPage()
     {
         if (_versionFiltered is null) return;
-        var totalPages = (_versionFiltered.Count + PageSize - 1) / PageSize;
-        if (totalPages < 1) totalPages = 1;
-        _versionPage = _versionPage < 1 ? 1 : _versionPage > totalPages ? totalPages : _versionPage;
+        var totalPages = Math.Max(1, (_versionFiltered.Count + PageSize - 1) / PageSize);
+        _versionPage = Math.Clamp(_versionPage, 1, totalPages);
 
         VersionList.ItemsSource = new ObservableCollection<MinecraftVersion>(
             _versionFiltered.Skip((_versionPage - 1) * PageSize).Take(PageSize));
-        _ = BounceBehavior.AttachListItemEffectsAsync(VersionList, 1.03, RippleBehavior.GlobalRippleLayer);
+        QueueListItemEffects(VersionList);
         VersionCountText.Text = $"共 {_versionFiltered.Count} 个版本 · 第 {_versionPage}/{totalPages} 页";
-        UpdatePageUI(VersionPageText, VersionPrevBtn, VersionNextBtn,
-            _versionPage, totalPages, "版本", _versionFiltered.Count);
+        UpdatePageUI(VersionPageText, VersionPrevBtn, VersionNextBtn, _versionPage, totalPages);
     }
-
-    // ===================== Modrinth 筛选 + 分页 =====================
 
     private void FilterAndPageModrinth(
         List<ModrinthProject>? allItems, string searchText,
@@ -250,40 +230,32 @@ public partial class DownloadPage : UserControl
 
         var query = allItems.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(searchText))
-        {
-            query = query.Where(p =>
-                p.Title.Contains(searchText, System.StringComparison.OrdinalIgnoreCase) ||
-                p.Description.Contains(searchText, System.StringComparison.OrdinalIgnoreCase));
-        }
+            query = query.Where(p => p.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                                     p.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase));
 
         filteredStore = query.ToList();
         page = 1;
 
-        var totalPages = (filteredStore.Count + PageSize - 1) / PageSize;
-        if (totalPages < 1) totalPages = 1;
-
-        listControl.ItemsSource = new ObservableCollection<ModrinthProject>(
-            filteredStore.Take(PageSize));
-        _ = BounceBehavior.AttachListItemEffectsAsync(listControl, 1.03, RippleBehavior.GlobalRippleLayer);
+        var totalPages = Math.Max(1, (filteredStore.Count + PageSize - 1) / PageSize);
+        listControl.ItemsSource = new ObservableCollection<ModrinthProject>(filteredStore.Take(PageSize));
+        QueueListItemEffects(listControl);
         countText.Text = $"来自 Modrinth · 共 {filteredStore.Count} 个{categoryName} · 第 1/{totalPages} 页";
-        UpdatePageUI(pageText, prevBtn, nextBtn, 1, totalPages, categoryName, filteredStore.Count);
+        UpdatePageUI(pageText, prevBtn, nextBtn, 1, totalPages);
     }
-
-    // ===================== 联网搜索 =====================
 
     private async System.Threading.Tasks.Task<List<ModrinthProject>?> SearchModrinthAsync(
         string searchText, string projectType, string categoryName,
         TextBlock countText)
     {
         if (string.IsNullOrWhiteSpace(searchText))
-            return null; // 空搜索 → 使用缓存由调用方处理
+            return null;
 
         try
         {
             countText.Text = $"正在搜索{categoryName}…";
             return await ModrinthSearch.SearchAsync(projectType, searchText);
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             countText.Text = $"搜索失败: {ex.Message}";
             return null;
@@ -297,21 +269,18 @@ public partial class DownloadPage : UserControl
         string categoryName)
     {
         if (filteredStore is null) return;
-        var totalPages = (filteredStore.Count + PageSize - 1) / PageSize;
-        if (totalPages < 1) totalPages = 1;
-        page = page < 1 ? 1 : page > totalPages ? totalPages : page;
+
+        var totalPages = Math.Max(1, (filteredStore.Count + PageSize - 1) / PageSize);
+        page = Math.Clamp(page, 1, totalPages);
 
         listControl.ItemsSource = new ObservableCollection<ModrinthProject>(
             filteredStore.Skip((page - 1) * PageSize).Take(PageSize));
-        _ = BounceBehavior.AttachListItemEffectsAsync(listControl, 1.03, RippleBehavior.GlobalRippleLayer);
+        QueueListItemEffects(listControl);
         countText.Text = $"来自 Modrinth · 共 {filteredStore.Count} 个{categoryName} · 第 {page}/{totalPages} 页";
-        UpdatePageUI(pageText, prevBtn, nextBtn, page, totalPages, categoryName, filteredStore.Count);
+        UpdatePageUI(pageText, prevBtn, nextBtn, page, totalPages);
     }
 
-    // ===================== 搜索事件 =====================
-
-    private void OnVersionSearchChanged(object? sender, TextChangedEventArgs e)
-        => ApplyFilter();
+    private void OnVersionSearchChanged(object? sender, TextChangedEventArgs e) => ApplyFilter();
 
     private async void OnModSearchChanged(object? sender, TextChangedEventArgs e)
     {
@@ -320,17 +289,16 @@ public partial class DownloadPage : UserControl
         {
             FilterAndPageModrinth(_allMods, "", ref _modFiltered, ref _modPage,
                 ModList, ModCountText, ModPageText, ModPrevBtn, ModNextBtn, "Mod");
+            return;
         }
-        else
+
+        var results = await SearchModrinthAsync(searchText, "mod", "Mod", ModCountText);
+        if (results is not null)
         {
-            var results = await SearchModrinthAsync(searchText, "mod", "Mod", ModCountText);
-            if (results is not null)
-            {
-                _modFiltered = results;
-                _modPage = 1;
-                ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
-                    ModPageText, ModPrevBtn, ModNextBtn, "Mod");
-            }
+            _modFiltered = results;
+            _modPage = 1;
+            ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
+                ModPageText, ModPrevBtn, ModNextBtn, "Mod");
         }
     }
 
@@ -341,17 +309,16 @@ public partial class DownloadPage : UserControl
         {
             FilterAndPageModrinth(_allModpacks, "", ref _modpackFiltered, ref _modpackPage,
                 ModpackList, ModpackCountText, ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
+            return;
         }
-        else
+
+        var results = await SearchModrinthAsync(searchText, "modpack", "整合包", ModpackCountText);
+        if (results is not null)
         {
-            var results = await SearchModrinthAsync(searchText, "modpack", "整合包", ModpackCountText);
-            if (results is not null)
-            {
-                _modpackFiltered = results;
-                _modpackPage = 1;
-                ShowModrinthPage(_modpackFiltered, ref _modpackPage, ModpackList, ModpackCountText,
-                    ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
-            }
+            _modpackFiltered = results;
+            _modpackPage = 1;
+            ShowModrinthPage(_modpackFiltered, ref _modpackPage, ModpackList, ModpackCountText,
+                ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
         }
     }
 
@@ -362,17 +329,16 @@ public partial class DownloadPage : UserControl
         {
             FilterAndPageModrinth(_allShaders, "", ref _shaderFiltered, ref _shaderPage,
                 ShaderList, ShaderCountText, ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
+            return;
         }
-        else
+
+        var results = await SearchModrinthAsync(searchText, "shader", "光影包", ShaderCountText);
+        if (results is not null)
         {
-            var results = await SearchModrinthAsync(searchText, "shader", "光影包", ShaderCountText);
-            if (results is not null)
-            {
-                _shaderFiltered = results;
-                _shaderPage = 1;
-                ShowModrinthPage(_shaderFiltered, ref _shaderPage, ShaderList, ShaderCountText,
-                    ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
-            }
+            _shaderFiltered = results;
+            _shaderPage = 1;
+            ShowModrinthPage(_shaderFiltered, ref _shaderPage, ShaderList, ShaderCountText,
+                ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
         }
     }
 
@@ -383,117 +349,143 @@ public partial class DownloadPage : UserControl
         {
             FilterAndPageModrinth(_allResourcepacks, "", ref _resourcepackFiltered, ref _resourcepackPage,
                 ResourcepackList, ResourcepackCountText, ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
+            return;
         }
-        else
+
+        var results = await SearchModrinthAsync(searchText, "resourcepack", "材质包", ResourcepackCountText);
+        if (results is not null)
         {
-            var results = await SearchModrinthAsync(searchText, "resourcepack", "材质包", ResourcepackCountText);
-            if (results is not null)
-            {
-                _resourcepackFiltered = results;
-                _resourcepackPage = 1;
-                ShowModrinthPage(_resourcepackFiltered, ref _resourcepackPage, ResourcepackList, ResourcepackCountText,
-                    ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
-            }
+            _resourcepackFiltered = results;
+            _resourcepackPage = 1;
+            ShowModrinthPage(_resourcepackFiltered, ref _resourcepackPage, ResourcepackList, ResourcepackCountText,
+                ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
         }
     }
 
-    // ===================== 翻页事件 =====================
-
     private void OnVersionPrevClick(object? sender, RoutedEventArgs e)
     {
-        if (_versionFiltered is not null && _versionPage > 1) { _versionPage--; ShowVersionPage(); }
+        if (_versionFiltered is not null && _versionPage > 1)
+        {
+            _versionPage--;
+            ShowVersionPage();
+        }
     }
 
     private void OnVersionNextClick(object? sender, RoutedEventArgs e)
     {
-        if (_versionFiltered is not null)
+        if (_versionFiltered is null) return;
+        var total = Math.Max(1, (_versionFiltered.Count + PageSize - 1) / PageSize);
+        if (_versionPage < total)
         {
-            var total = (_versionFiltered.Count + PageSize - 1) / PageSize;
-            if (_versionPage < total) { _versionPage++; ShowVersionPage(); }
+            _versionPage++;
+            ShowVersionPage();
         }
     }
 
     private void OnModPrevClick(object? sender, RoutedEventArgs e)
     {
-        if (_modFiltered is not null && _modPage > 1) { _modPage--;
+        if (_modFiltered is not null && _modPage > 1)
+        {
+            _modPage--;
             ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
-                ModPageText, ModPrevBtn, ModNextBtn, "Mod"); }
+                ModPageText, ModPrevBtn, ModNextBtn, "Mod");
+        }
     }
 
     private void OnModNextClick(object? sender, RoutedEventArgs e)
     {
-        if (_modFiltered is not null)
+        if (_modFiltered is null) return;
+        var total = Math.Max(1, (_modFiltered.Count + PageSize - 1) / PageSize);
+        if (_modPage < total)
         {
-            var total = (_modFiltered.Count + PageSize - 1) / PageSize;
-            if (_modPage < total) { _modPage++;
-                ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
-                    ModPageText, ModPrevBtn, ModNextBtn, "Mod"); }
+            _modPage++;
+            ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
+                ModPageText, ModPrevBtn, ModNextBtn, "Mod");
         }
     }
 
     private void OnModpackPrevClick(object? sender, RoutedEventArgs e)
     {
-        if (_modpackFiltered is not null && _modpackPage > 1) { _modpackPage--;
+        if (_modpackFiltered is not null && _modpackPage > 1)
+        {
+            _modpackPage--;
             ShowModrinthPage(_modpackFiltered, ref _modpackPage, ModpackList, ModpackCountText,
-                ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包"); }
+                ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
+        }
     }
 
     private void OnModpackNextClick(object? sender, RoutedEventArgs e)
     {
-        if (_modpackFiltered is not null)
+        if (_modpackFiltered is null) return;
+        var total = Math.Max(1, (_modpackFiltered.Count + PageSize - 1) / PageSize);
+        if (_modpackPage < total)
         {
-            var total = (_modpackFiltered.Count + PageSize - 1) / PageSize;
-            if (_modpackPage < total) { _modpackPage++;
-                ShowModrinthPage(_modpackFiltered, ref _modpackPage, ModpackList, ModpackCountText,
-                    ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包"); }
+            _modpackPage++;
+            ShowModrinthPage(_modpackFiltered, ref _modpackPage, ModpackList, ModpackCountText,
+                ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
         }
     }
 
     private void OnShaderPrevClick(object? sender, RoutedEventArgs e)
     {
-        if (_shaderFiltered is not null && _shaderPage > 1) { _shaderPage--;
+        if (_shaderFiltered is not null && _shaderPage > 1)
+        {
+            _shaderPage--;
             ShowModrinthPage(_shaderFiltered, ref _shaderPage, ShaderList, ShaderCountText,
-                ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包"); }
+                ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
+        }
     }
 
     private void OnShaderNextClick(object? sender, RoutedEventArgs e)
     {
-        if (_shaderFiltered is not null)
+        if (_shaderFiltered is null) return;
+        var total = Math.Max(1, (_shaderFiltered.Count + PageSize - 1) / PageSize);
+        if (_shaderPage < total)
         {
-            var total = (_shaderFiltered.Count + PageSize - 1) / PageSize;
-            if (_shaderPage < total) { _shaderPage++;
-                ShowModrinthPage(_shaderFiltered, ref _shaderPage, ShaderList, ShaderCountText,
-                    ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包"); }
+            _shaderPage++;
+            ShowModrinthPage(_shaderFiltered, ref _shaderPage, ShaderList, ShaderCountText,
+                ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
         }
     }
 
     private void OnResourcepackPrevClick(object? sender, RoutedEventArgs e)
     {
-        if (_resourcepackFiltered is not null && _resourcepackPage > 1) { _resourcepackPage--;
+        if (_resourcepackFiltered is not null && _resourcepackPage > 1)
+        {
+            _resourcepackPage--;
             ShowModrinthPage(_resourcepackFiltered, ref _resourcepackPage, ResourcepackList, ResourcepackCountText,
-                ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包"); }
+                ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
+        }
     }
 
     private void OnResourcepackNextClick(object? sender, RoutedEventArgs e)
     {
-        if (_resourcepackFiltered is not null)
+        if (_resourcepackFiltered is null) return;
+        var total = Math.Max(1, (_resourcepackFiltered.Count + PageSize - 1) / PageSize);
+        if (_resourcepackPage < total)
         {
-            var total = (_resourcepackFiltered.Count + PageSize - 1) / PageSize;
-            if (_resourcepackPage < total) { _resourcepackPage++;
-                ShowModrinthPage(_resourcepackFiltered, ref _resourcepackPage, ResourcepackList, ResourcepackCountText,
-                    ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包"); }
+            _resourcepackPage++;
+            ShowModrinthPage(_resourcepackFiltered, ref _resourcepackPage, ResourcepackList, ResourcepackCountText,
+                ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
         }
     }
 
-    private void OnVersionFilterChanged(object? sender, SelectionChangedEventArgs e)
-        => ApplyFilter();
+    private void OnVersionFilterChanged(object? sender, SelectionChangedEventArgs e) => ApplyFilter();
 
     private async void OnRefreshClick(object? sender, RoutedEventArgs e)
     {
         if (_isRefreshing) return;
         _isRefreshing = true;
         LoadingOverlay.IsVisible = true;
-        await System.Threading.Tasks.Task.Run(LoadAllAsync);
+        await LoadAllAsync();
         _isRefreshing = false;
+    }
+
+    private void QueueListItemEffects(ItemsControl listControl)
+    {
+        _ = BounceBehavior.AttachListItemEffectsAsync(listControl, 1.03, RippleBehavior.GlobalRippleLayer);
+        Dispatcher.UIThread.Post(
+            () => _ = BounceBehavior.AttachListItemEffectsAsync(listControl, 1.03, RippleBehavior.GlobalRippleLayer),
+            DispatcherPriority.Loaded);
     }
 }

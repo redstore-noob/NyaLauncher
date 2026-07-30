@@ -1,12 +1,11 @@
 using System;
 using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using NyaLauncher.Avalonia.Helpers;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Pages;
 
 namespace NyaLauncher.Avalonia;
@@ -25,22 +24,21 @@ public partial class MainWindow : Window
     private readonly SolidColorBrush _navActiveBg = new(Color.Parse("#2D2D44"));
     private readonly SolidColorBrush _navInactiveBg = new(Color.Parse("#00000000"));
 
-    private bool _sidebarExpanded = false;
+    private bool _sidebarExpanded;
+    private bool _sidebarAnimating;
+    private int _currentPageIndex = -1;
 
     public MainWindow()
     {
         InitializeComponent();
 
         _sidebarColumn = RootGrid.ColumnDefinitions[0];
-
         _navItems = [NavLaunch, NavDownload, NavSettings];
 
         NavLaunch.PointerPressed += (_, _) => SwitchToPage(0);
         NavDownload.PointerPressed += (_, _) => SwitchToPage(1);
         NavSettings.PointerPressed += (_, _) => SwitchToPage(2);
 
-        // 给导航项（Border）手动附加悬停 + 点击效果
-        // （AttachAll 只认 Button/ComboBox 等，不认 Border）
         foreach (var nav in _navItems)
         {
             BounceBehavior.AttachHoverScale(nav, 1.03);
@@ -50,36 +48,32 @@ public partial class MainWindow : Window
 
         SidebarToggle.PointerPressed += async (_, _) => await ToggleSidebarAsync();
 
-        // 初始化侧边栏收起状态
         ApplySidebarState(_sidebarExpanded, animate: false);
-
-        // 注册全局波纹层供子页面使用
         RippleBehavior.GlobalRippleLayer = RippleLayer;
 
-        // 全局动效：自动遍历窗口内的所有交互控件
-        GlobalEffectInitializer.AttachAll(this, RippleLayer);
+        // 让整个窗口先成型，再统一附加全局效果，避免首帧抖动
+        Dispatcher.UIThread.Post(() => GlobalEffectInitializer.AttachAll(this, RippleLayer), DispatcherPriority.Loaded);
 
-        // 默认显示启动页
         SwitchToPage(0);
     }
 
     private void SwitchToPage(int index)
     {
-        // 更新导航选中状态
+        if (_currentPageIndex == index)
+            return;
+
         for (var i = 0; i < _navItems.Length; i++)
         {
             var nav = _navItems[i];
             nav.Background = i == index ? _navActiveBg : _navInactiveBg;
             nav.Classes.Set("NavSelected", i == index);
 
-            // 更新所有文字颜色
             foreach (var tb in nav.GetVisualDescendants().OfType<TextBlock>())
             {
                 tb.Foreground = i == index ? _navActiveFg : _navInactiveFg;
             }
         }
 
-        // 切换页面（带渐入动画）
         var newPage = index switch
         {
             0 => _launchPage,
@@ -89,23 +83,12 @@ public partial class MainWindow : Window
         };
 
         newPage.Opacity = 0;
-        ContentArea.Children.Clear();
-        ContentArea.Children.Add(newPage);
+        ContentHost.Content = newPage;
 
-        // 等页面完全加载（视觉树就绪）后附加动效
-        // 注意：UserControl 的 ContentPresenter 在刚 Add 时尚未创建，
-        // 直接 GetVisualChildren 会返回空，所以必须等 Loaded
-        newPage.Loaded += OnPageLoaded;
+        Dispatcher.UIThread.Post(() => newPage.Opacity = 1, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() => GlobalEffectInitializer.AttachAll(newPage, RippleLayer), DispatcherPriority.Loaded);
 
-        // 延迟一帧触发渐入
-        Dispatcher.UIThread.InvokeAsync(() => { newPage.Opacity = 1; },
-            DispatcherPriority.Background);
-
-        void OnPageLoaded(object? sender, global::Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            newPage.Loaded -= OnPageLoaded;
-            GlobalEffectInitializer.AttachAll(newPage, RippleLayer);
-        }
+        _currentPageIndex = index;
     }
 
     private async System.Threading.Tasks.Task ToggleSidebarAsync()
@@ -116,8 +99,6 @@ public partial class MainWindow : Window
         _sidebarExpanded = !_sidebarExpanded;
         await AnimateSidebarAsync(_sidebarExpanded);
     }
-
-    private bool _sidebarAnimating = false;
 
     private void ApplySidebarState(bool expanded, bool animate)
     {
@@ -152,7 +133,7 @@ public partial class MainWindow : Window
         for (var i = 1; i <= frames; i++)
         {
             var t = i / (double)frames;
-            var eased = 1 - Math.Pow(1 - t, 3); // CubicOut easing
+            var eased = 1 - Math.Pow(1 - t, 3);
             var width = from + (to - from) * eased;
             _sidebarColumn.Width = new GridLength(width);
 
@@ -183,4 +164,3 @@ public partial class MainWindow : Window
         _sidebarAnimating = false;
     }
 }
-
