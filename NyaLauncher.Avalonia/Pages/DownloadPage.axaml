@@ -1,0 +1,514 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:NyaLauncher.Core.Models"
+             xmlns:local="using:NyaLauncher.Avalonia.Controls"
+             x:Class="NyaLauncher.Avalonia.Pages.DownloadPage">
+  <UserControl.Styles>
+    <!-- 列表项悬停 -->
+    <Style Selector="Border.ItemHover">
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+    </Style>
+    <Style Selector="Border.ItemHover:pointerover">
+      <Setter Property="Background" Value="#32324A" />
+    </Style>
+  </UserControl.Styles>
+  <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
+
+    <!-- 标题区 -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
+      <StackPanel Spacing="8">
+        <TextBlock Text="资源下载"
+                   FontSize="28"
+                   FontWeight="Bold"
+                   Foreground="#FFFFFF" />
+        <TextBlock Text="快速获取你需要的游戏资源"
+                   FontSize="13"
+                   Foreground="#8B8B9E" />
+      </StackPanel>
+      <Button Grid.Column="1"
+              x:Name="RefreshButton"
+              Content="⟳ 刷新"
+              Background="#2D2D44"
+              Foreground="#CCCCDD"
+              CornerRadius="8"
+              Padding="16,8"
+              FontSize="13"
+              FontWeight="Medium"
+              VerticalAlignment="Bottom"
+              Cursor="Hand"
+              Margin="0,0,0,2"
+              Click="OnRefreshClick"
+              RenderTransformOrigin="50%,50%">
+      </Button>
+    </Grid>
+
+    <!-- TabControl -->
+    <Border Grid.Row="1"
+            Background="#1E1E2E"
+            CornerRadius="16"
+            Padding="0"
+            Margin="0">
+      <TabControl x:Name="DownloadTabs"
+                  BorderThickness="0"
+                  Background="Transparent">
+
+        <!-- ===== Minecraft 本体 ===== -->
+
+        <!-- ===== Minecraft 本体 ===== -->
+        <TabItem Header="Minecraft 本体">
+          <ScrollViewer>
+            <StackPanel Spacing="16" Margin="24,20,24,24">
+
+              <!-- 搜索栏 + 筛选器 -->
+              <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1"
+                           x:Name="VersionSearchBox"
+                           PlaceholderText="搜索版本号..."
+                           Background="Transparent"
+                           BorderThickness="0"
+                           Foreground="#CCCCDD"
+                           FontSize="13"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"
+                           CaretBrush="#CCCCDD"
+                           TextChanged="OnVersionSearchChanged" />
+                  <ComboBox Grid.Column="2" x:Name="VersionTypeFilter"
+                            SelectedIndex="0"
+                            Background="#1E1E2E"
+                            BorderThickness="0"
+                            CornerRadius="6"
+                            Padding="10,4"
+                            FontSize="12"
+                            Width="110"
+                            SelectionChanged="OnVersionFilterChanged">
+                    <ComboBox.Items>
+                      <ComboBoxItem Content="全部版本" />
+                      <ComboBoxItem Content="正式版" />
+                      <ComboBoxItem Content="快照版" />
+                      <ComboBoxItem Content="远古版本" />
+                    </ComboBox.Items>
+                  </ComboBox>
+                </Grid>
+              </Border>
+
+                  <!-- 版本列表 -->
+                  <ItemsControl x:Name="VersionList">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="models:MinecraftVersion">
+                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="#3A2570">
+                              <TextBlock Text="{Binding TypeIcon}" FontSize="18"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+                              <TextBlock Text="{Binding DisplayName}"
+                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                              <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding TypeDisplay}"
+                                           FontSize="12" Foreground="#8B8B9E" />
+                                <TextBlock Text="·" FontSize="12" Foreground="#4A4A60" />
+                                <TextBlock Text="{Binding ReleaseDateDisplay}"
+                                           FontSize="12" Foreground="#8B8B9E" />
+                              </StackPanel>
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Content="下载"
+                                    Background="{StaticResource SystemAccentColor}"
+                                    Foreground="White"
+                                    CornerRadius="6"
+                                    Padding="16,6"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    VerticalAlignment="Center"
+                                    Cursor="Hand" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <!-- 底部提示 + 分页 -->
+                  <TextBlock x:Name="VersionCountText"
+                             FontSize="12" Foreground="#5A5A70"
+                             HorizontalAlignment="Center" />
+                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Button x:Name="VersionPrevBtn" Content="◀ 上一页"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnVersionPrevClick" />
+                      <TextBlock x:Name="VersionPageText" Grid.Column="1"
+                                 Text="第 1 页 / 共 1 页"
+                                 FontSize="13" Foreground="#8B8B9E"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Button x:Name="VersionNextBtn" Grid.Column="2" Content="下一页 ▶"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnVersionNextClick" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Mod ===== -->
+            <TabItem Header="Mod">
+              <ScrollViewer>
+                <StackPanel Spacing="16" Margin="24,20,24,24">
+
+                  <!-- 搜索栏 -->
+                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBox Grid.Column="1"
+                               x:Name="ModSearchBox"
+                               PlaceholderText="搜索 Mod 名称..."
+                               Background="Transparent"
+                               BorderThickness="0"
+                               Foreground="#CCCCDD"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"
+                               CaretBrush="#CCCCDD"
+                               TextChanged="OnModSearchChanged" />
+                      <ComboBox Grid.Column="2"
+                                PlaceholderText="所有版本"
+                                Background="#1E1E2E"
+                                BorderThickness="0"
+                                CornerRadius="6"
+                                Padding="10,4"
+                                FontSize="12"
+                                Width="100">
+                        <ComboBox.Items>
+                          <ComboBoxItem Content="所有版本" IsSelected="True" />
+                          <ComboBoxItem Content="1.21" />
+                          <ComboBoxItem Content="1.20" />
+                          <ComboBoxItem Content="1.19" />
+                        </ComboBox.Items>
+                      </ComboBox>
+                    </Grid>
+                  </Border>
+
+                  <!-- Mod 列表 -->
+                  <ItemsControl x:Name="ModList">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="models:ModrinthProject">
+                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="#2D2D5A" ClipToBounds="True">
+                              <Grid>
+                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <local:AsyncImage Width="40" Height="40"
+                                       SourceUrl="{Binding IconUrl}"
+                                       Stretch="UniformToFill" />
+                              </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+                              <TextBlock Text="{Binding Title}"
+                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                              <TextBlock Text="{Binding Description}"
+                                         FontSize="12" Foreground="#8B8B9E"
+                                         TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+                              <TextBlock Text="{Binding DownloadsDisplay}"
+                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                              <TextBlock Text="{Binding FollowsDisplay}"
+                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <!-- 底部提示 + 分页 -->
+                  <TextBlock x:Name="ModCountText"
+                             FontSize="12" Foreground="#5A5A70"
+                             HorizontalAlignment="Center" />
+                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Button x:Name="ModPrevBtn" Content="◀ 上一页"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnModPrevClick" />
+                      <TextBlock x:Name="ModPageText" Grid.Column="1"
+                                 Text="第 1 页 / 共 1 页"
+                                 FontSize="13" Foreground="#8B8B9E"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Button x:Name="ModNextBtn" Grid.Column="2" Content="下一页 ▶"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnModNextClick" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== 整合包 ===== -->
+            <TabItem Header="整合包">
+              <ScrollViewer>
+                <StackPanel Spacing="16" Margin="24,20,24,24">
+
+                  <!-- 搜索栏 -->
+                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBox Grid.Column="1"
+                               x:Name="ModpackSearchBox"
+                               PlaceholderText="搜索整合包..."
+                               Background="Transparent"
+                               BorderThickness="0"
+                               Foreground="#CCCCDD"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"
+                               CaretBrush="#CCCCDD"
+                               TextChanged="OnModpackSearchChanged" />
+                    </Grid>
+                  </Border>
+
+                  <!-- 整合包列表 -->
+                  <ItemsControl x:Name="ModpackList">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="models:ModrinthProject">
+                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="#703025" ClipToBounds="True">
+                              <Grid>
+                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <local:AsyncImage Width="40" Height="40"
+                                       SourceUrl="{Binding IconUrl}"
+                                       Stretch="UniformToFill" />
+                              </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+                              <TextBlock Text="{Binding Title}"
+                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                              <TextBlock Text="{Binding Description}"
+                                         FontSize="12" Foreground="#8B8B9E"
+                                         TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+                              <TextBlock Text="{Binding DownloadsDisplay}"
+                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                              <TextBlock Text="{Binding FollowsDisplay}"
+                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <!-- 底部提示 + 分页 -->
+                  <TextBlock x:Name="ModpackCountText"
+                             FontSize="12" Foreground="#5A5A70"
+                             HorizontalAlignment="Center" />
+                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Button x:Name="ModpackPrevBtn" Content="◀ 上一页"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnModpackPrevClick" />
+                      <TextBlock x:Name="ModpackPageText" Grid.Column="1"
+                                 Text="第 1 页 / 共 1 页"
+                                 FontSize="13" Foreground="#8B8B9E"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Button x:Name="ModpackNextBtn" Grid.Column="2" Content="下一页 ▶"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnModpackNextClick" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== 光影包 ===== -->
+            <TabItem Header="光影包">
+              <ScrollViewer>
+                <StackPanel Spacing="16" Margin="24,20,24,24">
+
+                  <!-- 搜索栏 -->
+                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBox Grid.Column="1"
+                               x:Name="ShaderSearchBox"
+                               PlaceholderText="搜索光影包..."
+                               Background="Transparent"
+                               BorderThickness="0"
+                               Foreground="#CCCCDD"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"
+                               CaretBrush="#CCCCDD"
+                               TextChanged="OnShaderSearchChanged" />
+                    </Grid>
+                  </Border>
+
+                  <!-- 光影包列表 -->
+                  <ItemsControl x:Name="ShaderList">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="models:ModrinthProject">
+                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="#3A5A3A" ClipToBounds="True">
+                              <Grid>
+                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <local:AsyncImage Width="40" Height="40"
+                                       SourceUrl="{Binding IconUrl}"
+                                       Stretch="UniformToFill" />
+                              </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+                              <TextBlock Text="{Binding Title}"
+                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                              <TextBlock Text="{Binding Description}"
+                                         FontSize="12" Foreground="#8B8B9E"
+                                         TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+                              <TextBlock Text="{Binding DownloadsDisplay}"
+                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                              <TextBlock Text="{Binding FollowsDisplay}"
+                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <!-- 底部提示 + 分页 -->
+                  <TextBlock x:Name="ShaderCountText"
+                             FontSize="12" Foreground="#5A5A70"
+                             HorizontalAlignment="Center" />
+                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Button x:Name="ShaderPrevBtn" Content="◀ 上一页"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnShaderPrevClick" />
+                      <TextBlock x:Name="ShaderPageText" Grid.Column="1"
+                                 Text="第 1 页 / 共 1 页"
+                                 FontSize="13" Foreground="#8B8B9E"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Button x:Name="ShaderNextBtn" Grid.Column="2" Content="下一页 ▶"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnShaderNextClick" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== 材质包 ===== -->
+            <TabItem Header="材质包">
+              <ScrollViewer>
+                <StackPanel Spacing="16" Margin="24,20,24,24">
+
+                  <!-- 搜索栏 -->
+                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBox Grid.Column="1"
+                               x:Name="ResourcepackSearchBox"
+                               PlaceholderText="搜索材质包..."
+                               Background="Transparent"
+                               BorderThickness="0"
+                               Foreground="#CCCCDD"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"
+                               CaretBrush="#CCCCDD"
+                               TextChanged="OnResourcepackSearchChanged" />
+                    </Grid>
+                  </Border>
+
+                  <!-- 材质包列表 -->
+                  <ItemsControl x:Name="ResourcepackList">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="models:ModrinthProject">
+                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="#4A3A2A" ClipToBounds="True">
+                              <Grid>
+                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <local:AsyncImage Width="40" Height="40"
+                                       SourceUrl="{Binding IconUrl}"
+                                       Stretch="UniformToFill" />
+                              </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+                              <TextBlock Text="{Binding Title}"
+                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                              <TextBlock Text="{Binding Description}"
+                                         FontSize="12" Foreground="#8B8B9E"
+                                         TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+                              <TextBlock Text="{Binding DownloadsDisplay}"
+                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                              <TextBlock Text="{Binding FollowsDisplay}"
+                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <!-- 底部提示 + 分页 -->
+                  <TextBlock x:Name="ResourcepackCountText"
+                             FontSize="12" Foreground="#5A5A70"
+                             HorizontalAlignment="Center" />
+                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Button x:Name="ResourcepackPrevBtn" Content="◀ 上一页"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnResourcepackPrevClick" />
+                      <TextBlock x:Name="ResourcepackPageText" Grid.Column="1"
+                                 Text="第 1 页 / 共 1 页"
+                                 FontSize="13" Foreground="#8B8B9E"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Button x:Name="ResourcepackNextBtn" Grid.Column="2" Content="下一页 ▶"
+                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              CornerRadius="6" Padding="14,6" FontSize="12"
+                              Cursor="Hand" Click="OnResourcepackNextClick" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
+
+          </TabControl>
+    </Border>
+
+    <!-- 全屏加载遮罩 -->
+    <Border x:Name="LoadingOverlay"
+            Grid.Row="1"
+            Background="#CC1A1A2E"
+            CornerRadius="16"
+            IsVisible="True">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+        <TextBlock x:Name="LoadingSpinner" Text="⏳" FontSize="48" HorizontalAlignment="Center"
+                   RenderTransformOrigin="50%,50%" />
+        <TextBlock Text="正在加载资源…" FontSize="18" FontWeight="SemiBold"
+                   Foreground="#CCCCDD" HorizontalAlignment="Center" />
+        <TextBlock x:Name="LoadingDetail" Text="正在连接 Modrinth API…"
+                   FontSize="13" Foreground="#6B6B80" HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

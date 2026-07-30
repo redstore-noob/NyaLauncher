@@ -1,0 +1,81 @@
+# Build outputs
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# NuGet packages
+*.nupkg
+*.snupkg
+/.packages/
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+*.cache
+*.pid
+
+# Avalonia / .NET generated files
+*.pdb
+*.mdb
+*.cache
+*.AssemblyInfo.cs
+*.GeneratedMSBuildEditorConfig.editorconfig
+*.nuget.dgspec.json
+*.nuget.g.props
+*.nuget.g.targets
+*.csproj.FileListAbsolute.txt
+
+# Local runtime / app data
+*.runtimeconfig.json
+*.deps.json
+*.exe
+*.dll
+*.app
+
+# Coverage / test artifacts
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# JetBrains Rider
+.idea/
+
+# Windows specific
+*.cab
+*.msi
+*.msix
+*.appxbundle
+
+# macOS specific
+*.DS_Store
+
+# Linux specific
+*.swp
+
+# Keep project source files tracked
+!NyaLauncher.Avalonia/**/*.cs
+!NyaLauncher.Avalonia/**/*.axaml
+!NyaLauncher.Avalonia/**/*.csproj
+!NyaLauncher.Avalonia/**/*.manifest
+!NyaLauncher.Core/**/*.cs
+!NyaLauncher.Core/**/*.csproj
+
+# Standalone library repository
+/NyaLauncher.MinecraftTokenCrypto/

@@ -1,0 +1,143 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="NyaLauncher.Avalonia.MainWindow"
+        Title="NyaLauncher"
+        Width="1100" Height="720"
+        Background="#141424"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="False">
+  <Window.Resources>
+    <SolidColorBrush x:Key="SidebarBackground">#1A1A2E</SolidColorBrush>
+    <SolidColorBrush x:Key="SidebarSelectedBackground">#2D2D44</SolidColorBrush>
+    <SolidColorBrush x:Key="ContentBackground">#141424</SolidColorBrush>
+    <SolidColorBrush x:Key="NavItemForeground">#6B6B80</SolidColorBrush>
+    <SolidColorBrush x:Key="NavItemSelectedForeground">#FFFFFF</SolidColorBrush>
+    <SolidColorBrush x:Key="NavItemHoverBackground">#252538</SolidColorBrush>
+  </Window.Resources>
+
+  <Grid x:Name="RootGrid">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="240" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <!-- ===== 侧栏 ===== -->
+    <Border Grid.Column="0"
+            x:Name="Sidebar"
+            Background="{StaticResource SidebarBackground}"
+            CornerRadius="0">
+      <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,0">
+
+        <!-- 导航按钮区 -->
+        <StackPanel Grid.Row="1" Spacing="4" Margin="12,0,12,0">
+
+          <!-- 启动页 -->
+          <Border x:Name="NavLaunch" Classes="NavItem">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock x:Name="NavLaunchIcon"
+                         Text="🎮"
+                         FontSize="16"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <TextBlock>   </TextBlock>
+              <TextBlock x:Name="NavLaunchText"
+                         Text="启动游戏"
+                         FontSize="15"
+                         FontWeight="Medium"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center"
+                         Margin="14,0,0,0" />
+            </Grid>
+          </Border>
+
+          <!-- 下载页 -->
+          <Border x:Name="NavDownload" Classes="NavItem">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock x:Name="NavDownloadIcon"
+                         Text="⬇"
+                         FontSize="16"
+                         Foreground="#6B6B80"
+                         VerticalAlignment="Center" />
+              <TextBlock>   </TextBlock>
+              <TextBlock x:Name="NavDownloadText"
+                         Text="资源下载"
+                         FontSize="15"
+                         FontWeight="Medium"
+                         Foreground="#6B6B80"
+                         VerticalAlignment="Center"
+                         Margin="14,0,0,0" />
+            </Grid>
+          </Border>
+
+          <!-- 设置页 -->
+          <Border x:Name="NavSettings" Classes="NavItem">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock x:Name="NavSettingsIcon"
+                         Text="⚙"
+                         FontSize="16"
+                         Foreground="#6B6B80"
+                         VerticalAlignment="Center" />
+              <TextBlock>   </TextBlock>
+              <TextBlock x:Name="NavSettingsText"
+                         Text="设置"
+                         FontSize="15"
+                         FontWeight="Medium"
+                         Foreground="#6B6B80"
+                         VerticalAlignment="Center"
+                         Margin="14,0,0,0" />
+            </Grid>
+          </Border>
+        </StackPanel>
+
+        <!-- 底部版本信息 -->
+        <TextBlock Grid.Row="2"
+                   Text="v0.1.0 alpha"
+                   FontSize="12"
+                   Foreground="#4A4A60"
+                   Margin="24,0,0,20"
+                   VerticalAlignment="Bottom" />
+
+        <!-- 折叠/展开按钮 -->
+        <Border Grid.Row="3"
+                x:Name="SidebarToggle"
+                Background="Transparent"
+                Cursor="Hand"
+                Padding="18,16"
+                Margin="12,0,12,18">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+            <TextBlock x:Name="SidebarToggleIcon"
+                       Text="≡"
+                       FontSize="16"
+                       Foreground="#6B6B80"
+                       VerticalAlignment="Center" />
+            <TextBlock x:Name="SidebarToggleText"
+                       Text="展开"
+                       FontSize="14"
+                       Foreground="#6B6B80"
+                       VerticalAlignment="Center"
+                       Opacity="0"
+                       RenderTransformOrigin="0.5,0.5">
+              <TextBlock.RenderTransform>
+                <TranslateTransform X="-8" />
+              </TextBlock.RenderTransform>
+            </TextBlock>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- ===== 内容区域 ===== -->
+    <Border Grid.Column="1" Background="{StaticResource ContentBackground}">
+      <Grid>
+        <!-- 页面容器 -->
+        <Grid x:Name="ContentArea">
+        </Grid>
+
+        <!-- 水波纹特效层（不拦截鼠标事件） -->
+        <Canvas x:Name="RippleLayer" IsHitTestVisible="False" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

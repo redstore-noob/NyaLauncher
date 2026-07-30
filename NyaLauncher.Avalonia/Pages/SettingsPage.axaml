@@ -1,0 +1,262 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Pages.SettingsPage">
+  <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
+
+    <!-- 标题区 -->
+    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,24">
+      <TextBlock Text="设置"
+                 FontSize="28"
+                 FontWeight="Bold"
+                 Foreground="#FFFFFF" />
+      <TextBlock Text="自定义启动器与游戏配置"
+                 FontSize="13"
+                 Foreground="#8B8B9E" />
+    </StackPanel>
+
+    <!-- 设置内容 -->
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Spacing="16">
+
+        <!-- 游戏设置 -->
+        <Border Background="#1E1E2E"
+                CornerRadius="16"
+                Padding="24,20">
+          <StackPanel Spacing="20">
+            <TextBlock Text="游戏设置"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#FFFFFF" />
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="游戏目录"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <Border Grid.Column="1" Background="#2A2A3E" CornerRadius="8" Padding="12,8">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="C:\Users\Player\.minecraft"
+                             FontSize="13"
+                             Foreground="#8B8B9E"
+                             VerticalAlignment="Center" />
+                  <Button Grid.Column="1"
+                          Content="浏览"
+                          Background="Transparent"
+                          Foreground="{StaticResource SystemAccentColor}"
+                          FontSize="13"
+                          Padding="8,0"
+                          Cursor="Hand" />
+                </Grid>
+              </Border>
+            </Grid>
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="Java 路径"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <Border Grid.Column="1" Background="#2A2A3E" CornerRadius="8" Padding="12,8">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="自动检测"
+                             FontSize="13"
+                             Foreground="#8B8B9E"
+                             VerticalAlignment="Center" />
+                  <Button Grid.Column="1"
+                          Content="浏览"
+                          Background="Transparent"
+                          Foreground="{StaticResource SystemAccentColor}"
+                          FontSize="13"
+                          Padding="8,0"
+                          Cursor="Hand" />
+                </Grid>
+              </Border>
+            </Grid>
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="最大内存"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1"
+                        PlaceholderText="4096 MB"
+                        Background="#2A2A3E"
+                        BorderThickness="0"
+                        CornerRadius="8"
+                        Padding="12,6"
+                        HorizontalAlignment="Stretch"
+                        FontSize="13">
+                <ComboBox.Items>
+                  <ComboBoxItem Content="2048 MB" />
+                  <ComboBoxItem Content="4096 MB" IsSelected="True" />
+                  <ComboBoxItem Content="6144 MB" />
+                  <ComboBoxItem Content="8192 MB" />
+                  <ComboBoxItem Content="16384 MB" />
+                </ComboBox.Items>
+              </ComboBox>
+            </Grid>
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="JVM 参数"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <Border Grid.Column="1" Background="#2A2A3E" CornerRadius="8" Padding="12,8">
+                <TextBlock Text="-XX:+UseG1GC -XX:+ParallelRefProcEnabled"
+                           FontSize="13"
+                           Foreground="#8B8B9E" />
+              </Border>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- 启动器设置 -->
+        <Border Background="#1E1E2E"
+                CornerRadius="16"
+                Padding="24,20">
+          <StackPanel Spacing="20">
+            <TextBlock Text="启动器设置"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#FFFFFF" />
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="主题模式"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1"
+                        PlaceholderText="深色"
+                        Background="#2A2A3E"
+                        BorderThickness="0"
+                        CornerRadius="8"
+                        Padding="12,6"
+                        HorizontalAlignment="Stretch"
+                        FontSize="13">
+                <ComboBox.Items>
+                  <ComboBoxItem Content="深色" IsSelected="True" />
+                  <ComboBoxItem Content="浅色" />
+                  <ComboBoxItem Content="跟随系统" />
+                </ComboBox.Items>
+              </ComboBox>
+            </Grid>
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="语言"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1"
+                        PlaceholderText="简体中文"
+                        Background="#2A2A3E"
+                        BorderThickness="0"
+                        CornerRadius="8"
+                        Padding="12,6"
+                        HorizontalAlignment="Stretch"
+                        FontSize="13">
+                <ComboBox.Items>
+                  <ComboBoxItem Content="简体中文" IsSelected="True" />
+                  <ComboBoxItem Content="English" />
+                  <ComboBoxItem Content="日本語" />
+                </ComboBox.Items>
+              </ComboBox>
+            </Grid>
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="启动时检查更新"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <ToggleSwitch Grid.Column="1"
+                            IsChecked="True"
+                            HorizontalAlignment="Left" />
+            </Grid>
+
+            <Grid ColumnDefinitions="160,*">
+              <TextBlock Text="关闭时最小化到托盘"
+                         FontSize="14"
+                         Foreground="#CCCCDD"
+                         VerticalAlignment="Center" />
+              <ToggleSwitch Grid.Column="1"
+                            IsChecked="False"
+                            HorizontalAlignment="Left" />
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- 账户管理 -->
+        <Border Background="#1E1E2E"
+                CornerRadius="16"
+                Padding="24,20">
+          <StackPanel Spacing="20">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="账户管理"
+                         FontSize="18"
+                         FontWeight="SemiBold"
+                         Foreground="#FFFFFF"
+                         VerticalAlignment="Center" />
+              <Button Grid.Column="1"
+                      Content="+ 添加账户"
+                      Background="{StaticResource SystemAccentColor}"
+                      Foreground="White"
+                      CornerRadius="8"
+                      Padding="16,6"
+                      FontSize="13"
+                      FontWeight="SemiBold"
+                      Cursor="Hand" />
+            </Grid>
+
+            <Border Background="#2A2A3E" CornerRadius="12" Padding="16,14">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Width="40" Height="40"
+                        CornerRadius="10"
+                        Background="#3A3A50">
+                  <TextBlock Text="👤"
+                             FontSize="18"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+                  <TextBlock Text="Player_01"
+                             FontSize="15"
+                             FontWeight="SemiBold"
+                             Foreground="#FFFFFF" />
+                  <TextBlock Text="离线账户"
+                             FontSize="12"
+                             Foreground="#8B8B9E" />
+                </StackPanel>
+                <Button Grid.Column="2"
+                        Content="设为默认"
+                        Background="#2D2D44"
+                        Foreground="#CCCCDD"
+                        CornerRadius="6"
+                        Padding="12,4"
+                        FontSize="12"
+                        VerticalAlignment="Center"
+                        Cursor="Hand" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- 关于 -->
+        <Border Background="#1E1E2E"
+                CornerRadius="16"
+                Padding="24,20">
+          <StackPanel Spacing="12">
+            <TextBlock Text="关于"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#FFFFFF" />
+            <TextBlock Text="NyaLauncher v0.1.0 alpha"
+                       FontSize="14"
+                       Foreground="#CCCCDD" />
+            <TextBlock Text="基于 Avalonia UI 框架构建 · 开源 · 跨平台"
+                       FontSize="13"
+                       Foreground="#8B8B9E" />
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

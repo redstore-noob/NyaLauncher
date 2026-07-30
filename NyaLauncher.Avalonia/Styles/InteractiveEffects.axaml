@@ -1,0 +1,317 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- ============================================ -->
+  <!-- 交互元素 Q 弹动效 — Interactive Effects       -->
+  <!-- ============================================ -->
+
+  <!-- ===== 1. 基础按钮样式 ===== -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="#2D2D44" />
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <!-- Button 悬停：提亮 + 描边光效 -->
+  <Style Selector="Button:hover">
+    <Setter Property="Background" Value="#3D3D5C" />
+    <Setter Property="BorderBrush" Value="#7C5CBF" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- Button 按下：更深颜色 -->
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="#252538" />
+  </Style>
+
+  <!-- Button 禁用 -->
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
+  <!-- ===== 2. 主要按钮（强调色） ===== -->
+  <Style Selector="Button.Primary">
+    <Setter Property="Background" Value="#7C5CBF" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+  <Style Selector="Button.Primary:hover">
+    <Setter Property="Background" Value="#8E6DD6" />
+    <Setter Property="BorderBrush" Value="#A07DE8" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Button.Primary:pressed">
+    <Setter Property="Background" Value="#6A4DA8" />
+  </Style>
+
+  <!-- ===== 3. 危险按钮 ===== -->
+  <Style Selector="Button.Danger">
+    <Setter Property="Background" Value="#BF5C5C" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+  <Style Selector="Button.Danger:hover">
+    <Setter Property="Background" Value="#D66E6E" />
+    <Setter Property="BorderBrush" Value="#E88080" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Button.Danger:pressed">
+    <Setter Property="Background" Value="#A84D4D" />
+  </Style>
+
+  <!-- ===== 4. ComboBox ===== -->
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="#1E1E2E" />
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="BorderBrush" Value="#3A3A50" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="ComboBox:hover">
+    <Setter Property="BorderBrush" Value="#7C5CBF" />
+    <Setter Property="Background" Value="#252538" />
+  </Style>
+  <Style Selector="ComboBox:focus">
+    <Setter Property="BorderBrush" Value="#7C5CBF" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+
+  <!-- ComboBox 弹出项 -->
+  <Style Selector="ComboBoxItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="ComboBoxItem:hover">
+    <Setter Property="Background" Value="#2D2D44" />
+  </Style>
+  <Style Selector="ComboBoxItem:selected">
+    <Setter Property="Background" Value="#7C5CBF" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <!-- ComboBox 弹出浮层美化 -->
+  <Style Selector="ComboBox Popup > Border">
+    <Setter Property="Background" Value="#1E1E2E" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="BorderBrush" Value="#3A3A50" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BoxShadow" Value="0 8 24 #40000000" />
+  </Style>
+
+  <!-- ===== 5. TextBox ===== -->
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="#1E1E2E" />
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="BorderBrush" Value="#3A3A50" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="TextBox:hover">
+    <Setter Property="BorderBrush" Value="#5A5A70" />
+  </Style>
+  <Style Selector="TextBox:focus">
+    <Setter Property="BorderBrush" Value="#7C5CBF" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+
+  <!-- ===== 6. TabStripItem ===== -->
+  <Style Selector="TabStripItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#6B6B80" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Padding" Value="18,10" />
+    <Setter Property="Margin" Value="0,0,6,0" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+  </Style>
+  <Style Selector="TabStripItem:hover">
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="Background" Value="#252538" />
+    <Setter Property="BorderBrush" Value="#7C5CBF" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+  </Style>
+  <Style Selector="TabStripItem:selected">
+    <Setter Property="Foreground" Value="#FFFFFF" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="#7C5CBF" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+  </Style>
+  <Style Selector="TabStripItem:selected:hover">
+    <Setter Property="Foreground" Value="#FFFFFF" />
+    <Setter Property="Background" Value="#1E1E30" />
+  </Style>
+
+  <!-- ===== 7. TabItem 内容区域 ===== -->
+  <Style Selector="TabItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0,8,0,0" />
+  </Style>
+
+  <!-- ===== 8. ScrollBar ===== -->
+  <Style Selector="ScrollBar">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ScrollBar Thumb">
+    <Setter Property="Background" Value="#3A3A50" />
+    <Setter Property="CornerRadius" Value="4" />
+  </Style>
+  <Style Selector="ScrollBar Thumb:hover">
+    <Setter Property="Background" Value="#5A5A70" />
+  </Style>
+  <Style Selector="ScrollBar Thumb:pressed">
+    <Setter Property="Background" Value="#7A7A90" />
+  </Style>
+
+  <!-- ===== 9. CheckBox ===== -->
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+  </Style>
+  <Style Selector="CheckBox:hover">
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <!-- ===== 10. RadioButton ===== -->
+  <Style Selector="RadioButton">
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+  </Style>
+  <Style Selector="RadioButton:hover">
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <!-- ===== 11. ListBoxItem ===== -->
+  <Style Selector="ListBoxItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="ListBoxItem:hover">
+    <Setter Property="Background" Value="#2D2D44" />
+  </Style>
+  <Style Selector="ListBoxItem:selected">
+    <Setter Property="Background" Value="#7C5CBF" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <!-- ===== 12. 导航项（侧栏用） ===== -->
+  <Style Selector="Border.NavItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="14,11" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+  </Style>
+  <Style Selector="Border.NavItem:hover">
+    <Setter Property="Background" Value="#252538" />
+  </Style>
+  <Style Selector="Border.NavItem.NavSelected">
+    <Setter Property="Background" Value="#2D2D44" />
+  </Style>
+  <Style Selector="Border.NavItem > Grid > TextBlock:last-child">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+
+  <!-- ===== 13. 项目卡片悬停（下载页用） ===== -->
+  <Style Selector="Border.ProjectCard">
+    <Setter Property="Background" Value="#1A1A2E" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="16" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Border.ProjectCard:hover">
+    <Setter Property="Background" Value="#22223A" />
+    <Setter Property="BorderBrush" Value="#3A3A58" />
+  </Style>
+
+  <!-- ===== 14. Slider ===== -->
+  <Style Selector="Slider">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Slider Thumb">
+    <Setter Property="Background" Value="#7C5CBF" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+    <Setter Property="BorderBrush" Value="#9A7AE0" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+  </Style>
+  <Style Selector="Slider Thumb:hover">
+    <Setter Property="Background" Value="#9A7AE0" />
+  </Style>
+  <Style Selector="Slider Thumb:pressed">
+    <Setter Property="Background" Value="#6A4DA8" />
+  </Style>
+
+  <!-- ===== 15. ToggleSwitch ===== -->
+  <Style Selector="ToggleSwitch">
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+  </Style>
+
+  <!-- ===== 16. ToolTip ===== -->
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="#1E1E30" />
+    <Setter Property="Foreground" Value="#CCCCDD" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="BorderBrush" Value="#3A3A50" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- ===== 18. ScrollViewer ===== -->
+  <Style Selector="ScrollViewer">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- ===== 19. SelectableTextBlock / TextBlock ===== -->
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="#CCCCDD" />
+  </Style>
+
+</Styles>

@@ -1,0 +1,31 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.App"
+             RequestedThemeVariant="Dark">
+
+  <Application.Resources>
+    <!-- 系统强调色 - 紫罗兰色 -->
+    <Color x:Key="SystemAccentColor">#7C5CBF</Color>
+    <Color x:Key="SystemAccentColorDark1">#6A4DA8</Color>
+    <Color x:Key="SystemAccentColorDark2">#583E90</Color>
+    <Color x:Key="SystemAccentColorDark3">#473079</Color>
+    <Color x:Key="SystemAccentColorLight1">#8E6DD6</Color>
+    <Color x:Key="SystemAccentColorLight2">#A07DE8</Color>
+    <Color x:Key="SystemAccentColorLight3">#B28EF4</Color>
+
+    <!-- 全局字体 -->
+    <FontFamily x:Key="ContentFontTheme">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- ScrollViewer 全局样式 -->
+    <Style Selector="ScrollViewer">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- 交互元素 Q 弹动效 -->
+    <StyleInclude Source="/Styles/InteractiveEffects.axaml" />
+  </Application.Styles>
+</Application>

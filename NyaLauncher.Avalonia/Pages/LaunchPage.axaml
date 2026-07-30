@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Pages.LaunchPage">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="40,40,40,32">
+
+    <!-- 标题区 -->
+    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,32">
+      <TextBlock Text="NyaLauncher"
+                 FontSize="36"
+                 FontWeight="Bold"
+                 Foreground="{StaticResource SystemAccentColor}" />
+      <TextBlock Text="一个轻量优雅的 Minecraft 启动器"
+                 FontSize="14"
+                 Foreground="#8B8B9E" />
+    </StackPanel>
+
+    <!-- 中央大启动区 -->
+    <Border Grid.Row="1"
+            Background="#1E1E2E"
+            CornerRadius="16"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Stretch">
+      <Border Padding="32">
+        <Grid RowDefinitions="*,Auto">
+        <!-- 装饰区域 -->
+        <StackPanel Grid.Row="0"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="8">
+          <Border Width="96" Height="96"
+                  CornerRadius="24"
+                  Background="#2D2D44"
+                  HorizontalAlignment="Center">
+            <TextBlock Text="▶"
+                       FontSize="40"
+                       Foreground="{StaticResource SystemAccentColor}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="Minecraft"
+                     FontSize="24"
+                     FontWeight="SemiBold"
+                     HorizontalAlignment="Center"
+                     Foreground="#FFFFFF" />
+          <TextBlock Text="Java Edition"
+                     FontSize="13"
+                     HorizontalAlignment="Center"
+                     Foreground="#6B6B80" />
+        </StackPanel>
+
+        <!-- 底部控制和启动按钮 -->
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*,*,Auto"
+              HorizontalAlignment="Stretch"
+              Margin="0,24,0,0">
+
+          <!-- 版本选择 -->
+          <Border Grid.Column="0" Margin="0,0,8,0"
+                  Background="#2A2A3E"
+                  CornerRadius="10"
+                  Padding="12,6">
+            <StackPanel Spacing="4">
+              <TextBlock Text="游戏版本"
+                         FontSize="11"
+                         Foreground="#8B8B9E" />
+              <ComboBox PlaceholderText="选择版本..."
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontSize="14">
+                <ComboBox.Items>
+                  <ComboBoxItem Content="1.21.1" IsSelected="True" />
+                  <ComboBoxItem Content="1.20.4" />
+                  <ComboBoxItem Content="1.19.2" />
+                  <ComboBoxItem Content="1.16.5" />
+                  <ComboBoxItem Content="1.12.2" />
+                  <ComboBoxItem Content="1.8.9" />
+                </ComboBox.Items>
+              </ComboBox>
+            </StackPanel>
+          </Border>
+
+          <!-- 账号选择 -->
+          <Border Grid.Column="1" Margin="8,0,0,0"
+                  Background="#2A2A3E"
+                  CornerRadius="10"
+                  Padding="12,6">
+            <StackPanel Spacing="4">
+              <TextBlock Text="启动账号"
+                         FontSize="11"
+                         Foreground="#8B8B9E" />
+              <ComboBox PlaceholderText="选择账号..."
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontSize="14">
+                <ComboBox.Items>
+                  <ComboBoxItem Content="Player_01 (离线)" IsSelected="True" />
+                  <ComboBoxItem Content="添加新账号..." />
+                </ComboBox.Items>
+              </ComboBox>
+            </StackPanel>
+          </Border>
+
+          <!-- 启动按钮 -->
+          <Border Grid.Column="2" Margin="16,0,0,0">
+            <Button Content="启动游戏"
+                    Width="160"
+                    Height="48"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Background="{StaticResource SystemAccentColor}"
+                    Foreground="White"
+                    CornerRadius="12"
+                    Cursor="Hand">
+              <Button.Styles>
+                <Style Selector="Button:hover">
+                  <Setter Property="Opacity" Value="0.85" />
+                </Style>
+              </Button.Styles>
+            </Button>
+          </Border>
+        </Grid>
+      </Grid>
+      </Border>
+    </Border>
+
+    <!-- 底部信息 -->
+    <TextBlock Grid.Row="2"
+               Text="NyaLauncher v1.0.0 · 使用 Avalonia 构建"
+               FontSize="12"
+               Foreground="#5A5A70"
+               HorizontalAlignment="Center"
+               Margin="0,24,0,0" />
+  </Grid>
+</UserControl>
