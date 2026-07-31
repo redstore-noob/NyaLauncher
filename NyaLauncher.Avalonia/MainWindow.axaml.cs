@@ -1,166 +1,242 @@
 using System;
-using System.Linq;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
-using NyaLauncher.Avalonia.Animations.Helpers;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Pages;
 
 namespace NyaLauncher.Avalonia;
 
 public partial class MainWindow : Window
 {
-    private readonly UserControl _launchPage = new LaunchPage();
-    private readonly UserControl _downloadPage = new DownloadPage();
-    private readonly UserControl _settingsPage = new SettingsPage();
+    private readonly WorkspaceProfileStore _profileStore = new();
+    private readonly LaunchPage _launchPage;
+    private readonly DownloadPage _downloadPage;
+    private readonly SettingsHubPage _settingsPage;
 
-    private readonly Border[] _navItems;
-    private ColumnDefinition? _sidebarColumn;
-
-    private readonly SolidColorBrush _navActiveFg = new(Color.Parse("#CCCCDD"));
-    private readonly SolidColorBrush _navInactiveFg = new(Color.Parse("#6B6B80"));
-    private readonly SolidColorBrush _navActiveBg = new(Color.Parse("#2D2D44"));
-    private readonly SolidColorBrush _navInactiveBg = new(Color.Parse("#00000000"));
-
-    private bool _sidebarExpanded;
-    private bool _sidebarAnimating;
-    private int _currentPageIndex = -1;
+    /// <summary>
+    /// Shared extension point for built-in modules and future plugins.
+    /// A plugin can register an area at runtime and the workspace updates itself.
+    /// </summary>
+    public FeatureAreaRegistry FeatureAreas { get; } = new();
 
     public MainWindow()
     {
         InitializeComponent();
 
-        _sidebarColumn = RootGrid.ColumnDefinitions[0];
-        _navItems = [NavLaunch, NavDownload, NavSettings];
+        FeatureAreas.Register(new BuiltInFeatureAreaProvider(NavigateFromAction));
+        var profile = _profileStore.Load();
+        FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
+        FeatureAreas.ApplyPersonalization(profile.Areas);
 
-        NavLaunch.PointerPressed += (_, _) => SwitchToPage(0);
-        NavDownload.PointerPressed += (_, _) => SwitchToPage(1);
-        NavSettings.PointerPressed += (_, _) => SwitchToPage(2);
+        Workspace.UseRegistry(FeatureAreas);
+        Workspace.ImportLayout(profile.Layout, profile.Sidebars);
+        Workspace.LayoutChanged += (_, _) => SaveWorkspaceProfile();
 
-        foreach (var nav in _navItems)
-        {
-            BounceBehavior.AttachHoverScale(nav, 1.03);
-            BounceBehavior.AttachClickBounce(nav);
-            RippleBehavior.AttachRipple(nav, RippleLayer);
-        }
+        _launchPage = new LaunchPage();
+        _downloadPage = new DownloadPage();
+        _settingsPage = new SettingsHubPage(
+            FeatureAreas,
+            _profileStore.StorageDirectory);
+        _settingsPage.PersonalizationSaved += OnPersonalizationSaved;
 
-        SidebarToggle.PointerPressed += async (_, _) => await ToggleSidebarAsync();
-
-        ApplySidebarState(_sidebarExpanded, animate: false);
-        RippleBehavior.GlobalRippleLayer = RippleLayer;
-
-        // 让整个窗口先成型，再统一附加全局效果，避免首帧抖动
-        Dispatcher.UIThread.Post(() => GlobalEffectInitializer.AttachAll(this, RippleLayer), DispatcherPriority.Loaded);
-
-        SwitchToPage(0);
+        AddHandler(
+            KeyDownEvent,
+            OnWindowKeyDown,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        Closing += (_, _) => SaveWorkspaceProfile();
     }
 
-    private void SwitchToPage(int index)
+    private void NavigateFromAction(string actionId)
     {
-        if (_currentPageIndex == index)
+        switch (actionId)
+        {
+            case "select-instance":
+            case "account":
+            case "launch":
+            case "instances":
+                ShowPage(_launchPage, "启动游戏");
+                break;
+
+            case "downloads":
+            case "tasks":
+                ShowPage(_downloadPage, "资源下载");
+                break;
+
+            case "settings":
+            case "runtime":
+            case "plugins":
+                ShowSettings(SettingsSection.Launcher);
+                break;
+
+            default:
+                ShowStatus($"尚未注册页面：{actionId}");
+                break;
+        }
+    }
+
+    private void ShowPage(Control page, string title)
+    {
+        PageHost.Content = page;
+        CurrentPageTitle.Text = title;
+        Workspace.IsVisible = false;
+        PageSurface.IsVisible = true;
+        HeaderStatusText.Text = title;
+        ShowStatus($"已进入：{title}");
+    }
+
+    private void ShowSettings(SettingsSection section)
+    {
+        _settingsPage.SelectSection(section);
+        ShowPage(_settingsPage, "设置");
+    }
+
+    private void ShowWorkspace()
+    {
+        PageSurface.IsVisible = false;
+        Workspace.IsVisible = true;
+        PageHost.Content = null;
+        CurrentPageTitle.Text = string.Empty;
+        HeaderStatusText.Text = "工作区已就绪";
+        ShowStatus("已返回工作区");
+    }
+
+    private void ShowStatus(string message)
+    {
+        StatusText.Text = message;
+    }
+
+    private void OnBackToWorkspaceClick(object? sender, RoutedEventArgs e)
+    {
+        ShowWorkspace();
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape)
             return;
 
-        for (var i = 0; i < _navItems.Length; i++)
-        {
-            var nav = _navItems[i];
-            nav.Background = i == index ? _navActiveBg : _navInactiveBg;
-            nav.Classes.Set("NavSelected", i == index);
-
-            foreach (var tb in nav.GetVisualDescendants().OfType<TextBlock>())
-            {
-                tb.Foreground = i == index ? _navActiveFg : _navInactiveFg;
-            }
-        }
-
-        var newPage = index switch
-        {
-            0 => _launchPage,
-            1 => _downloadPage,
-            2 => _settingsPage,
-            _ => _launchPage
-        };
-
-        newPage.Opacity = 0;
-        ContentHost.Content = newPage;
-
-        Dispatcher.UIThread.Post(() => newPage.Opacity = 1, DispatcherPriority.Background);
-        Dispatcher.UIThread.Post(() => GlobalEffectInitializer.AttachAll(newPage, RippleLayer), DispatcherPriority.Loaded);
-
-        _currentPageIndex = index;
+        ShowSettings(SettingsSection.Launcher);
+        e.Handled = true;
     }
 
-    private async System.Threading.Tasks.Task ToggleSidebarAsync()
+    private void OnPersonalizationSaved(
+        object? sender,
+        PersonalizationResult result)
     {
-        if (_sidebarAnimating)
+        var profile = result.Profile;
+
+        FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
+        FeatureAreas.ApplyPersonalization(profile.Areas);
+        profile.Layout = Workspace.ExportLayout();
+        profile.Sidebars = [.. Workspace.ExportSidebars()];
+
+        try
+        {
+            var directoryChanged = !WorkspaceProfileStore.PathsEqual(
+                _profileStore.StorageDirectory,
+                result.StorageDirectory);
+            if (directoryChanged)
+                _profileStore.ChangeStorageDirectory(result.StorageDirectory, profile);
+            else
+                _profileStore.Save(profile);
+
+            _settingsPage.ReloadPersonalization(_profileStore.StorageDirectory);
+            ShowStatus(directoryChanged
+                ? $"个性化配置已迁移至：{_profileStore.StorageDirectory}"
+                : "个性化配置已保存并应用");
+        }
+        catch (Exception exception)
+        {
+            ShowStatus($"配置已应用，但保存失败：{exception.Message}");
+        }
+    }
+
+    private void SaveWorkspaceProfile()
+    {
+        try
+        {
+            var profile = FeatureAreas.CreateCurrentProfile();
+            profile.Layout = Workspace.ExportLayout();
+            profile.Sidebars = [.. Workspace.ExportSidebars()];
+            _profileStore.Save(profile);
+        }
+        catch (Exception exception)
+        {
+            ShowStatus($"工作区配置保存失败：{exception.Message}");
+        }
+    }
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
 
-        _sidebarExpanded = !_sidebarExpanded;
-        await AnimateSidebarAsync(_sidebarExpanded);
-    }
-
-    private void ApplySidebarState(bool expanded, bool animate)
-    {
-        if (_sidebarColumn != null)
+        if (e.ClickCount == 2)
         {
-            _sidebarColumn.Width = new GridLength(expanded ? 240 : 72);
-        }
-
-        SidebarToggleIcon.Text = expanded ? "◀" : "▶";
-        SidebarToggleText.Text = expanded ? "收起" : "展开";
-        SidebarToggleText.Opacity = expanded ? 1.0 : 0.0;
-
-        foreach (var tb in new[] { NavLaunchText, NavDownloadText, NavSettingsText })
-        {
-            tb.Opacity = expanded ? 1.0 : 0.0;
-            tb.RenderTransform = new TranslateTransform { X = expanded ? 0 : -8 };
-        }
-    }
-
-    private async System.Threading.Tasks.Task AnimateSidebarAsync(bool expanded)
-    {
-        if (_sidebarAnimating || _sidebarColumn == null)
+            ToggleMaximized();
             return;
-
-        _sidebarAnimating = true;
-
-        var from = _sidebarColumn.Width.Value;
-        var to = expanded ? 240.0 : 72.0;
-        var durationMs = 220;
-        var frames = Math.Max(1, durationMs / 16);
-
-        for (var i = 1; i <= frames; i++)
-        {
-            var t = i / (double)frames;
-            var eased = 1 - Math.Pow(1 - t, 3);
-            var width = from + (to - from) * eased;
-            _sidebarColumn.Width = new GridLength(width);
-
-            var textOpacity = expanded ? eased : 1 - eased;
-            foreach (var tb in new[] { NavLaunchText, NavDownloadText, NavSettingsText })
-            {
-                tb.Opacity = textOpacity;
-                if (tb.RenderTransform is TranslateTransform translate)
-                {
-                    translate.X = expanded ? -8 + 8 * eased : -8 * eased;
-                }
-                else
-                {
-                    tb.RenderTransform = new TranslateTransform { X = expanded ? -8 + 8 * eased : -8 * eased };
-                }
-            }
-
-            SidebarToggleText.Opacity = expanded ? eased : 1 - eased;
-            if (SidebarToggleText.RenderTransform is TranslateTransform toggleTranslate)
-            {
-                toggleTranslate.X = expanded ? -8 + 8 * eased : -8 * eased;
-            }
-
-            await System.Threading.Tasks.Task.Delay(16);
         }
 
-        ApplySidebarState(expanded, animate: false);
-        _sidebarAnimating = false;
+        BeginMoveDrag(e);
+    }
+
+    private void OnMinimizeClick(object? sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void OnMaximizeClick(object? sender, RoutedEventArgs e)
+    {
+        ToggleMaximized();
+    }
+
+    private void OnCloseClick(object? sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void BeginWindowResize(WindowEdge edge, PointerPressedEventArgs e)
+    {
+        if (WindowState != WindowState.Normal ||
+            !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        BeginResizeDrag(edge, e);
+        e.Handled = true;
+    }
+
+    private void OnResizeWestPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.West, e);
+
+    private void OnResizeEastPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.East, e);
+
+    private void OnResizeNorthPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.North, e);
+
+    private void OnResizeSouthPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.South, e);
+
+    private void OnResizeNorthWestPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.NorthWest, e);
+
+    private void OnResizeNorthEastPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.NorthEast, e);
+
+    private void OnResizeSouthWestPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.SouthWest, e);
+
+    private void OnResizeSouthEastPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginWindowResize(WindowEdge.SouthEast, e);
+
+    private void ToggleMaximized()
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
     }
 }

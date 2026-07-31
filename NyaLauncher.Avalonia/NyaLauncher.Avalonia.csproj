@@ -21,4 +21,20 @@
     <ProjectReference Include="..\NyaLauncher.Core\NyaLauncher.Core.csproj" />
     <ProjectReference Include="..\NyaLauncher.Avalonia.Animations\NyaLauncher.Avalonia.Animations.csproj" />
   </ItemGroup>
+
+  <!-- Native NuGet PDBs are for framework debugging and exceed the launcher
+       binaries by hundreds of megabytes. They are never required at runtime. -->
+  <Target Name="RemoveNativePackageSymbols" AfterTargets="CopyFilesToOutputDirectory">
+    <ItemGroup>
+      <NativePackageSymbols Include="$(OutDir)**\libSkiaSharp.pdb;$(OutDir)**\libHarfBuzzSharp.pdb" />
+    </ItemGroup>
+    <Delete Files="@(NativePackageSymbols)" />
+  </Target>
+
+  <Target Name="RemovePublishedNativePackageSymbols" AfterTargets="Publish">
+    <ItemGroup>
+      <PublishedNativePackageSymbols Include="$(PublishDir)**\libSkiaSharp.pdb;$(PublishDir)**\libHarfBuzzSharp.pdb" />
+    </ItemGroup>
+    <Delete Files="@(PublishedNativePackageSymbols)" />
+  </Target>
 </Project>
