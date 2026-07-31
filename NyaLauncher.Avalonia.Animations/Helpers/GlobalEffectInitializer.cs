@@ -19,10 +19,11 @@ public static class GlobalEffectInitializer
         foreach (var c in controls)
         {
             if (!_initialized.Add(c)) continue;
-            BounceBehavior.AttachHoverScale(c);
             if (c is Button button)
                 BounceBehavior.AttachBounce(button);
-            if (c is not TextBox and not ComboBox)
+            else
+                BounceBehavior.AttachHoverScale(c);
+            if (c is not Button and not TextBox and not ComboBox)
                 BounceBehavior.AttachClickBounce(c);
             if (rippleLayer != null)
                 RippleBehavior.AttachRipple(c, rippleLayer);

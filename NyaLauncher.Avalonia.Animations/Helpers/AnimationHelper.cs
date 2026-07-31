@@ -55,7 +55,7 @@ public static class AnimationHelper
         await AnimateScaleAsync(st, 1.05, 1.0, durationMs / 2, EasingType.CubicOut);
     }
 
-    public static async Task HoverInAsync(Control target, int durationMs = 200)
+    public static async Task HoverInAsync(Control target, int durationMs = 200, double hoverScale = 1.05)
     {
         if (target.RenderTransform is not ScaleTransform st)
         {
@@ -64,13 +64,13 @@ public static class AnimationHelper
             target.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
         }
 
-        await AnimateScaleAsync(st, 1.0, 1.05, durationMs, EasingType.CubicOut);
+        await AnimateScaleAsync(st, st.ScaleX, hoverScale, durationMs, EasingType.CubicOut, target);
     }
 
     public static async Task HoverOutAsync(Control target, int durationMs = 200)
     {
         if (target.RenderTransform is not ScaleTransform st) return;
-        await AnimateScaleAsync(st, 1.05, 1.0, durationMs, EasingType.CubicOut);
+        await AnimateScaleAsync(st, st.ScaleX, 1.0, durationMs, EasingType.CubicOut, target);
     }
 
     public static async Task FadeInAsync(Visual target, int durationMs = 300)
@@ -97,17 +97,24 @@ public static class AnimationHelper
             if (_activeScales.TryRemove(owner, out var oldCts))
             {
                 oldCts.Cancel();
-                oldCts.Dispose();
             }
             cts = new CancellationTokenSource();
             _activeScales[owner] = cts;
             ct = cts.Token;
         }
 
-        if (durationMs <= 0) { st.ScaleX = st.ScaleY = to; return; }
-
         try
         {
+            if (durationMs <= 0)
+            {
+                st.ScaleX = st.ScaleY = to;
+                return;
+            }
+
+            // An interrupted interaction must continue from the value currently on
+            // screen. Restarting from a fixed endpoint makes rapid enter/exit events
+            // visibly jump between scales.
+            from = st.ScaleX;
             var frames = Math.Max(1, durationMs / 16);
             for (int i = 1; i <= frames; i++)
             {
@@ -127,6 +134,7 @@ public static class AnimationHelper
             {
                 if (_activeScales.TryGetValue(owner, out var current) && current == cts)
                     _activeScales.TryRemove(owner, out _);
+                cts.Dispose();
             }
         }
     }
@@ -166,7 +174,7 @@ public class BounceBehavior
 
     public static void AttachHoverScale(Control control, double hoverScale = 1.05)
     {
-        control.PointerEntered += async (_, _) => await AnimationHelper.HoverInAsync(control);
+        control.PointerEntered += async (_, _) => await AnimationHelper.HoverInAsync(control, hoverScale: hoverScale);
         control.PointerExited += async (_, _) => await AnimationHelper.HoverOutAsync(control);
     }
 
