@@ -127,8 +127,27 @@ dotnet build -c Release
 ## Changelog
 
 Recent changes
-- Fixed classpath dependency overwrite issue during version inheritance.  
-- Java version requirement changed to a minimum constraint; higher major versions are supported. Verified Minecraft 1.21.4 can run on Java 21 and Java 25.
+
+### v0.1.0-gp2
+
+> `v0.1.0-gp2` is only the codename for the second v0.1.0 new-GUI preview; it is not written into the Core version.
+
+- 与main同步更新。
+- Rebuilt the frontend around an extensible docking workspace whose feature areas can dock horizontally or vertically.
+- Added seam-based resizing and automatic edge sidebars when an area meets both the edge and size requirements.
+- Added animated sidebar reveal, edge-to-edge dragging and swapping, plus continuous drag-to-restore behavior.
+- Added full personalization for area names, descriptions, icons and actions, including creating and deleting custom areas.
+- Persisted area layout, sizes, sidebars and personalization in a user-selectable directory with cross-platform defaults.
+- Feature actions now navigate inside the current window and reuse the launch, download and settings GUI; personalization lives in Settings and `Esc` always opens Settings.
+- Reduced the workspace header and footer, added resizing from every window edge and corner, and made navigated pages cover the workspace chrome.
+- Removed redundant frontend build outputs and native debug symbols while preserving per-platform Windows, macOS and Linux releases.
+- Refreshed the first-run default from the latest personalized layout, sidebar and component positions.
+- Added an independent Component Library for drag-to-add, cross-area moves, and drag-back removal with immediate persistence.
+- Feature areas now behave as independent desktops: components can be freely positioned without crossing boundaries, reflow proportionally on resize, and share a configurable global size.
+- Added a cursor-following placement ghost while dragging components, including drops into revealed sidebars.
+- Fixed sidebar conversion with populated areas and completed horizontal and vertical resize-threshold handling.
+- Completed overlapping-component stacking: later placements stay above earlier ones, while the hovered component is highlighted temporarily on top and returns to its saved order on leave.
+- Standardized the size, centering and state feedback of the minimize, maximize/restore and close vector icons.
 
 v0.1.0pre1
 - Split GUI into a separate library (NyaLauncher.Avalonia.Animations).  

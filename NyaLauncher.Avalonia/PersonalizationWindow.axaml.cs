@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -70,29 +71,41 @@ public partial class PersonalizationWindow : UserControl
 
     private void BuildEditors(WorkspaceProfile profile)
     {
+        ComponentScaleSlider.Value = Math.Clamp(
+            profile.GlobalComponentScale,
+            FeatureAreaRegistry.MinimumComponentScale,
+            FeatureAreaRegistry.MaximumComponentScale);
+        UpdateComponentScaleText();
         AreaEditors.Children.Clear();
         _editors.Clear();
 
         var preferences = profile.Areas.ToDictionary(
             preference => preference.AreaId,
             StringComparer.OrdinalIgnoreCase);
-        var allActions = _registry.AvailableActions;
 
         foreach (var sourceArea in _registry.SourceAreas)
         {
             preferences.TryGetValue(sourceArea.Id, out var preference);
-            AddAreaEditor(sourceArea, preference, allActions);
+            AddAreaEditor(sourceArea, preference);
         }
+    }
+
+    private void OnComponentScaleChanged(
+        object? sender,
+        RangeBaseValueChangedEventArgs e)
+    {
+        UpdateComponentScaleText();
+    }
+
+    private void UpdateComponentScaleText()
+    {
+        ComponentScaleText.Text = $"{ComponentScaleSlider.Value * 100:0}%";
     }
 
     private void AddAreaEditor(
         FeatureAreaDefinition sourceArea,
-        FeatureAreaPreference? preference,
-        IReadOnlyList<FeatureAreaAction> allActions)
+        FeatureAreaPreference? preference)
     {
-        var selectedIds = (preference?.ActionIds ?? [])
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
         var nameBox = new TextBox
         {
             Text = string.IsNullOrWhiteSpace(preference?.DisplayName)
@@ -129,9 +142,6 @@ public partial class PersonalizationWindow : UserControl
         var iconEditor = CreateIconEditor(iconState);
         var isUserArea = _draftUserAreaIds.Contains(sourceArea.Id);
 
-        var actionChecks = new Dictionary<string, CheckBox>(StringComparer.OrdinalIgnoreCase);
-        var actionGrid = CreateActionGrid(allActions, selectedIds, actionChecks);
-
         var card = new Border
         {
             Background = Brush.Parse("#171B2B"),
@@ -153,30 +163,19 @@ public partial class PersonalizationWindow : UserControl
                     iconEditor,
                     new Border
                     {
-                        Height = 1,
-                        Background = Brush.Parse("#2C3347")
-                    },
-                    new StackPanel
-                    {
-                        Spacing = 4,
-                        Children =
+                        Padding = new Thickness(12, 10),
+                        Background = Brush.Parse("#202638"),
+                        BorderBrush = Brush.Parse("#31394F"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(10),
+                        Child = new TextBlock
                         {
-                            new TextBlock
-                            {
-                                Text = "显示的功能按钮",
-                                FontSize = 13,
-                                FontWeight = FontWeight.SemiBold,
-                                Foreground = Brushes.White
-                            },
-                            new TextBlock
-                            {
-                                Text = "可跨区域重复选择；取消全部选择可创建纯自定义内容区。",
-                                FontSize = 11,
-                                Foreground = Muted
-                            }
+                            Text = "组件通过工作区底栏的“组件库”管理，也可直接在功能区之间拖动。",
+                            FontSize = 11,
+                            Foreground = Muted,
+                            TextWrapping = TextWrapping.Wrap
                         }
-                    },
-                    actionGrid
+                    }
                 }
             }
         };
@@ -190,8 +189,7 @@ public partial class PersonalizationWindow : UserControl
             card,
             nameBox,
             descriptionBox,
-            iconState,
-            actionChecks));
+            iconState));
     }
 
     private static Control CreateAreaHeader(
@@ -439,76 +437,17 @@ public partial class PersonalizationWindow : UserControl
         return root;
     }
 
-    private static Grid CreateActionGrid(
-        IReadOnlyList<FeatureAreaAction> actions,
-        ISet<string> selectedIds,
-        IDictionary<string, CheckBox> checks)
-    {
-        var grid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,*,*")
-        };
-
-        var rowCount = Math.Max(1, (int)Math.Ceiling(actions.Count / 3d));
-        for (var row = 0; row < rowCount; row++)
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-
-        for (var index = 0; index < actions.Count; index++)
-        {
-            var action = actions[index];
-            var check = new CheckBox
-            {
-                IsChecked = selectedIds.Contains(action.Id),
-                VerticalAlignment = VerticalAlignment.Center,
-                Content = new StackPanel
-                {
-                    Margin = new Thickness(6, 0, 0, 0),
-                    Spacing = 2,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = $"{action.Glyph}  {action.Title}",
-                            FontSize = 12,
-                            FontWeight = FontWeight.SemiBold,
-                            Foreground = Brushes.White
-                        },
-                        new TextBlock
-                        {
-                            Text = action.Description,
-                            FontSize = 10,
-                            Foreground = Muted,
-                            TextTrimming = TextTrimming.CharacterEllipsis
-                        }
-                    }
-                }
-            };
-
-            var item = new Border
-            {
-                Margin = new Thickness(0, 5, 8, 3),
-                Padding = new Thickness(11, 9),
-                Background = Brush.Parse("#202638"),
-                BorderBrush = Brush.Parse("#31394F"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Cursor = new Cursor(StandardCursorType.Hand),
-                Child = check
-            };
-
-            Grid.SetColumn(item, index % 3);
-            Grid.SetRow(item, index / 3);
-            grid.Children.Add(item);
-            checks[action.Id] = check;
-        }
-
-        return grid;
-    }
-
     private void OnSaveClick(object? sender, RoutedEventArgs e)
     {
+        var liveComponents = _registry.CreateCurrentProfile().Areas.ToDictionary(
+            area => area.AreaId,
+            area => area.ActionIds,
+            StringComparer.OrdinalIgnoreCase);
+
         var profile = new WorkspaceProfile
         {
+            Version = 2,
+            GlobalComponentScale = ComponentScaleSlider.Value,
             Areas = _editors.Select(editor => new FeatureAreaPreference
             {
                 AreaId = editor.AreaId,
@@ -520,10 +459,9 @@ public partial class PersonalizationWindow : UserControl
                     : editor.DescriptionBox.Text.Trim(),
                 IconGlyph = editor.Icon.Glyph,
                 IconPath = editor.Icon.IconPath,
-                ActionIds = editor.ActionChecks
-                    .Where(pair => pair.Value.IsChecked == true)
-                    .Select(pair => pair.Key)
-                    .ToList()
+                ActionIds = liveComponents.TryGetValue(editor.AreaId, out var componentIds)
+                    ? [.. componentIds]
+                    : []
             }).ToList(),
             CustomAreas = _editors
                 .Where(editor => editor.IsUserArea)
@@ -580,7 +518,7 @@ public partial class PersonalizationWindow : UserControl
             IconGlyph = "◇",
             IconPath = null,
             ActionIds = []
-        }, _registry.AvailableActions);
+        });
 
         AreaEditors.Children[^1].BringIntoView();
     }
@@ -616,8 +554,7 @@ public partial class PersonalizationWindow : UserControl
         Border Card,
         TextBox NameBox,
         TextBox DescriptionBox,
-        IconEditorState Icon,
-        IReadOnlyDictionary<string, CheckBox> ActionChecks);
+        IconEditorState Icon);
 
     private sealed class IconEditorState(string glyph, string? iconPath)
     {

@@ -32,13 +32,13 @@
             BorderBrush="#293044"
             BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="*,Auto"
-            RowDefinitions="Auto,Auto">
+            RowDefinitions="Auto,Auto,Auto">
         <StackPanel Spacing="7">
           <TextBlock Text="个性化工作区"
                      FontSize="24"
                      FontWeight="Bold"
                      Foreground="#F6F7FF" />
-          <TextBlock Text="自由编辑功能区名称与简介，并决定每个区域中出现哪些功能按钮。布局与大小会自动保存。"
+          <TextBlock Text="自由编辑功能区名称、简介和图标；组件请通过工作区底栏的组件库或直接拖动管理。布局与大小会自动保存。"
                      FontSize="12"
                      Foreground="#8F98B3" />
         </StackPanel>
@@ -90,6 +90,49 @@
                     Classes="Secondary"
                     Content="平台默认"
                     Click="OnUseDefaultStorageDirectoryClick" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
+                Grid.ColumnSpan="2"
+                Margin="0,10,0,0"
+                Padding="14,11"
+                Background="#1B2132"
+                BorderBrush="#30384F"
+                BorderThickness="1"
+                CornerRadius="10">
+          <Grid ColumnDefinitions="Auto,*,Auto"
+                ColumnSpacing="14">
+            <StackPanel Spacing="3"
+                        Width="170"
+                        VerticalAlignment="Center">
+              <TextBlock Text="全局组件尺寸"
+                         FontSize="11"
+                         FontWeight="SemiBold"
+                         Foreground="#C8CEFF" />
+              <TextBlock Text="同时缩放组件外框、文字和点击区域"
+                         FontSize="9"
+                         Foreground="#77809B" />
+            </StackPanel>
+            <Slider x:Name="ComponentScaleSlider"
+                    Grid.Column="1"
+                    Minimum="0.65"
+                    Maximum="1.6"
+                    Value="1"
+                    TickFrequency="0.05"
+                    IsSnapToTickEnabled="True"
+                    VerticalAlignment="Center"
+                    ValueChanged="OnComponentScaleChanged" />
+            <TextBlock x:Name="ComponentScaleText"
+                       Grid.Column="2"
+                       Width="52"
+                       Text="100%"
+                       FontFamily="Consolas"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="#AEB6FF"
+                       TextAlignment="Right"
+                       VerticalAlignment="Center" />
           </Grid>
         </Border>
       </Grid>

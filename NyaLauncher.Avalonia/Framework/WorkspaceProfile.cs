@@ -4,7 +4,9 @@ namespace NyaLauncher.Avalonia.Framework;
 
 public sealed class WorkspaceProfile
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
+
+    public double GlobalComponentScale { get; set; } = 1;
 
     public List<FeatureAreaPreference> Areas { get; set; } = [];
 
@@ -13,6 +15,21 @@ public sealed class WorkspaceProfile
     public DockLayoutProfile? Layout { get; set; }
 
     public List<SidebarProfile> Sidebars { get; set; } = [];
+
+    public List<ComponentPlacementProfile> ComponentPlacements { get; set; } = [];
+}
+
+public sealed class ComponentPlacementProfile
+{
+    public string AreaId { get; set; } = string.Empty;
+
+    public string ComponentId { get; set; } = string.Empty;
+
+    public double RelativeX { get; set; } = 0.5;
+
+    public double RelativeY { get; set; } = 0.5;
+
+    public int ZIndex { get; set; }
 }
 
 public sealed class UserFeatureAreaProfile

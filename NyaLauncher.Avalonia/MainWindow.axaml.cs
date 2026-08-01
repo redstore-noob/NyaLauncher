@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -13,6 +14,7 @@ public partial class MainWindow : Window
     private readonly LaunchPage _launchPage;
     private readonly DownloadPage _downloadPage;
     private readonly SettingsHubPage _settingsPage;
+    private ComponentLibraryWindow? _componentLibraryWindow;
 
     /// <summary>
     /// Shared extension point for built-in modules and future plugins.
@@ -26,12 +28,18 @@ public partial class MainWindow : Window
 
         FeatureAreas.Register(new BuiltInFeatureAreaProvider(NavigateFromAction));
         var profile = _profileStore.Load();
+        FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
         FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
         FeatureAreas.ApplyPersonalization(profile.Areas);
 
         Workspace.UseRegistry(FeatureAreas);
-        Workspace.ImportLayout(profile.Layout, profile.Sidebars);
+        Workspace.ImportLayout(
+            profile.Layout,
+            profile.Sidebars,
+            profile.ComponentPlacements,
+            profile.GlobalComponentScale);
         Workspace.LayoutChanged += (_, _) => SaveWorkspaceProfile();
+        Workspace.ComponentDropRequested += OnComponentDropRequested;
 
         _launchPage = new LaunchPage();
         _downloadPage = new DownloadPage();
@@ -45,6 +53,12 @@ public partial class MainWindow : Window
             OnWindowKeyDown,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+        PropertyChanged += (_, args) =>
+        {
+            if (args.Property == WindowStateProperty)
+                UpdateWindowStateIcons();
+        };
+        UpdateWindowStateIcons();
         Closing += (_, _) => SaveWorkspaceProfile();
     }
 
@@ -112,6 +126,69 @@ public partial class MainWindow : Window
         ShowWorkspace();
     }
 
+    private void OnComponentLibraryClick(object? sender, RoutedEventArgs e)
+    {
+        if (_componentLibraryWindow is not null)
+        {
+            _componentLibraryWindow.Activate();
+            return;
+        }
+
+        _componentLibraryWindow = new ComponentLibraryWindow(FeatureAreas);
+        _componentLibraryWindow.ComponentRemovalRequested += OnComponentRemovalRequested;
+        _componentLibraryWindow.Closed += (_, _) => _componentLibraryWindow = null;
+        _componentLibraryWindow.Show(this);
+    }
+
+    private void OnComponentRemovalRequested(
+        object? sender,
+        ComponentRemovalRequestedEventArgs e)
+    {
+        if (!FeatureAreas.RemoveComponent(e.ComponentId, e.SourceAreaId))
+            return;
+
+        Workspace.RemoveComponentPlacement(e.ComponentId, e.SourceAreaId);
+        SaveWorkspaceProfile();
+        var component = FeatureAreas.AvailableActions.FirstOrDefault(action =>
+            string.Equals(action.Id, e.ComponentId, StringComparison.OrdinalIgnoreCase));
+        ShowStatus($"组件“{component?.Title ?? e.ComponentId}”已从功能区移除并保存");
+    }
+
+    private void OnComponentDropRequested(
+        object? sender,
+        Controls.ComponentDropRequestedEventArgs e)
+    {
+        var membershipChanged = FeatureAreas.PlaceComponent(
+            e.ComponentId,
+            e.TargetAreaId,
+            e.SourceAreaId);
+        if (!membershipChanged && string.IsNullOrWhiteSpace(e.SourceAreaId))
+        {
+            return;
+        }
+
+        var placementChanged = Workspace.SetComponentPlacement(
+            e.ComponentId,
+            e.TargetAreaId,
+            e.SourceAreaId,
+            e.RelativeX,
+            e.RelativeY);
+        if (!membershipChanged && !placementChanged)
+            return;
+
+        SaveWorkspaceProfile();
+        var component = FeatureAreas.AvailableActions.FirstOrDefault(action =>
+            string.Equals(action.Id, e.ComponentId, StringComparison.OrdinalIgnoreCase));
+        var target = FeatureAreas.Areas.FirstOrDefault(area =>
+            string.Equals(area.Id, e.TargetAreaId, StringComparison.OrdinalIgnoreCase));
+        var operation = string.IsNullOrWhiteSpace(e.SourceAreaId)
+            ? "添加"
+            : string.Equals(e.SourceAreaId, e.TargetAreaId, StringComparison.OrdinalIgnoreCase)
+                ? "重新摆放"
+                : "移动";
+        ShowStatus($"组件“{component?.Title ?? e.ComponentId}”已{operation}至“{target?.Title ?? e.TargetAreaId}”并保存");
+    }
+
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape)
@@ -127,10 +204,14 @@ public partial class MainWindow : Window
     {
         var profile = result.Profile;
 
+        FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
         FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
         FeatureAreas.ApplyPersonalization(profile.Areas);
+        Workspace.SetGlobalComponentScale(profile.GlobalComponentScale);
+        profile.GlobalComponentScale = Workspace.GlobalComponentScale;
         profile.Layout = Workspace.ExportLayout();
         profile.Sidebars = [.. Workspace.ExportSidebars()];
+        profile.ComponentPlacements = [.. Workspace.ExportComponentPlacements()];
 
         try
         {
@@ -158,8 +239,10 @@ public partial class MainWindow : Window
         try
         {
             var profile = FeatureAreas.CreateCurrentProfile();
+            profile.GlobalComponentScale = Workspace.GlobalComponentScale;
             profile.Layout = Workspace.ExportLayout();
             profile.Sidebars = [.. Workspace.ExportSidebars()];
+            profile.ComponentPlacements = [.. Workspace.ExportComponentPlacements()];
             _profileStore.Save(profile);
         }
         catch (Exception exception)
@@ -238,5 +321,14 @@ public partial class MainWindow : Window
         WindowState = WindowState == WindowState.Maximized
             ? WindowState.Normal
             : WindowState.Maximized;
+    }
+
+    private void UpdateWindowStateIcons()
+    {
+        var isMaximized = WindowState == WindowState.Maximized;
+        WorkspaceMaximizeIcon.IsVisible = !isMaximized;
+        WorkspaceRestoreIcon.IsVisible = isMaximized;
+        PageMaximizeIcon.IsVisible = !isMaximized;
+        PageRestoreIcon.IsVisible = isMaximized;
     }
 }

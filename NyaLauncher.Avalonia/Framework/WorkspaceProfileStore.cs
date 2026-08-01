@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -50,6 +51,7 @@ public sealed class WorkspaceProfileStore
             var profile = JsonSerializer.Deserialize<WorkspaceProfile>(json, SerializerOptions)
                           ?? WorkspaceDefaultProfile.Create();
             MigrateLegacyAreaIds(profile);
+            NormalizeProfile(profile);
             return profile;
         }
         catch (JsonException)
@@ -191,7 +193,53 @@ public sealed class WorkspaceProfileStore
                 area.AreaId = migratedId;
         }
 
+        foreach (var sidebar in profile.Sidebars)
+        {
+            if (legacyIds.TryGetValue(sidebar.AreaId, out var migratedId))
+                sidebar.AreaId = migratedId;
+        }
+
+        foreach (var placement in profile.ComponentPlacements)
+        {
+            if (legacyIds.TryGetValue(placement.AreaId, out var migratedId))
+                placement.AreaId = migratedId;
+        }
+
         MigrateLayoutNode(profile.Layout, legacyIds);
+    }
+
+    private static void NormalizeProfile(WorkspaceProfile profile)
+    {
+        profile.Version = 2;
+        profile.GlobalComponentScale = Math.Clamp(
+            double.IsFinite(profile.GlobalComponentScale)
+                ? profile.GlobalComponentScale
+                : 1,
+            FeatureAreaRegistry.MinimumComponentScale,
+            FeatureAreaRegistry.MaximumComponentScale);
+
+        profile.ComponentPlacements = profile.ComponentPlacements
+            .Where(placement =>
+                !string.IsNullOrWhiteSpace(placement.AreaId) &&
+                !string.IsNullOrWhiteSpace(placement.ComponentId))
+            .GroupBy(
+                placement => $"{placement.AreaId}\0{placement.ComponentId}",
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.Last())
+            .ToList();
+
+        foreach (var placement in profile.ComponentPlacements)
+        {
+            placement.RelativeX = Math.Clamp(
+                double.IsFinite(placement.RelativeX) ? placement.RelativeX : 0.5,
+                0,
+                1);
+            placement.RelativeY = Math.Clamp(
+                double.IsFinite(placement.RelativeY) ? placement.RelativeY : 0.5,
+                0,
+                1);
+            placement.ZIndex = Math.Max(0, placement.ZIndex);
+        }
     }
 
     private static void MigrateLayoutNode(

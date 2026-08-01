@@ -150,7 +150,7 @@
 
     <!-- 底部信息 -->
     <TextBlock Grid.Row="2"
-               Text="NyaLauncher v1.0.0 · 使用 Avalonia 构建"
+               Text="NyaLauncher v0.1.0-gp2 · 使用 Avalonia 构建"
                FontSize="12"
                Foreground="#5A5A70"
                HorizontalAlignment="Center"

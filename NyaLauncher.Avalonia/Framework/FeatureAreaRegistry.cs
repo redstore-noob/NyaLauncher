@@ -11,6 +11,9 @@ namespace NyaLauncher.Avalonia.Framework;
 /// </summary>
 public sealed class FeatureAreaRegistry
 {
+    public const double MinimumComponentScale = 0.65;
+    public const double MaximumComponentScale = 1.6;
+
     private readonly List<FeatureAreaDefinition> _sourceAreas = [];
     private readonly List<FeatureAreaDefinition> _areas = [];
     private readonly Dictionary<string, FeatureAreaPreference> _preferences =
@@ -24,6 +27,8 @@ public sealed class FeatureAreaRegistry
     public IReadOnlyList<FeatureAreaDefinition> SourceAreas => _sourceAreas;
 
     public IReadOnlySet<string> UserAreaIds => _userAreaIds;
+
+    public double GlobalComponentScale { get; private set; } = 1;
 
     public IReadOnlyList<FeatureAreaAction> AvailableActions => _sourceAreas
         .SelectMany(area => area.Actions)
@@ -55,6 +60,14 @@ public sealed class FeatureAreaRegistry
 
         foreach (var area in provider.GetFeatureAreas())
             Register(area);
+    }
+
+    public void SetGlobalComponentScale(double scale)
+    {
+        GlobalComponentScale = Math.Clamp(
+            double.IsFinite(scale) ? scale : 1,
+            MinimumComponentScale,
+            MaximumComponentScale);
     }
 
     public void ApplyPersonalization(IEnumerable<FeatureAreaPreference> preferences)
@@ -125,6 +138,8 @@ public sealed class FeatureAreaRegistry
     {
         return new WorkspaceProfile
         {
+            Version = 2,
+            GlobalComponentScale = GlobalComponentScale,
             Areas = _areas.Select(area => new FeatureAreaPreference
             {
                 AreaId = area.Id,
@@ -142,6 +157,8 @@ public sealed class FeatureAreaRegistry
     {
         return new WorkspaceProfile
         {
+            Version = 2,
+            GlobalComponentScale = 1,
             Areas = _sourceAreas.Select(area => new FeatureAreaPreference
             {
                 AreaId = area.Id,
@@ -153,6 +170,78 @@ public sealed class FeatureAreaRegistry
             }).ToList(),
             CustomAreas = CreateUserAreaProfiles()
         };
+    }
+
+    /// <summary>
+    /// Adds a component from the library or moves an existing component
+    /// between feature areas. Returns false when the drop changes nothing.
+    /// </summary>
+    public bool PlaceComponent(
+        string componentId,
+        string targetAreaId,
+        string? sourceAreaId = null)
+    {
+        if (string.IsNullOrWhiteSpace(componentId) ||
+            string.IsNullOrWhiteSpace(targetAreaId) ||
+            !AvailableActions.Any(action =>
+                string.Equals(action.Id, componentId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var profile = CreateCurrentProfile();
+        var target = profile.Areas.FirstOrDefault(area =>
+            string.Equals(area.AreaId, targetAreaId, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+            return false;
+
+        var changed = false;
+        if (!string.IsNullOrWhiteSpace(sourceAreaId) &&
+            !string.Equals(sourceAreaId, targetAreaId, StringComparison.OrdinalIgnoreCase))
+        {
+            var source = profile.Areas.FirstOrDefault(area =>
+                string.Equals(area.AreaId, sourceAreaId, StringComparison.OrdinalIgnoreCase));
+            if (source is not null)
+            {
+                changed |= source.ActionIds.RemoveAll(id =>
+                    string.Equals(id, componentId, StringComparison.OrdinalIgnoreCase)) > 0;
+            }
+        }
+
+        if (!target.ActionIds.Any(id =>
+                string.Equals(id, componentId, StringComparison.OrdinalIgnoreCase)))
+        {
+            target.ActionIds.Add(componentId);
+            changed = true;
+        }
+
+        if (!changed)
+            return false;
+
+        ApplyPersonalization(profile.Areas);
+        return true;
+    }
+
+    public bool RemoveComponent(string componentId, string sourceAreaId)
+    {
+        if (string.IsNullOrWhiteSpace(componentId) ||
+            string.IsNullOrWhiteSpace(sourceAreaId))
+        {
+            return false;
+        }
+
+        var profile = CreateCurrentProfile();
+        var source = profile.Areas.FirstOrDefault(area =>
+            string.Equals(area.AreaId, sourceAreaId, StringComparison.OrdinalIgnoreCase));
+        if (source is null ||
+            source.ActionIds.RemoveAll(id =>
+                string.Equals(id, componentId, StringComparison.OrdinalIgnoreCase)) == 0)
+        {
+            return false;
+        }
+
+        ApplyPersonalization(profile.Areas);
+        return true;
     }
 
     public bool Unregister(string id)

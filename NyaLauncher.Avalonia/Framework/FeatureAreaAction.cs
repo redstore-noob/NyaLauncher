@@ -12,4 +12,13 @@ public sealed record FeatureAreaAction(
     string Description,
     string Glyph,
     Action? Execute = null,
-    bool IsPrimary = false);
+    bool IsPrimary = false)
+{
+    /// <summary>
+    /// Preferred component footprint in device-independent pixels. Plugins can
+    /// override it without changing the workspace layout contract.
+    /// </summary>
+    public double BaseWidth { get; init; } = 220;
+
+    public double BaseHeight { get; init; } = 82;
+}

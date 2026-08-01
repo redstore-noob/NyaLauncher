@@ -10,35 +10,36 @@ public static class WorkspaceDefaultProfile
     {
         return new WorkspaceProfile
         {
-            Version = 1,
+            Version = 2,
+            GlobalComponentScale = 1,
             Areas =
             [
                 new FeatureAreaPreference
                 {
                     AreaId = "area-001",
-                    DisplayName = "1",
-                    Description = "1",
-                    IconGlyph = "◇",
+                    DisplayName = "启动页",
+                    Description = "启动游戏功能的区域",
+                    IconGlyph = "\u25B6",
                     IconPath = null,
                     ActionIds = ["launch"]
                 },
                 new FeatureAreaPreference
                 {
                     AreaId = "area-002",
-                    DisplayName = "2",
-                    Description = "2",
-                    IconGlyph = "◇",
+                    DisplayName = "自定义",
+                    Description = "自定义的功能区",
+                    IconGlyph = "\u25C6",
                     IconPath = null,
                     ActionIds = []
                 },
                 new FeatureAreaPreference
                 {
                     AreaId = "area-003",
-                    DisplayName = "3",
-                    Description = "3",
-                    IconGlyph = "◇",
+                    DisplayName = "多功能区",
+                    Description = "设置与下载",
+                    IconGlyph = "\u2699",
                     IconPath = null,
-                    ActionIds = ["downloads", "tasks", "settings"]
+                    ActionIds = ["downloads", "settings"]
                 }
             ],
             CustomAreas = [],
@@ -50,7 +51,7 @@ public static class WorkspaceDefaultProfile
                     new DockLayoutProfile { AreaId = "area-002" },
                     new DockLayoutProfile { AreaId = "area-001" }
                 ],
-                Weights = [932.8, 354.4]
+                Weights = [883.2, 354.4]
             },
             Sidebars =
             [
@@ -58,7 +59,34 @@ public static class WorkspaceDefaultProfile
                 {
                     AreaId = "area-003",
                     Edge = DockEdge.Left,
-                    RevealSize = 260
+                    RevealSize = 180
+                }
+            ],
+            ComponentPlacements =
+            [
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-001",
+                    ComponentId = "launch",
+                    RelativeX = 0.5115384615384608,
+                    RelativeY = 0.46466721446179143,
+                    ZIndex = 86
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-003",
+                    ComponentId = "downloads",
+                    RelativeX = 0.5,
+                    RelativeY = 0,
+                    ZIndex = 23
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-003",
+                    ComponentId = "settings",
+                    RelativeX = 0.5,
+                    RelativeY = 0.13121783876500862,
+                    ZIndex = 26
                 }
             ]
         };
