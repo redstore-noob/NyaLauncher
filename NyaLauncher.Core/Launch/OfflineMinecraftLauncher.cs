@@ -111,6 +111,8 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
                 throw new MinecraftLaunchException("Java 进程未能启动。");
             }
 
+            WriteDebugArguments(plan);
+
             return new MinecraftLaunchResult(
                 process,
                 options.VersionId,
@@ -132,6 +134,34 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
             !Directory.Exists(minecraftDirectory))
         {
             throw new MinecraftLaunchException($"Minecraft 目录不存在：{minecraftDirectory}");
+        }
+    }
+
+    /// <summary>
+    /// 调试辅助：设置环境变量 NYALAUNCHER_DEBUG_ARGS=1 时，
+    /// 将实际启动参数写入 %TEMP%\nya_launcher_debug_args.txt，便于排查登录/会话问题。
+    /// </summary>
+    private static void WriteDebugArguments(MinecraftLaunchPlan plan)
+    {
+        if (Environment.GetEnvironmentVariable("NYALAUNCHER_DEBUG_ARGS") != "1")
+            return;
+
+        try
+        {
+            var lines = new List<string>
+            {
+                $"java={plan.JavaExecutable}",
+                $"cwd={plan.WorkingDirectory}",
+                "--- arguments ---"
+            };
+            lines.AddRange(plan.Arguments);
+            File.WriteAllLines(
+                Path.Combine(Path.GetTempPath(), "nya_launcher_debug_args.txt"),
+                lines);
+        }
+        catch
+        {
+            // 调试日志失败不影响游戏启动。
         }
     }
 }

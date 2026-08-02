@@ -15,7 +15,10 @@ public sealed class MinecraftLaunchOptions
 
     public required string VersionId { get; init; }
 
-    public required OfflineAccount Account { get; init; }
+    /// <summary>
+    /// 启动使用的账号；可为离线账号或正版（Microsoft）账号。
+    /// </summary>
+    public required IMinecraftAccount Account { get; init; }
 
     /// <summary>
     /// 可选的 Java 可执行文件。为空时依次检查 NYALAUNCHER_JAVA、JAVA_HOME 和 PATH。
@@ -42,4 +45,25 @@ public sealed class MinecraftLaunchOptions
     public IReadOnlyList<string> AdditionalJvmArguments { get; init; } = [];
 
     public IReadOnlyList<string> AdditionalGameArguments { get; init; } = [];
+
+    /// <summary>
+    /// 返回一个除账号外其余配置完全相同的副本，用于在启动前替换账号。
+    /// </summary>
+    public MinecraftLaunchOptions WithAccount(IMinecraftAccount account) => new()
+    {
+        MinecraftDirectory = MinecraftDirectory,
+        GameDirectory = GameDirectory,
+        VersionId = VersionId,
+        Account = account,
+        JavaExecutable = JavaExecutable,
+        JavaRuntimeDirectory = JavaRuntimeDirectory,
+        MinimumMemoryMb = MinimumMemoryMb,
+        MaximumMemoryMb = MaximumMemoryMb,
+        WindowWidth = WindowWidth,
+        WindowHeight = WindowHeight,
+        LauncherName = LauncherName,
+        LauncherVersion = LauncherVersion,
+        AdditionalJvmArguments = AdditionalJvmArguments,
+        AdditionalGameArguments = AdditionalGameArguments
+    };
 }
