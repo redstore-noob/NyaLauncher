@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NyaLauncher.Avalonia.Pages"
              x:Class="NyaLauncher.Avalonia.Pages.SettingsPage">
   <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
 
@@ -195,46 +196,82 @@
                          Foreground="#FFFFFF"
                          VerticalAlignment="Center" />
               <Button Grid.Column="1"
-                      Content="+ 添加账户"
+                      Content="＋ 新建账户"
                       Background="{StaticResource SystemAccentColor}"
                       Foreground="White"
                       CornerRadius="8"
                       Padding="16,6"
                       FontSize="13"
                       FontWeight="SemiBold"
-                      Cursor="Hand" />
+                      Cursor="Hand"
+                      Click="OnAddAccountClick" />
             </Grid>
 
-            <Border Background="#2A2A3E" CornerRadius="12" Padding="16,14">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                <Border Width="40" Height="40"
-                        CornerRadius="10"
-                        Background="#3A3A50">
-                  <TextBlock Text="👤"
-                             FontSize="18"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center" />
-                </Border>
-                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
-                  <TextBlock Text="Player_01"
-                             FontSize="15"
-                             FontWeight="SemiBold"
-                             Foreground="#FFFFFF" />
-                  <TextBlock Text="离线账户"
-                             FontSize="12"
-                             Foreground="#8B8B9E" />
-                </StackPanel>
-                <Button Grid.Column="2"
-                        Content="设为默认"
-                        Background="#2D2D44"
-                        Foreground="#CCCCDD"
-                        CornerRadius="6"
-                        Padding="12,4"
-                        FontSize="12"
-                        VerticalAlignment="Center"
-                        Cursor="Hand" />
-              </Grid>
-            </Border>
+            <ItemsControl x:Name="AccountList">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="local:LaunchAccount">
+                  <Border Background="#2A2A3E"
+                          CornerRadius="12"
+                          Padding="16,14"
+                          Margin="0,0,0,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                      <Border Width="40" Height="40"
+                              CornerRadius="10"
+                              Background="#3A3A50">
+                        <TextBlock Text="{Binding Badge}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource SystemAccentColor}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1"
+                                  VerticalAlignment="Center"
+                                  Spacing="2">
+                        <TextBlock Text="{Binding DisplayName}"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF" />
+                        <TextBlock Text="{Binding TypeLabel}"
+                                   FontSize="12"
+                                   Foreground="#8B8B9E" />
+                      </StackPanel>
+                      <Button Grid.Column="2"
+                              Content="设为默认"
+                              Background="#2D2D44"
+                              Foreground="#CCCCDD"
+                              CornerRadius="6"
+                              Padding="12,4"
+                              FontSize="12"
+                              VerticalAlignment="Center"
+                              Cursor="Hand"
+                              Click="OnSetDefaultClick" />
+                      <Button Grid.Column="3"
+                              Content="删除"
+                              Background="Transparent"
+                              Foreground="#E56B6B"
+                              CornerRadius="6"
+                              Padding="12,4"
+                              FontSize="12"
+                              VerticalAlignment="Center"
+                              Cursor="Hand"
+                              Click="OnDeleteAccountClick">
+                        <Button.Styles>
+                          <Style Selector="Button:hover">
+                            <Setter Property="Foreground" Value="#FF8A8A" />
+                          </Style>
+                        </Button.Styles>
+                      </Button>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock x:Name="AccountHintText"
+                       FontSize="12"
+                       Foreground="#8B8B9E"
+                       TextWrapping="Wrap" />
           </StackPanel>
         </Border>
 
@@ -258,5 +295,8 @@
 
       </StackPanel>
     </ScrollViewer>
+
+    <!-- 新建账户 / 设备码 遮罩（共享控件） -->
+    <local:AccountLoginOverlay x:Name="AccountLoginOverlay" Grid.RowSpan="2" />
   </Grid>
 </UserControl>

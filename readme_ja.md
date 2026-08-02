@@ -2,10 +2,9 @@
 
 > エレガンスと自由のために作られた、モダンでクロスプラットフォームな軽量Minecraftランチャー。
 <br>
-![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
-![.NET](https://img.shields.io/badge/.NET-10-purple.svg)
-![Avalonia](https://img.shields.io/badge/Avalonia-12.0-green.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![.NET](img/badges/dotnet.svg)
+![Avalonia](img/badges/avalonia.svg)
+![Platform](img/badges/platform.svg)
 
 ---
 

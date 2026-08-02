@@ -2,10 +2,9 @@
 
 > 一个现代、跨平台的轻量 Minecraft 启动器，为优雅与自由而生。
 <br>
-![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
-![.NET](https://img.shields.io/badge/.NET-10-purple.svg)
-![Avalonia](https://img.shields.io/badge/Avalonia-12.0-green.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![.NET](img/badges/dotnet.svg)
+![Avalonia](img/badges/avalonia.svg)
+![Platform](img/badges/platform.svg)
 
 ---
 
@@ -124,26 +123,18 @@ dotnet build -c Release
 ## 更新日志
 近期改动
 
-### v0.1.0-gp2
-
-> `v0.1.0-gp2` 仅作为 v0.1.0 的第二个 new GUI 预览代号，不写入 Core 版本。
-
-- 与main同步更新。
-- 重构为可扩展的停靠式工作区，功能区支持上下、左右吸附和自由调整排列。
-- 支持拖动功能区接缝调整大小；满足边缘和尺寸条件时可自动缩进为侧边栏。
-- 侧边栏支持悬停展开、平滑动画、拖动换边与同边交换，并可通过连续拖动恢复为普通功能区。
-- 新增完整个性化配置：可编辑功能区名称、简介、图标与功能按钮，也可新建或删除自定义功能区。
-- 功能区布局、尺寸、侧边栏和个性化内容会保存到用户选择的配置目录，并提供跨平台默认目录。
-- 功能按钮改为当前窗口内整页跳转，复用启动、资源下载和设置 GUI；个性化已整合进设置，按 `Esc` 可随时进入设置。
-- 压缩工作区顶栏和底栏，支持拖动窗口四边与四角调整整体大小；进入功能页面时会覆盖工作区信息栏。
-- 清理前端构建缓存和冗余调试符号，同时保留 Windows、macOS、Linux 分平台发布能力。
-- 将最新的当前个性化布局、侧边栏与组件位置重新固化为新用户首次启动的默认配置。
-- 新增独立“组件库”，支持将组件拖入功能区、跨功能区移动，以及拖回组件库立即删除并保存。
-- 功能区现作为独立桌面：组件可自由摆放且不会越界，窗口缩放时按相对位置重排；个性化中可调整全局组件尺寸。
-- 组件拖动时显示跟随鼠标的落点虚影，并支持向展开中的侧边栏投放组件。
-- 修复有组件时功能区难以缩进侧边栏的问题，并完善横向、纵向缩放阈值判断。
-- 完善重叠组件层级：后放组件默认置顶，悬停组件临时高亮并显示在最上层，移开后恢复原有层级。
-- 统一窗口最小化、最大化/还原与关闭按钮的矢量图标尺寸、居中方式和状态反馈。
+v0.1.0pre2
+- 对GUI进行了重构(位于newgui分支)，主页变为可更改组件块，增加了自定义自由度(尚不完善，旧版GUI界面保存在main分支)
+- 增加了离线启动、正版启动功能
+- 对readme.md的bug进行了修复（?）
+- 增加了多账户管理
+- 增加配置保存功能，配置一次后终于能保留下来了😭
+- 对Java搜索进行优化，修复了曾经存在的Java可启动但无法使用问题
+- 移除了Herobrine
+![v0.1.0pre2主界面截图](img/v0.1.0pre2-mainwindow.png)
+![0.1.0pre2启动界面截图](img/v0.1.0pre2.png)
+![0.1.0pre2设置截图](img/v0.1.0pre2-settings.png)
+![0.1.0pre2个性化界面截图](img/v0.1.0pre2-settings2.png)
 
 v0.1.0pre1
 - 将用户界面中的GUI拆分成独立库(NyaLauncher.Avalonia.Animations)

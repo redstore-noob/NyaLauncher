@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NyaLauncher.Avalonia.Pages"
              x:Class="NyaLauncher.Avalonia.Pages.LaunchPage">
   <Grid RowDefinitions="Auto,*,Auto" Margin="40,40,40,32">
 
@@ -103,15 +104,39 @@
                   CornerRadius="10"
                   Padding="12,6">
             <StackPanel Spacing="4">
-              <TextBlock Text="离线用户名"
-                         FontSize="11"
-                         Foreground="#8B8B9E" />
-              <TextBox x:Name="OfflineUsernameBox"
-                       Text="Player_01"
-                       MaxLength="16"
-                       Background="Transparent"
-                       BorderThickness="0"
-                       FontSize="14" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="账号"
+                           FontSize="11"
+                           Foreground="#8B8B9E"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1"
+                        Content="＋ 新建账户"
+                        FontSize="10"
+                        Padding="8,2"
+                        CornerRadius="6"
+                        Click="OnAddAccountClick"
+                        Cursor="Hand" />
+              </Grid>
+              <ComboBox x:Name="AccountSelector"
+                        PlaceholderText="未选择账号"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontSize="13">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate DataType="local:LaunchAccount">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding Badge}"
+                                 FontSize="10"
+                                 Foreground="{StaticResource SystemAccentColor}"
+                                 VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding DisplayName}"
+                                 FontSize="13"
+                                 Foreground="#FFFFFF"
+                                 VerticalAlignment="Center" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
             </StackPanel>
           </Border>
 
@@ -147,6 +172,9 @@
       </Grid>
       </Border>
     </Border>
+
+    <!-- 新建账户 / 设备码 遮罩（共享控件） -->
+    <local:AccountLoginOverlay x:Name="AccountLoginOverlay" Grid.RowSpan="3" />
 
     <!-- 底部信息 -->
     <TextBlock Grid.Row="2"
