@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using NyaLauncher.Core.Launch.Auth;
 
 namespace NyaLauncher.Core.Launch.Internal;
 
@@ -23,19 +24,41 @@ internal sealed class MinecraftArgumentBuilder
         var librariesDirectory = Path.Combine(minecraftDirectory, "libraries");
         var gameAssetsDirectory = GetLegacyGameAssetsDirectory(assetsDirectory, profile.AssetsId);
         var classpathValue = string.Join(Path.PathSeparator, classpath);
+        var (authPlayerName, authUuid, authAccessToken, authSession, clientId, authXuid, userType) =
+            options.Account switch
+            {
+                OfflineAccount offline => (
+                    offline.Username,
+                    offline.Uuid,
+                    "0",
+                    $"token:0:{offline.Uuid}",
+                    string.Empty,
+                    string.Empty,
+                    "legacy"),
+                MicrosoftAccount microsoft => (
+                    microsoft.Username,
+                    microsoft.Uuid,
+                    microsoft.AccessToken,
+                    $"token:{microsoft.AccessToken}:{microsoft.Uuid}",
+                    microsoft.ClientId,
+                    microsoft.XboxUserId,
+                    "msa"),
+                _ => throw new MinecraftLaunchException(
+                    $"不支持的账号类型：{options.Account.GetType().Name}")
+            };
         var placeholders = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["auth_player_name"] = options.Account.Username,
+            ["auth_player_name"] = authPlayerName,
             ["version_name"] = profile.Id,
             ["game_directory"] = gameDirectory,
             ["assets_root"] = assetsDirectory,
             ["assets_index_name"] = profile.AssetsId,
-            ["auth_uuid"] = options.Account.Uuid,
-            ["auth_access_token"] = "0",
-            ["auth_session"] = $"token:0:{options.Account.Uuid}",
-            ["clientid"] = string.Empty,
-            ["auth_xuid"] = string.Empty,
-            ["user_type"] = "legacy",
+            ["auth_uuid"] = authUuid,
+            ["auth_access_token"] = authAccessToken,
+            ["auth_session"] = authSession,
+            ["clientid"] = clientId,
+            ["auth_xuid"] = authXuid,
+            ["user_type"] = userType,
             ["version_type"] = profile.VersionType,
             ["user_properties"] = "{}",
             ["profile_properties"] = "{}",

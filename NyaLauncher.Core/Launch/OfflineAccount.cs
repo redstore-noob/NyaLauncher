@@ -7,7 +7,7 @@ namespace NyaLauncher.Core.Launch;
 /// <summary>
 /// 不包含任何访问令牌的离线 Minecraft 账号。
 /// </summary>
-public sealed record OfflineAccount
+public sealed record OfflineAccount : IMinecraftAccount
 {
     private static readonly Regex UsernamePattern =
         new("^[A-Za-z0-9_]{1,16}$", RegexOptions.CultureInvariant);
@@ -24,6 +24,12 @@ public sealed record OfflineAccount
     /// 与服务端离线模式一致的 32 位无连字符 UUID。
     /// </summary>
     public string Uuid { get; }
+
+    public string AccessToken => "0";
+
+    public string UserType => "legacy";
+
+    public string XboxUserId => string.Empty;
 
     public static OfflineAccount Create(string username)
     {

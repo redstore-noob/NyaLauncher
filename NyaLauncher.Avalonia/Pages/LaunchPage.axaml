@@ -103,15 +103,64 @@
                   CornerRadius="10"
                   Padding="12,6">
             <StackPanel Spacing="4">
-              <TextBlock Text="离线用户名"
-                         FontSize="11"
-                         Foreground="#8B8B9E" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock x:Name="AccountLabel"
+                           Text="离线用户名"
+                           FontSize="11"
+                           Foreground="#8B8B9E"
+                           VerticalAlignment="Center" />
+                <Button x:Name="MicrosoftLoginButton"
+                        Grid.Column="1"
+                        Content="微软登录"
+                        FontSize="10"
+                        Padding="8,2"
+                        CornerRadius="6"
+                        Click="OnMicrosoftLoginClick"
+                        Cursor="Hand" />
+              </Grid>
               <TextBox x:Name="OfflineUsernameBox"
                        Text="Player_01"
                        MaxLength="16"
                        Background="Transparent"
                        BorderThickness="0"
                        FontSize="14" />
+              <!-- 正版账号信息（登录后显示） -->
+              <Border x:Name="MicrosoftAccountPanel"
+                      IsVisible="False"
+                      Background="#1E1E2E"
+                      CornerRadius="8"
+                      Padding="8,4"
+                      Margin="0,4,0,0">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock x:Name="MicrosoftAccountName"
+                               FontSize="13"
+                               Foreground="#FFFFFF"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="MicrosoftAccountState"
+                               FontSize="10"
+                               Foreground="#8B8B9E" />
+                  </StackPanel>
+                  <Button x:Name="MicrosoftRefreshButton"
+                          Grid.Column="1"
+                          Content="刷新"
+                          FontSize="10"
+                          Padding="8,2"
+                          Margin="0,0,4,0"
+                          CornerRadius="6"
+                          Click="OnMicrosoftRefreshClick"
+                          Cursor="Hand" />
+                  <Button x:Name="MicrosoftLogoutButton"
+                          Grid.Column="2"
+                          Content="退出"
+                          FontSize="10"
+                          Padding="8,2"
+                          CornerRadius="6"
+                          Click="OnMicrosoftLogoutClick"
+                          Cursor="Hand" />
+                </Grid>
+              </Border>
             </StackPanel>
           </Border>
 
@@ -147,6 +196,64 @@
       </Grid>
       </Border>
     </Border>
+
+    <!-- 设备码验证覆盖层 -->
+    <Panel x:Name="DeviceCodeOverlay"
+           Grid.RowSpan="3"
+           IsVisible="False"
+           Background="#C0000000">
+      <Border Background="#1E1E2E"
+              CornerRadius="16"
+              Padding="36,28"
+              MaxWidth="440"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="14">
+          <TextBlock Text="微软账号登录"
+                     FontSize="20"
+                     FontWeight="Bold"
+                     Foreground="#FFFFFF"
+                     HorizontalAlignment="Center" />
+          <TextBlock x:Name="DeviceCodeHintText"
+                     Text="请在浏览器中打开以下地址，然后输入验证码"
+                     FontSize="12"
+                     Foreground="#8B8B9E"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+          <Border Background="#2D2D44"
+                  CornerRadius="10"
+                  Padding="28,12"
+                  HorizontalAlignment="Center">
+            <TextBlock x:Name="DeviceCodeText"
+                       FontSize="30"
+                       FontWeight="Bold"
+                       LetterSpacing="8"
+                       Foreground="{StaticResource SystemAccentColor}" />
+          </Border>
+          <TextBlock x:Name="DeviceCodeUrlText"
+                     FontSize="12"
+                     Foreground="#6B6B80"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+          <StackPanel Orientation="Horizontal"
+                      HorizontalAlignment="Center"
+                      Spacing="10">
+            <Button x:Name="DeviceCodeOpenBrowserButton"
+                    Content="打开浏览器"
+                    Padding="14,7"
+                    CornerRadius="8"
+                    Click="OnDeviceCodeOpenBrowserClick"
+                    Cursor="Hand" />
+            <Button x:Name="DeviceCodeCancelButton"
+                    Content="取消登录"
+                    Padding="14,7"
+                    CornerRadius="8"
+                    Click="OnDeviceCodeCancelClick"
+                    Cursor="Hand" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Panel>
 
     <!-- 底部信息 -->
     <TextBlock Grid.Row="2"

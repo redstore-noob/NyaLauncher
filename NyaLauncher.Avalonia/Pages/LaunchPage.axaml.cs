@@ -1,16 +1,22 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using NyaLauncher.Core.Launch;
+using NyaLauncher.Core.Launch.Auth;
 
 namespace NyaLauncher.Avalonia.Pages;
 
 public partial class LaunchPage : UserControl
 {
     private readonly IOfflineMinecraftLauncher _launcher = new OfflineMinecraftLauncher();
+    private readonly IMicrosoftAuthenticator _authenticator = new MicrosoftDeviceCodeAuthenticator();
+    private MicrosoftAccount? _microsoftAccount;
+    private CancellationTokenSource? _deviceCodeCancellation;
     private string _minecraftDirectory = string.Empty;
     private string? _gameDirectory;
     private readonly string _javaRuntimeDirectory;
@@ -81,15 +87,28 @@ public partial class LaunchPage : UserControl
 
         try
         {
-            var account = OfflineAccount.Create(OfflineUsernameBox.Text ?? string.Empty);
-            var result = await _launcher.LaunchAsync(new MinecraftLaunchOptions
+            MinecraftLaunchResult result;
+            var options = new MinecraftLaunchOptions
             {
                 MinecraftDirectory = _minecraftDirectory,
                 GameDirectory = _gameDirectory,
                 JavaRuntimeDirectory = _javaRuntimeDirectory,
                 VersionId = versionId,
-                Account = account
-            });
+                Account = (IMinecraftAccount?)_microsoftAccount ??
+                          OfflineAccount.Create(OfflineUsernameBox.Text ?? string.Empty)
+            };
+
+            if (_microsoftAccount is not null)
+            {
+                // 正版启动：先校验/刷新令牌，再走正版启动管线。
+                _microsoftAccount = await _authenticator.ValidateAsync(_microsoftAccount);
+                result = await new MicrosoftMinecraftLauncher(_launcher)
+                    .LaunchAsync(_microsoftAccount, options);
+            }
+            else
+            {
+                result = await _launcher.LaunchAsync(options);
+            }
 
             _gameProcess = result.Process;
             _gameProcess.Exited += OnGameExited;
@@ -97,7 +116,7 @@ public partial class LaunchPage : UserControl
                 ? $"（至少需要 Java {javaMajor}，兼容更高版本）"
                 : string.Empty;
             LaunchStatusText.Text =
-                $"已启动 {result.VersionId}，离线用户名：{result.Username} {javaHint}";
+                $"已启动 {result.VersionId}，账号：{result.Username} {javaHint}";
 
             if (_gameProcess.HasExited)
             {
@@ -108,9 +127,144 @@ public partial class LaunchPage : UserControl
         {
             LaunchStatusText.Text = $"启动失败：{ex.Message}";
             LaunchButton.IsEnabled = true;
-            LaunchButton.Content = "离线启动";
+            LaunchButton.Content = GetLaunchButtonText();
         }
     }
+
+    // ------------------------------------------------------------------
+    // 微软账号登录
+    // ------------------------------------------------------------------
+
+    private async void OnMicrosoftLoginClick(object? sender, RoutedEventArgs e)
+    {
+        using var cancellation = new CancellationTokenSource();
+        _deviceCodeCancellation = cancellation;
+        MicrosoftLoginButton.IsEnabled = false;
+        MicrosoftLoginButton.Content = "等待授权…";
+
+        try
+        {
+            _microsoftAccount = await _authenticator.AuthenticateAsync(
+                async (info, _) =>
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        DeviceCodeHintText.Text =
+                            "请在浏览器中打开以下地址，然后输入验证码";
+                        DeviceCodeText.Text = info.UserCode;
+                        DeviceCodeUrlText.Text = info.VerificationUri;
+                        DeviceCodeOverlay.IsVisible = true;
+                    });
+
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(
+                            info.VerificationUriFull.ToString())
+                        {
+                            UseShellExecute = true
+                        });
+                    }
+                    catch
+                    {
+                        // 自动打开浏览器失败时，用户仍可点击"打开浏览器"按钮。
+                    }
+                },
+                cancellation.Token);
+
+            DeviceCodeOverlay.IsVisible = false;
+            LaunchStatusText.Text = $"已登录正版账号：{_microsoftAccount.Username}";
+        }
+        catch (Exception ex) when (
+            ex is MicrosoftAuthenticationException or OperationCanceledException)
+        {
+            DeviceCodeOverlay.IsVisible = false;
+            LaunchStatusText.Text = ex is OperationCanceledException
+                ? "已取消微软账号登录。"
+                : $"微软账号登录失败：{ex.Message}";
+        }
+        finally
+        {
+            MicrosoftLoginButton.IsEnabled = true;
+            MicrosoftLoginButton.Content = "微软登录";
+            UpdateAccountUi();
+        }
+    }
+
+    private async void OnMicrosoftRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        if (_microsoftAccount is null)
+            return;
+
+        MicrosoftRefreshButton.IsEnabled = false;
+        try
+        {
+            _microsoftAccount = await _authenticator.RefreshAsync(_microsoftAccount);
+            LaunchStatusText.Text = "正版账号令牌已刷新。";
+        }
+        catch (Exception ex)
+        {
+            LaunchStatusText.Text = $"刷新令牌失败：{ex.Message}";
+        }
+        finally
+        {
+            MicrosoftRefreshButton.IsEnabled = true;
+            UpdateAccountUi();
+        }
+    }
+
+    private void OnMicrosoftLogoutClick(object? sender, RoutedEventArgs e)
+    {
+        _microsoftAccount = null;
+        UpdateAccountUi();
+        LaunchStatusText.Text = "已退出正版账号，切换为离线模式。";
+    }
+
+    private void OnDeviceCodeOpenBrowserClick(object? sender, RoutedEventArgs e)
+    {
+        var codeText = DeviceCodeText.Text;
+        if (string.IsNullOrWhiteSpace(codeText))
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(
+                $"https://www.microsoft.com/link?user_code={codeText}")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            LaunchStatusText.Text = "打开浏览器失败，请手动在浏览器中访问微软登录页。";
+        }
+    }
+
+    private void OnDeviceCodeCancelClick(object? sender, RoutedEventArgs e)
+    {
+        _deviceCodeCancellation?.Cancel();
+        DeviceCodeOverlay.IsVisible = false;
+    }
+
+    /// <summary>根据当前账号模式刷新账号区与启动按钮的显示状态。</summary>
+    private void UpdateAccountUi()
+    {
+        var hasAccount = _microsoftAccount is not null;
+        MicrosoftAccountPanel.IsVisible = hasAccount;
+        OfflineUsernameBox.IsEnabled = !hasAccount;
+        AccountLabel.Text = hasAccount ? "微软账号" : "离线用户名";
+        if (hasAccount)
+        {
+            MicrosoftAccountName.Text = _microsoftAccount!.Username;
+            MicrosoftAccountState.Text = _microsoftAccount.IsExpired
+                ? "令牌已过期，启动时将自动刷新"
+                : "已登录";
+        }
+
+        LaunchButton.Content = GetLaunchButtonText();
+    }
+
+    private string GetLaunchButtonText() =>
+        _microsoftAccount is not null ? "正版启动" : "离线启动";
 
     private void OnGameExited(object? sender, EventArgs e)
     {
@@ -127,7 +281,7 @@ public partial class LaunchPage : UserControl
                 ? "游戏已正常退出。"
                 : $"游戏已退出，退出代码：{exitCode}";
             LaunchButton.IsEnabled = true;
-            LaunchButton.Content = "离线启动";
+            LaunchButton.Content = GetLaunchButtonText();
             exitedProcess.Exited -= OnGameExited;
             exitedProcess.Dispose();
             _gameProcess = null;
