@@ -199,7 +199,7 @@
                    TextTrimming="CharacterEllipsis" />
 
         <TextBlock Grid.Column="2"
-                   Text="v0.1.0-gp2"
+                   Text="v0.1.0-pre2"
                    FontFamily="Consolas"
                    FontSize="9"
                    Foreground="#59627C"

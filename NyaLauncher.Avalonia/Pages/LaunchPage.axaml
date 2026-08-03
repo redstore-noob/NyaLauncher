@@ -55,7 +55,7 @@
                 CornerRadius="10"
                 Padding="12,8"
                 Margin="0,24,0,12">
-          <Grid ColumnDefinitions="Auto,*,Auto">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto">
             <TextBlock Text="游戏目录"
                        FontSize="12"
                        Foreground="#8B8B9E"
@@ -68,6 +68,13 @@
                      FontSize="13"
                      PlaceholderText="Minecraft 根目录或 versions\版本号 目录" />
             <Button Grid.Column="2"
+                    Content="选择目录"
+                    Padding="12,5"
+                    FontSize="12"
+                    Margin="0,0,8,0"
+                    Click="OnBrowseDirectoryClick"
+                    ToolTip.Tip="从系统文件夹选择对话框选择游戏目录" />
+            <Button Grid.Column="3"
                     Content="重新扫描"
                     Padding="12,5"
                     FontSize="12"
@@ -110,7 +117,7 @@
                            Foreground="#8B8B9E"
                            VerticalAlignment="Center" />
                 <Button Grid.Column="1"
-                        Content="＋ 新建账户"
+                        Content="+ 新建账户"
                         FontSize="10"
                         Padding="8,2"
                         CornerRadius="6"
@@ -143,7 +150,7 @@
           <!-- 启动按钮 -->
           <Border Grid.Column="2" Margin="16,0,0,0">
             <Button x:Name="LaunchButton"
-                    Content="离线启动"
+                    Content="启动Minecraft"
                     Width="160"
                     Height="48"
                     FontSize="16"
@@ -178,7 +185,7 @@
 
     <!-- 底部信息 -->
     <TextBlock Grid.Row="2"
-               Text="NyaLauncher v0.1.0-gp2 · 使用 Avalonia 构建"
+               Text="NyaLauncher v0.1.0-pre2 · 使用 Avalonia 构建"
                FontSize="12"
                Foreground="#5A5A70"
                HorizontalAlignment="Center"

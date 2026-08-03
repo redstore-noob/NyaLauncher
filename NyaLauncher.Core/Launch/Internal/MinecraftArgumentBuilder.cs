@@ -29,17 +29,17 @@ internal sealed class MinecraftArgumentBuilder
             {
                 OfflineAccount offline => (
                     offline.Username,
-                    offline.Uuid,
+                    ToCompactUuid(offline.Uuid),
                     "0",
-                    $"token:0:{offline.Uuid}",
+                    $"token:0:{ToCompactUuid(offline.Uuid)}",
                     string.Empty,
                     string.Empty,
                     "legacy"),
                 MicrosoftAccount microsoft => (
                     microsoft.Username,
-                    microsoft.Uuid,
+                    ToCompactUuid(microsoft.Uuid),
                     microsoft.AccessToken,
-                    $"token:{microsoft.AccessToken}:{microsoft.Uuid}",
+                    $"token:{microsoft.AccessToken}:{ToCompactUuid(microsoft.Uuid)}",
                     microsoft.ClientId,
                     microsoft.XboxUserId,
                     "msa"),
@@ -125,6 +125,19 @@ internal sealed class MinecraftArgumentBuilder
 
         result.AddRange(options.AdditionalGameArguments);
         return result;
+    }
+
+    /// <summary>
+    /// 将 UUID 归一化为 32 位无连字符格式。
+    /// 官方启动器与主流启动器（HMCL 等）对 --uuid / --session 中的 UUID 均使用
+    /// 无连字符格式；此处归一化可兼容历史版本存储的带连字符 UUID。
+    /// </summary>
+    private static string ToCompactUuid(string uuid)
+    {
+        if (string.IsNullOrEmpty(uuid))
+            return uuid;
+
+        return uuid.Replace("-", "");
     }
 
     private static void AppendModernArguments(

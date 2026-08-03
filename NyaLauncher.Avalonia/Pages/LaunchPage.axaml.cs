@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Launch;
@@ -110,6 +111,30 @@ public partial class LaunchPage : UserControl
 
     private void OnRescanClick(object? sender, RoutedEventArgs e)
     {
+        SaveGameDirectory();
+        RescanInstallation();
+    }
+
+    /// <summary>
+    /// 调出系统自带的文件夹选择框，选中后更新路径并立即重新扫描。
+    /// </summary>
+    private async void OnBrowseDirectoryClick(object? sender, RoutedEventArgs e)
+    {
+        var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (storageProvider is null)
+            return;
+
+        var folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择 Minecraft 游戏目录",
+            AllowMultiple = false
+        });
+
+        var path = folders.FirstOrDefault()?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        MinecraftPathBox.Text = path;
         SaveGameDirectory();
         RescanInstallation();
     }

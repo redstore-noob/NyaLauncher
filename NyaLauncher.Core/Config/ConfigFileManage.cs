@@ -65,6 +65,9 @@ namespace NyaLauncher.Core.Config
             };
 
             string jsonContent = JsonSerializer.Serialize(defaultConfig, new JsonSerializerOptions { WriteIndented = true });
+            var directory = Path.GetDirectoryName(FilePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
             File.WriteAllText(FilePath, jsonContent);
             _configDoc = JsonDocument.Parse(jsonContent);
         }
@@ -76,6 +79,9 @@ namespace NyaLauncher.Core.Config
         {
             try
             {
+                var directory = Path.GetDirectoryName(FilePath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                    Directory.CreateDirectory(directory);
                 using (var stream = File.Create(FilePath))
                 using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
                 {

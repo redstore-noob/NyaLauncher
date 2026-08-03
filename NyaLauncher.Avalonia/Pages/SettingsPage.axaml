@@ -284,7 +284,7 @@
                       FontSize="18"
                       FontWeight="SemiBold"
                       Foreground="#FFFFFF" />
-            <TextBlock Text="NyaLauncher v0.1.0-gp2"
+            <TextBlock Text="NyaLauncher v0.1.0-pre2"
                       FontSize="14"
                       Foreground="#CCCCDD" />
             <TextBlock Text="基于 Avalonia UI 框架构建 · 开源 · 跨平台"

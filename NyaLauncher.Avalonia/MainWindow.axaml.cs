@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Core.Config;
 
 namespace NyaLauncher.Avalonia;
 
@@ -25,6 +26,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        // 让 config.json 与 workspace.json 存放在同一目录（含自定义存储目录）。
+        LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
 
         FeatureAreas.Register(new BuiltInFeatureAreaProvider(NavigateFromAction));
         var profile = _profileStore.Load();
@@ -219,7 +223,11 @@ public partial class MainWindow : Window
                 _profileStore.StorageDirectory,
                 result.StorageDirectory);
             if (directoryChanged)
+            {
                 _profileStore.ChangeStorageDirectory(result.StorageDirectory, profile);
+                // 存储目录变更后，config.json 跟随 workspace.json 一起迁移。
+                LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+            }
             else
                 _profileStore.Save(profile);
 
