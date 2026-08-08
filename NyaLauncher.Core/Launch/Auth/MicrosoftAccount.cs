@@ -9,7 +9,10 @@ public sealed record MicrosoftAccount : IMinecraftAccount
     /// <summary>游戏内玩家名（auth_player_name）。</summary>
     public required string Username { get; init; }
 
-    /// <summary>带连字符的玩家档案 UUID，用于 auth_uuid。</summary>
+    /// <summary>
+    /// 32 位无连字符的玩家档案 UUID（Minecraft profile API 原生格式），
+    /// 用于 auth_uuid；与官方启动器及主流启动器的传参格式保持一致。
+    /// </summary>
     public required string Uuid { get; init; }
 
     /// <summary>Minecraft 服务访问令牌，用于 auth_access_token。</summary>

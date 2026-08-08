@@ -281,8 +281,11 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
         return (token, uhs);
     }
 
-    /// <summary>XSTS 授权，返回 XSTS 身份令牌。</summary>
-    private async Task<string> AuthenticateWithXstsAsync(
+    /// <summary>
+    /// XSTS 授权，返回 XSTS 身份令牌与 Xbox 用户 ID（xuid，取自 xui[0].xid）。
+    /// xuid 是正版会话的关键标识，官方启动器通过 --xuid 参数传入游戏。
+    /// </summary>
+    private async Task<(string Token, string Xuid)> AuthenticateWithXstsAsync(
         string xblToken,
         CancellationToken cancellationToken)
     {
@@ -315,7 +318,8 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
             throw new MicrosoftAuthenticationException("XSTS 授权响应格式不正确。");
         }
 
-        return token;
+        var xuid = payload?.DisplayClaims?.Xui?.FirstOrDefault()?.Xid ?? string.Empty;
+        return (token, xuid);
     }
 
     private static void ThrowForXstsError(HttpResponseMessage response, string body)
@@ -421,14 +425,18 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
     {
         var (xblToken, uhs) = await AuthenticateWithXboxLiveAsync(
             microsoftAccessToken, cancellationToken).ConfigureAwait(false);
-        var xstsToken = await AuthenticateWithXstsAsync(
+        var (xstsToken, xstsXuid) = await AuthenticateWithXstsAsync(
             xblToken, cancellationToken).ConfigureAwait(false);
         var (minecraftToken, expiresInSeconds) = await LoginWithMinecraftAsync(
             uhs, xstsToken, cancellationToken).ConfigureAwait(false);
 
-        // XSTS 响应不含 Xbox 用户 ID（xid），需要从 Minecraft token 的 JWT payload 中解析。
-        // 新版 Minecraft 会将 xuid 为空判定为离线模式。
-        var xuid = ExtractXuidFromMinecraftToken(minecraftToken);
+        // xuid（Xbox 用户 ID）优先取 XSTS 响应中的 xui[0].xid，
+        // 该字段是官方记录的 xuid 权威来源；解析失败时回退到
+        // 从 Minecraft token 的 JWT payload 中提取。
+        // 新版 Minecraft 会将 xuid 为空判定为离线模式（皮肤不加载）。
+        var xuid = !string.IsNullOrWhiteSpace(xstsXuid)
+            ? xstsXuid
+            : ExtractXuidFromMinecraftToken(minecraftToken);
         var profile = await FetchMinecraftProfileAsync(
             minecraftToken, cancellationToken).ConfigureAwait(false);
 
@@ -482,19 +490,18 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
     }
 
     /// <summary>
-    /// Minecraft profile API 返回 32 位无连字符的 hex UUID，
-    /// 而游戏端 <c>Session</c> 使用 <c>UUID.fromString</c> 解析，只接受标准带连字符格式，
-    /// 否则会话解析失败会导致游戏内显示离线模式。
+    /// 将档案 UUID 归一化为 32 位无连字符格式（Minecraft profile API 原生格式）。
+    /// 官方启动器与主流启动器（HMCL、Prism Launcher 等）均以无连字符格式向游戏
+    /// 传递 --uuid 与 --session 中的 uuid；游戏端 UUIDTypeAdapter.fromString
+    /// 虽可兼容两种格式，但会话/皮肤相关接口统一使用无连字符格式，
+    /// 故此处始终输出无连字符形式。
     /// </summary>
     private static string FormatUuid(string id)
     {
-        if (id.Length == 36 && id[8] == '-')
+        if (string.IsNullOrEmpty(id))
             return id;
 
-        if (id.Length != 32)
-            return id;
-
-        return $"{id[..8]}-{id[8..12]}-{id[12..16]}-{id[16..20]}-{id[20..]}";
+        return id.Length == 32 ? id : id.Replace("-", "");
     }
 
     private static async Task<string> ReadBodyAsync(
