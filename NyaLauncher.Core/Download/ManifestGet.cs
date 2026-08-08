@@ -8,19 +8,19 @@ namespace NyaLauncher.Core.Download;
 /// </summary>
 public static class ManifestGet
 {
-    private const string ManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-
     private static readonly HttpClient HttpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(15)
     };
-
+    
     /// <summary>
-    /// 获取所有 Minecraft 版本列表（按发布时间降序排列）
+    /// 获取Minecraft版本清单方法(Remake)
     /// </summary>
-    public static async Task<List<MinecraftVersion>> GetVersionsAsync()
+    /// <param name="url">自定义获取Minecraft版本的地址,默认情况不填时为mojang官方源</param>
+    /// <returns>获取的Minecraft版本列表，按发布时间降序排列</returns>
+    public static async Task<List<MinecraftVersion>> GetVersionsAsync(string url="https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
     {
-        var manifest = await HttpClient.GetFromJsonAsync<VersionManifest>(ManifestUrl);
+        var manifest = await HttpClient.GetFromJsonAsync<VersionManifest>(url);
 
         if (manifest?.Versions is null || manifest.Versions.Count == 0)
             return [];
@@ -37,13 +37,13 @@ public static class ManifestGet
         // 按发布时间降序排列
         return [.. manifest.Versions.OrderByDescending(v => v.ReleaseTime)];
     }
-
     /// <summary>
     /// 获取指定类型的版本列表
+    /// <param name="url">自定义获取Minecraft版本的地址，默认为mojang官方源</param>
     /// </summary>
-    public static async Task<List<MinecraftVersion>> GetVersionsByTypeAsync(string type)
+    public static async Task<List<MinecraftVersion>> GetVersionsByTypeAsync(string type, string url="https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
     {
-        var versions = await GetVersionsAsync();
+        var versions = await GetVersionsAsync(url);
         return [.. versions.Where(v => v.Type == type)];
     }
 }
