@@ -5,5 +5,5 @@
   <Project Path="NyaLauncher.Avalonia.Animations/NyaLauncher.Avalonia.Animations.csproj" />
   <Project Path="NyaLauncher.Avalonia/NyaLauncher.Avalonia.csproj" />
   <Project Path="NyaLauncher.Core/NyaLauncher.Core.csproj" />
-  <Project Path="NyaLauncher.MinecraftTokenCrypto/NyaLauncher.MinecraftTokenCrypto.csproj" />
+  <Project Path="NyaLauncher.Plugin.Abstractions/NyaLauncher.Plugin.Abstractions.csproj" />
 </Solution>

@@ -4,28 +4,30 @@
              RequestedThemeVariant="Dark">
 
   <Application.Resources>
-    <!-- 系统强调色 - 紫罗兰色 -->
-    <Color x:Key="SystemAccentColor">#7C5CBF</Color>
-    <Color x:Key="SystemAccentColorDark1">#6A4DA8</Color>
-    <Color x:Key="SystemAccentColorDark2">#583E90</Color>
-    <Color x:Key="SystemAccentColorDark3">#473079</Color>
-    <Color x:Key="SystemAccentColorLight1">#8E6DD6</Color>
-    <Color x:Key="SystemAccentColorLight2">#A07DE8</Color>
-    <Color x:Key="SystemAccentColorLight3">#B28EF4</Color>
-
-    <!-- 全局字体 -->
+    <Color x:Key="SystemAccentColor">#7C8CFF</Color>
+    <Color x:Key="SystemAccentColorDark1">#6C7BFF</Color>
+    <Color x:Key="SystemAccentColorDark2">#5868EA</Color>
+    <Color x:Key="SystemAccentColorLight1">#98A3FF</Color>
     <FontFamily x:Key="ContentFontTheme">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
   </Application.Resources>
 
   <Application.Styles>
     <FluentTheme />
 
-    <!-- ScrollViewer 全局样式 -->
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="{StaticResource ContentFontTheme}" />
+    </Style>
+
+    <Style Selector="Button:pointerover">
+      <Setter Property="Opacity" Value="0.9" />
+    </Style>
+
+    <Style Selector="Button:pressed">
+      <Setter Property="Opacity" Value="0.78" />
+    </Style>
+
     <Style Selector="ScrollViewer">
       <Setter Property="Background" Value="Transparent" />
     </Style>
-
-    <!-- 交互元素 Q 弹动效 -->
-    <StyleInclude Source="avares://NyaLauncher.Avalonia.Animations/Styles/InteractiveEffects.axaml" />
   </Application.Styles>
 </Application>

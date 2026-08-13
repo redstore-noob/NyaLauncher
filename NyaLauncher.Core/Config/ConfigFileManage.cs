@@ -1,341 +1,333 @@
-﻿using System;
-using System.Collections.Generic;
 using System.Text.Json;
-using System.IO;
-using System.Linq;
+using System.Text.Json.Nodes;
 
-namespace NyaLauncher.Core.Config
+namespace NyaLauncher.Core.Config;
+
+/// <summary>
+/// 管理启动器的 JSON 配置，同时保留旧版按键与 Java 路径 API。
+/// </summary>
+public class ConfigFileManage
 {
     public struct JavaPathItem
     {
         public string JavaPath { get; set; }
+
         public string JavaVersion { get; set; }
     }
 
-    /// <summary>
-    /// 配置文件管理类，处理 JSON 格式的配置文件，包含 Java 路径、Java 版本、游戏路径等信息
-    /// </summary>
-    public class ConfigFileManage
+    private const string JavaPathKey = "javaPath";
+    private const string MinecraftPathKey = "minecraftPath";
+
+    private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        public string FilePath { get; set; }
-        private JsonDocument _configDoc;
+        WriteIndented = true
+    };
 
-        /// <summary>
-        /// 初始化配置文件管理器
-        /// </summary>
-        /// <param name="filePath">配置文件路径</param>
-        public ConfigFileManage(string filePath)
+    private readonly object _syncRoot = new();
+    private string _filePath;
+    private JsonObject _config = null!;
+
+    public ConfigFileManage(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        _filePath = filePath;
+        _config = LoadConfig();
+    }
+
+    /// <summary>
+    /// 配置文件路径。切换路径时会立即加载目标配置，避免把旧文档写入新位置。
+    /// </summary>
+    public string FilePath
+    {
+        get
         {
-            FilePath = filePath;
-            LoadConfig();
+            lock (_syncRoot)
+                return _filePath;
         }
+        set
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
 
-        /// <summary>
-        /// 加载配置文件
-        /// </summary>
-        private void LoadConfig()
+            lock (_syncRoot)
+            {
+                if (string.Equals(_filePath, value, StringComparison.Ordinal))
+                    return;
+
+                var previousPath = _filePath;
+                _filePath = value;
+                try
+                {
+                    _config = LoadConfig();
+                }
+                catch
+                {
+                    _filePath = previousPath;
+                    throw;
+                }
+            }
+        }
+    }
+
+    /// <summary>添加或更新字符串配置项。</summary>
+    public bool ConfigItemAdd(string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+            return false;
+
+        return Update(config =>
+        {
+            config[key] = value;
+            return true;
+        }, "添加配置项");
+    }
+
+    /// <summary>读取字符串配置项；不存在或类型不匹配时返回 null。</summary>
+    public string? ConfigItemRead(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return null;
+
+        lock (_syncRoot)
         {
             try
             {
-                if (!File.Exists(FilePath))
-                {
-                    CreateDefaultConfig();
-                    return;
-                }
-
-                string jsonContent = File.ReadAllText(FilePath);
-                _configDoc = JsonDocument.Parse(jsonContent);
+                return ReadString(_config[key]);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                Console.WriteLine($"加载配置文件失败: {ex.Message}，将创建默认配置");
-                CreateDefaultConfig();
+                Console.WriteLine($"读取配置项失败: {exception.Message}");
+                return null;
             }
         }
+    }
 
-        /// <summary>
-        /// 创建默认配置文件
-        /// </summary>
-        private void CreateDefaultConfig()
+    /// <summary>删除配置项。</summary>
+    public bool ConfigItemDelete(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return false;
+
+        return Update(config => config.Remove(key), "删除配置项");
+    }
+
+    /// <summary>获取已保存的 Java 路径。</summary>
+    public List<JavaPathItem> JavaPathGet()
+    {
+        lock (_syncRoot)
         {
-            var defaultConfig = new
+            try
             {
-                javaPath = new List<dynamic>(),
-                minecraftPath = ""
-            };
+                if (_config[JavaPathKey] is not JsonArray entries)
+                    return [];
 
-            string jsonContent = JsonSerializer.Serialize(defaultConfig, new JsonSerializerOptions { WriteIndented = true });
-            var directory = Path.GetDirectoryName(FilePath);
+                var result = new List<JavaPathItem>(entries.Count);
+                foreach (var entry in entries.OfType<JsonObject>())
+                {
+                    if (!entry.ContainsKey("path") || !entry.ContainsKey("version"))
+                        continue;
+
+                    result.Add(new JavaPathItem
+                    {
+                        JavaPath = ReadString(entry["path"]) ?? string.Empty,
+                        JavaVersion = ReadString(entry["version"]) ?? string.Empty
+                    });
+                }
+
+                return result;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine($"读取 Java 路径列表失败: {exception.Message}");
+                return [];
+            }
+        }
+    }
+
+    /// <summary>添加一条尚不存在的 Java 路径。</summary>
+    public bool JavaPathAdd(string javaPath, string javaVersion)
+    {
+        if (string.IsNullOrWhiteSpace(javaPath) || string.IsNullOrWhiteSpace(javaVersion))
+            return false;
+
+        return Update(config =>
+        {
+            var entries = config[JavaPathKey] as JsonArray;
+            if (entries is null)
+            {
+                entries = [];
+                config[JavaPathKey] = entries;
+            }
+
+            var alreadyExists = entries
+                .OfType<JsonObject>()
+                .Any(entry => string.Equals(
+                    ReadString(entry["path"]),
+                    javaPath,
+                    StringComparison.Ordinal));
+            if (alreadyExists)
+                return false;
+
+            entries.Add(new JsonObject
+            {
+                ["path"] = javaPath,
+                ["version"] = javaVersion
+            });
+            return true;
+        }, "添加 Java 路径");
+    }
+
+    /// <summary>
+    /// 用唯一的首选项替换 Java 路径列表。整个替换只进行一次原子写入。
+    /// </summary>
+    public bool JavaPathSet(string javaPath, string javaVersion)
+    {
+        if (string.IsNullOrWhiteSpace(javaPath) || string.IsNullOrWhiteSpace(javaVersion))
+            return false;
+
+        return Update(config =>
+        {
+            config[JavaPathKey] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["path"] = javaPath,
+                    ["version"] = javaVersion
+                }
+            };
+            return true;
+        }, "保存 Java 路径");
+    }
+
+    /// <summary>获取 Minecraft 游戏路径；未配置时返回空字符串。</summary>
+    public string MinecraftPathGet()
+    {
+        lock (_syncRoot)
+        {
+            try
+            {
+                return ReadString(_config[MinecraftPathKey]) ?? string.Empty;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine($"读取 Minecraft 路径失败: {exception.Message}");
+                return string.Empty;
+            }
+        }
+    }
+
+    /// <summary>设置 Minecraft 游戏路径。</summary>
+    public bool MinecraftPathSet(string minecraftPath) =>
+        !string.IsNullOrWhiteSpace(minecraftPath) &&
+        ConfigItemAdd(MinecraftPathKey, minecraftPath);
+
+    private JsonObject LoadConfig()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+            {
+                var root = JsonNode.Parse(File.ReadAllText(FilePath)) as JsonObject;
+                return root ?? throw new JsonException("配置文件根节点必须是 JSON 对象。");
+            }
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"加载配置文件失败: {exception.Message}，将创建默认配置");
+        }
+
+        var defaultConfig = CreateDefaultConfig();
+        if (!SaveConfig(defaultConfig))
+        {
+            throw new IOException($"无法创建配置文件：{Path.GetFullPath(FilePath)}");
+        }
+
+        return defaultConfig;
+    }
+
+    private bool Update(Func<JsonObject, bool> mutation, string operationName)
+    {
+        lock (_syncRoot)
+        {
+            JsonObject? previous = null;
+            try
+            {
+                previous = (JsonObject)_config.DeepClone();
+                if (!mutation(_config))
+                    return false;
+
+                if (SaveConfig(_config))
+                    return true;
+
+                _config = previous;
+                return false;
+            }
+            catch (Exception exception)
+            {
+                if (previous is not null)
+                    _config = previous;
+
+                Console.WriteLine($"{operationName}失败: {exception.Message}");
+                return false;
+            }
+        }
+    }
+
+    private bool SaveConfig(JsonObject config)
+    {
+        string? temporaryPath = null;
+        try
+        {
+            var fullPath = Path.GetFullPath(FilePath);
+            var directory = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrWhiteSpace(directory))
                 Directory.CreateDirectory(directory);
-            File.WriteAllText(FilePath, jsonContent);
-            _configDoc = JsonDocument.Parse(jsonContent);
-        }
 
-        /// <summary>
-        /// 保存配置文件到磁盘
-        /// </summary>
-        private bool SaveConfig()
+            temporaryPath = Path.Combine(
+                directory ?? Directory.GetCurrentDirectory(),
+                $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(
+                temporaryPath,
+                config.ToJsonString(SerializerOptions));
+            File.Move(temporaryPath, fullPath, overwrite: true);
+            temporaryPath = null;
+            return true;
+        }
+        catch (Exception exception)
         {
-            try
-            {
-                var directory = Path.GetDirectoryName(FilePath);
-                if (!string.IsNullOrWhiteSpace(directory))
-                    Directory.CreateDirectory(directory);
-                using (var stream = File.Create(FilePath))
-                using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
-                {
-                    _configDoc.WriteTo(writer);
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"保存配置文件失败: {ex.Message}");
-                return false;
-            }
+            Console.WriteLine($"保存配置文件失败: {exception.Message}");
+            return false;
         }
-
-        /// <summary>
-        /// 添加或更新配置项
-        /// </summary>
-        /// <param name="key">配置项键</param>
-        /// <param name="value">配置项值</param>
-        /// <returns>操作是否成功</returns>
-        public bool ConfigItemAdd(string key, string value)
+        finally
         {
-            try
+            if (temporaryPath is not null)
             {
-                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+                try
                 {
-                    return false;
+                    File.Delete(temporaryPath);
                 }
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var rootElement = _configDoc.RootElement;
-
-                // 读取现有配置
-                var config = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
-                    rootElement.GetRawText(), options) ?? new Dictionary<string, JsonElement>();
-
-                // 更新或添加键值对
-                config[key] = JsonSerializer.SerializeToElement(value);
-
-                // 重新序列化并重新加载
-                string jsonContent = JsonSerializer.Serialize(config, options);
-                _configDoc = JsonDocument.Parse(jsonContent);
-
-                return SaveConfig();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"添加配置项失败: {ex.Message}");
-                return false;
+                catch
+                {
+                    // 临时文件清理失败不应掩盖原始保存结果。
+                }
             }
         }
+    }
 
-        /// <summary>
-        /// 读取配置项的值
-        /// </summary>
-        /// <param name="key">配置项键</param>
-        /// <returns>配置项值，不存在时返回 null</returns>
-        public string ConfigItemRead(string key)
+    private static JsonObject CreateDefaultConfig() => new()
+    {
+        [JavaPathKey] = new JsonArray(),
+        [MinecraftPathKey] = string.Empty
+    };
+
+    private static string? ReadString(JsonNode? value)
+    {
+        if (value is not JsonValue jsonValue ||
+            !jsonValue.TryGetValue<string>(out var result))
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(key))
-                {
-                    return null;
-                }
-
-                var rootElement = _configDoc.RootElement;
-
-                if (rootElement.TryGetProperty(key, out var value))
-                {
-                    return value.GetString();
-                }
-
-                return null;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"读取配置项失败: {ex.Message}");
-                return null;
-            }
+            return null;
         }
 
-        /// <summary>
-        /// 删除配置项
-        /// </summary>
-        /// <param name="key">配置项键</param>
-        /// <returns>操作是否成功</returns>
-        public bool ConfigItemDelete(string key)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(key))
-                {
-                    return false;
-                }
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var rootElement = _configDoc.RootElement;
-
-                // 读取现有配置
-                var config = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
-                    rootElement.GetRawText(), options) ?? new Dictionary<string, JsonElement>();
-
-                // 删除键
-                if (config.Remove(key))
-                {
-                    // 重新序列化并重新加载
-                    string jsonContent = JsonSerializer.Serialize(config, options);
-                    _configDoc = JsonDocument.Parse(jsonContent);
-                    return SaveConfig();
-                }
-
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"删除配置项失败: {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// 获取 Java 路径列表
-        /// </summary>
-        /// <returns>关于 JavaPath 的列表，列表中每个项代表一个 Java 路径 + Java 版本</returns>
-        public List<JavaPathItem> JavaPathGet()
-        {
-            var javaPathList = new List<JavaPathItem>();
-
-            try
-            {
-                var rootElement = _configDoc.RootElement;
-
-                if (rootElement.TryGetProperty("javaPath", out var javaPathArrayElement))
-                {
-                    if (javaPathArrayElement.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var item in javaPathArrayElement.EnumerateArray())
-                        {
-                            if (item.TryGetProperty("path", out var pathElement) &&
-                                item.TryGetProperty("version", out var versionElement))
-                            {
-                                javaPathList.Add(new JavaPathItem
-                                {
-                                    JavaPath = pathElement.GetString() ?? "",
-                                    JavaVersion = versionElement.GetString() ?? ""
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"读取 Java 路径列表失败: {ex.Message}");
-            }
-
-            return javaPathList;
-        }
-
-        /// <summary>
-        /// 添加 Java 路径
-        /// </summary>
-        /// <param name="javaPath">Java 路径</param>
-        /// <param name="javaVersion">Java 版本</param>
-        /// <returns>操作是否成功</returns>
-        public bool JavaPathAdd(string javaPath, string javaVersion)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(javaPath) || string.IsNullOrWhiteSpace(javaVersion))
-                {
-                    return false;
-                }
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var rootElement = _configDoc.RootElement;
-
-                // 读取现有配置
-                var config = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                    rootElement.GetRawText(), options) ?? new Dictionary<string, object>();
-
-                // 获取或创建 javaPath 数组
-                if (!config.ContainsKey("javaPath"))
-                {
-                    config["javaPath"] = new List<Dictionary<string, string>>();
-                }
-
-                var javaPathList = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(
-                    JsonSerializer.Serialize(config["javaPath"])) ?? new List<Dictionary<string, string>>();
-
-                // 检查是否已存在
-                if (!javaPathList.Any(j => j["path"] == javaPath))
-                {
-                    javaPathList.Add(new Dictionary<string, string>
-                    {
-                        { "path", javaPath },
-                        { "version", javaVersion }
-                    });
-
-                    config["javaPath"] = javaPathList;
-
-                    // 重新序列化并重新加载
-                    string jsonContent = JsonSerializer.Serialize(config, options);
-                    _configDoc = JsonDocument.Parse(jsonContent);
-                    return SaveConfig();
-                }
-
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"添加 Java 路径失败: {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// 获取 Minecraft 路径
-        /// </summary>
-        /// <returns>Minecraft 游戏路径</returns>
-        public string MinecraftPathGet()
-        {
-            try
-            {
-                var rootElement = _configDoc.RootElement;
-
-                if (rootElement.TryGetProperty("minecraftPath", out var minecraftPathElement))
-                {
-                    return minecraftPathElement.GetString() ?? "";
-                }
-
-                return "";
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"读取 Minecraft 路径失败: {ex.Message}");
-                return "";
-            }
-        }
-
-        /// <summary>
-        /// 设置 Minecraft 路径
-        /// </summary>
-        /// <param name="minecraftPath">Minecraft 游戏路径</param>
-        /// <returns>操作是否成功</returns>
-        public bool MinecraftPathSet(string minecraftPath)
-        {
-            if (string.IsNullOrWhiteSpace(minecraftPath))
-            {
-                return false;
-            }
-
-            return ConfigItemAdd("minecraftPath", minecraftPath);
-        }
+        return result;
     }
 }

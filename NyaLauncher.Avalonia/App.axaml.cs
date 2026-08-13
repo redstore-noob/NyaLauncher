@@ -9,6 +9,9 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+#if DEBUG
+        global::Avalonia.DeveloperToolsExtensions.AttachDeveloperTools(this);
+#endif
     }
 
     public override void OnFrameworkInitializationCompleted()

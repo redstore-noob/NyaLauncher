@@ -2,141 +2,339 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+        mc:Ignorable="d"
+        d:DesignWidth="1280"
+        d:DesignHeight="760"
         x:Class="NyaLauncher.Avalonia.MainWindow"
         Title="NyaLauncher"
-        Width="1100" Height="720"
-        Background="#141424"
-        WindowStartupLocation="CenterScreen"
-        ExtendClientAreaToDecorationsHint="False">
-  <Window.Resources>
-    <SolidColorBrush x:Key="SidebarBackground">#1A1A2E</SolidColorBrush>
-    <SolidColorBrush x:Key="SidebarSelectedBackground">#2D2D44</SolidColorBrush>
-    <SolidColorBrush x:Key="ContentBackground">#141424</SolidColorBrush>
-    <SolidColorBrush x:Key="NavItemForeground">#6B6B80</SolidColorBrush>
-    <SolidColorBrush x:Key="NavItemSelectedForeground">#FFFFFF</SolidColorBrush>
-    <SolidColorBrush x:Key="NavItemHoverBackground">#252538</SolidColorBrush>
-  </Window.Resources>
+        Width="1280"
+        Height="760"
+        MinWidth="980"
+        MinHeight="620"
+        Background="#0D101A"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterScreen">
 
-  <Grid x:Name="RootGrid">
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="240" />
-      <ColumnDefinition Width="*" />
-    </Grid.ColumnDefinitions>
-    <!-- ===== 侧栏 ===== -->
-    <Border Grid.Column="0"
-            x:Name="Sidebar"
-            Background="{StaticResource SidebarBackground}"
-            CornerRadius="0">
-      <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,0">
+  <Window.Styles>
+    <Style Selector="Button.WindowButton">
+      <Setter Property="Width" Value="42" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="#9DA6BF" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.WindowButton:pointerover">
+      <Setter Property="Background" Value="#2A3042" />
+      <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+    <Style Selector="Button.CloseButton:pointerover">
+      <Setter Property="Background" Value="#D94B64" />
+      <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+    <Style Selector="Button.NavigationBackButton">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="13,0" />
+      <Setter Property="Background" Value="#20263A" />
+      <Setter Property="BorderBrush" Value="#343C52" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#C7CDE0" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.AddComponentButton">
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="Background" Value="#252D47" />
+      <Setter Property="BorderBrush" Value="#3A4563" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#C8CEFF" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+  </Window.Styles>
 
-        <!-- 导航按钮区 -->
-        <StackPanel Grid.Row="1" Spacing="4" Margin="12,0,12,0">
-
-          <!-- 启动页 -->
-          <Border x:Name="NavLaunch" Classes="NavItem">
-            <Grid ColumnDefinitions="Auto,*">
-              <TextBlock x:Name="NavLaunchIcon"
-                         Text="🎮"
-                         FontSize="16"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <TextBlock>   </TextBlock>
-              <TextBlock x:Name="NavLaunchText"
-                         Text="启动游戏"
-                         FontSize="15"
-                         FontWeight="Medium"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center"
-                         Margin="14,0,0,0" />
-            </Grid>
-          </Border>
-
-          <!-- 下载页 -->
-          <Border x:Name="NavDownload" Classes="NavItem">
-            <Grid ColumnDefinitions="Auto,*">
-              <TextBlock x:Name="NavDownloadIcon"
-                         Text="⬇"
-                         FontSize="16"
-                         Foreground="#6B6B80"
-                         VerticalAlignment="Center" />
-              <TextBlock>   </TextBlock>
-              <TextBlock x:Name="NavDownloadText"
-                         Text="资源下载"
-                         FontSize="15"
-                         FontWeight="Medium"
-                         Foreground="#6B6B80"
-                         VerticalAlignment="Center"
-                         Margin="14,0,0,0" />
-            </Grid>
-          </Border>
-
-          <!-- 设置页 -->
-          <Border x:Name="NavSettings" Classes="NavItem">
-            <Grid ColumnDefinitions="Auto,*">
-              <TextBlock x:Name="NavSettingsIcon"
-                         Text="⚙"
-                         FontSize="16"
-                         Foreground="#6B6B80"
-                         VerticalAlignment="Center" />
-              <TextBlock>   </TextBlock>
-              <TextBlock x:Name="NavSettingsText"
-                         Text="设置"
-                         FontSize="15"
-                         FontWeight="Medium"
-                         Foreground="#6B6B80"
-                         VerticalAlignment="Center"
-                         Margin="14,0,0,0" />
-            </Grid>
-          </Border>
-        </StackPanel>
-
-        <!-- 底部版本信息 -->
-        <TextBlock Grid.Row="2"
-                   Text="v0.1.0pre1"
-                   FontSize="12"
-                   Foreground="#4A4A60"
-                   Margin="24,0,0,20"
-                   VerticalAlignment="Bottom" />
-
-        <!-- 折叠/展开按钮 -->
-        <Border Grid.Row="3"
-                x:Name="SidebarToggle"
+  <Grid x:Name="WindowRoot" RowDefinitions="58,*,30">
+    <!-- The top bar is deliberately separate from feature areas. -->
+    <Border Grid.Row="0"
+            Background="#121624"
+            BorderBrush="#252B3D"
+            BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="14,0,8,0">
+        <Border x:Name="TitleBarIdentity"
                 Background="Transparent"
-                Cursor="Hand"
-                Padding="18,16"
-                Margin="12,0,12,18">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
-            <TextBlock x:Name="SidebarToggleIcon"
-                       Text="≡"
-                       FontSize="16"
-                       Foreground="#6B6B80"
-                       VerticalAlignment="Center" />
-            <TextBlock x:Name="SidebarToggleText"
-                       Text="展开"
-                       FontSize="14"
-                       Foreground="#6B6B80"
-                       VerticalAlignment="Center"
-                       Opacity="0"
-                       RenderTransformOrigin="0.5,0.5">
-              <TextBlock.RenderTransform>
-                <TranslateTransform X="-8" />
-              </TextBlock.RenderTransform>
-            </TextBlock>
+                Padding="3,0,22,0"
+                PointerPressed="OnTitleBarPointerPressed">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="10"
+                      VerticalAlignment="Center">
+            <Border Width="36"
+                    Height="36"
+                    CornerRadius="11"
+                    Background="#6C7BFF">
+              <Grid>
+                <Border Margin="3"
+                        CornerRadius="9"
+                        BorderBrush="#70FFFFFF"
+                        BorderThickness="1" />
+                <TextBlock Text="N"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="NyaLauncher"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           Foreground="#F5F6FF" />
+                <Border Background="#2D3450"
+                        CornerRadius="7"
+                        Padding="7,2"
+                        VerticalAlignment="Center">
+                  <TextBlock Text="NEW GUI"
+                             FontSize="8"
+                             FontWeight="Bold"
+                             Foreground="#AEB6FF" />
+                </Border>
+              </StackPanel>
+              <TextBlock Text="可扩展 Minecraft 启动器"
+                         FontSize="10"
+                         Foreground="#77809B" />
+            </StackPanel>
           </StackPanel>
         </Border>
+
+        <Border Grid.Column="1"
+                Background="Transparent"
+                PointerPressed="OnTitleBarPointerPressed">
+          <StackPanel Orientation="Horizontal"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Spacing="9">
+            <Border Width="7" Height="7" CornerRadius="4" Background="#62D49A" />
+            <TextBlock x:Name="HeaderStatusText"
+                       Text="工作区已就绪"
+                       FontSize="11"
+                       Foreground="#8F98B3"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Column="2"
+                    Orientation="Horizontal"
+                    Spacing="4"
+                    VerticalAlignment="Center">
+          <Button Classes="WindowButton" ToolTip.Tip="最小化" Click="OnMinimizeClick">
+            <Path Width="12" Height="12" Stretch="None"
+                  Fill="#9DA6BF"
+                  Data="M 0.5,8.8 L 11.5,8.8 L 11.5,10.6 L 0.5,10.6 Z" />
+          </Button>
+          <Button Classes="WindowButton" ToolTip.Tip="最大化或还原" Click="OnMaximizeClick">
+            <Grid Width="12" Height="12">
+              <Path x:Name="WorkspaceMaximizeIcon" Classes="WindowGlyph"
+                    Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
+                    Stroke="#9DA6BF"
+                    Data="M 1.5,1.5 L 10.5,1.5 L 10.5,10.5 L 1.5,10.5 Z" />
+              <Path x:Name="WorkspaceRestoreIcon" Classes="WindowGlyph"
+                    Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
+                    Stroke="#9DA6BF"
+                    Data="M 3.5,1.5 L 10.5,1.5 L 10.5,8.5 M 1.5,3.5 L 8.5,3.5 L 8.5,10.5 L 1.5,10.5 Z"
+                    IsVisible="False" />
+            </Grid>
+          </Button>
+          <Button Classes="WindowButton CloseButton" ToolTip.Tip="关闭" Click="OnCloseClick">
+            <Path Classes="WindowGlyph" Width="12" Height="12" Stretch="Uniform"
+                  Stroke="#9DA6BF"
+                  StrokeThickness="1.4" StrokeLineCap="Square"
+                  Data="M 2,2 L 10,10 M 10,2 L 2,10" />
+          </Button>
+        </StackPanel>
       </Grid>
     </Border>
 
-    <!-- ===== 内容区域 ===== -->
-    <Border Grid.Column="1" Background="{StaticResource ContentBackground}">
-      <Grid>
-        <!-- 页面容器 -->
-        <ContentControl x:Name="ContentHost" />
+    <Grid Grid.Row="1">
+      <controls:DockWorkspace x:Name="Workspace" />
+    </Grid>
 
-        <!-- 水波纹特效层（不拦截鼠标事件） -->
-        <Canvas x:Name="RippleLayer" IsHitTestVisible="False" />
+    <Border Grid.Row="2"
+            Background="#101420"
+            BorderBrush="#22283A"
+            BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0">
+        <StackPanel Orientation="Horizontal"
+                    Spacing="8"
+                    VerticalAlignment="Center">
+          <TextBlock Text="⠿"
+                     FontSize="13"
+                     Foreground="#7C8CFF" />
+          <TextBlock Text="组件可拖动到其他功能区；Esc 可随时进入设置"
+                     FontSize="10"
+                     Foreground="#77809B" />
+          <Button Classes="AddComponentButton"
+                  Content="▦ 组件库"
+                  ToolTip.Tip="打开组件库；可添加组件，也可拖回组件库移除"
+                  Click="OnComponentLibraryClick" />
+        </StackPanel>
+
+        <TextBlock x:Name="StatusText"
+                   Grid.Column="1"
+                   Text="新界面框架已载入"
+                   FontSize="10"
+                   Foreground="#A5AEC7"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
+
+        <TextBlock Grid.Column="2"
+                   Text="v0.1.0-gp3"
+                   FontFamily="Consolas"
+                   FontSize="9"
+                   Foreground="#59627C"
+                   VerticalAlignment="Center" />
       </Grid>
     </Border>
+
+    <!-- Navigated pages occupy the complete client area, including the
+         launcher identity bar and the workspace hint footer. -->
+    <Grid x:Name="PageSurface"
+          Grid.RowSpan="3"
+          RowDefinitions="48,*"
+          Background="#0D101A"
+          IsVisible="False"
+          ZIndex="300">
+      <Border Grid.Row="0"
+              Background="#101420"
+              BorderBrush="#252B3D"
+              BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,0,8,0">
+          <Button Classes="NavigationBackButton"
+                  Content="←  返回工作区"
+                  Click="OnBackToWorkspaceClick" />
+          <Border Grid.Column="1"
+                  Background="Transparent"
+                  PointerPressed="OnTitleBarPointerPressed">
+            <TextBlock x:Name="CurrentPageTitle"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Foreground="#E7E9F5"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="2"
+                      Orientation="Horizontal"
+                      Spacing="4"
+                      VerticalAlignment="Center">
+            <TextBlock Text="Esc：设置"
+                       FontSize="10"
+                       Foreground="#6F7893"
+                       Margin="0,0,8,0"
+                       VerticalAlignment="Center" />
+            <Button Classes="WindowButton" ToolTip.Tip="最小化" Click="OnMinimizeClick">
+              <Path Width="12" Height="12" Stretch="None"
+                    Fill="#9DA6BF"
+                    Data="M 0.5,8.8 L 11.5,8.8 L 11.5,10.6 L 0.5,10.6 Z" />
+            </Button>
+            <Button Classes="WindowButton" ToolTip.Tip="最大化或还原" Click="OnMaximizeClick">
+              <Grid Width="12" Height="12">
+                <Path x:Name="PageMaximizeIcon" Classes="WindowGlyph"
+                      Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
+                      Stroke="#9DA6BF"
+                      Data="M 1.5,1.5 L 10.5,1.5 L 10.5,10.5 L 1.5,10.5 Z" />
+                <Path x:Name="PageRestoreIcon" Classes="WindowGlyph"
+                      Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
+                      Stroke="#9DA6BF"
+                      Data="M 3.5,1.5 L 10.5,1.5 L 10.5,8.5 M 1.5,3.5 L 8.5,3.5 L 8.5,10.5 L 1.5,10.5 Z"
+                      IsVisible="False" />
+              </Grid>
+            </Button>
+            <Button Classes="WindowButton CloseButton" ToolTip.Tip="关闭" Click="OnCloseClick">
+              <Path Classes="WindowGlyph" Width="12" Height="12" Stretch="Uniform"
+                    Stroke="#9DA6BF"
+                    StrokeThickness="1.4" StrokeLineCap="Square"
+                    Data="M 2,2 L 10,10 M 10,2 L 2,10" />
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+      <ContentControl x:Name="PageHost" Grid.Row="1" />
+    </Grid>
+
+    <!-- The global task entry stays above the workspace and navigated pages.
+         Downloads take priority; the details window can switch to launch logs. -->
+    <Button x:Name="TaskActivityButton"
+            Grid.RowSpan="3"
+            Width="62"
+            Height="62"
+            Margin="0,0,24,50"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            ZIndex="900"
+            Background="#5968E8"
+            BorderBrush="#9AA5FF"
+            BorderThickness="2"
+            CornerRadius="31"
+            Cursor="Hand"
+            IsVisible="False"
+            AutomationProperties.AutomationId="TaskActivityButton"
+            AutomationProperties.Name="查看当前任务详情"
+            Click="OnTaskActivityClick">
+      <Grid IsHitTestVisible="False">
+        <TextBlock x:Name="TaskActivityGlyph"
+                   Text="…"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Foreground="White"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center" />
+        <ProgressBar x:Name="TaskActivityProgress"
+                     Width="34"
+                     Height="3"
+                     Margin="0,0,0,9"
+                     VerticalAlignment="Bottom"
+                     IsIndeterminate="True"
+                     Foreground="White"
+                     Background="#4050C8" />
+      </Grid>
+    </Button>
+
+    <!-- Borderless-window resize grips.  They stay above both the workspace
+         and navigated pages while remaining visually transparent. -->
+    <Border Grid.RowSpan="3" Width="6" HorizontalAlignment="Left" ZIndex="1000"
+            Background="Transparent" Cursor="SizeWestEast"
+            PointerPressed="OnResizeWestPressed" />
+    <Border Grid.RowSpan="3" Width="6" HorizontalAlignment="Right" ZIndex="1000"
+            Background="Transparent" Cursor="SizeWestEast"
+            PointerPressed="OnResizeEastPressed" />
+    <Border Height="6" VerticalAlignment="Top" ZIndex="1000"
+            Background="Transparent" Cursor="SizeNorthSouth"
+            PointerPressed="OnResizeNorthPressed" />
+    <Border Grid.Row="2" Height="6" VerticalAlignment="Bottom" ZIndex="1000"
+            Background="Transparent" Cursor="SizeNorthSouth"
+            PointerPressed="OnResizeSouthPressed" />
+    <Border Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top"
+            ZIndex="1001" Background="Transparent" Cursor="TopLeftCorner"
+            PointerPressed="OnResizeNorthWestPressed" />
+    <Border Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+            ZIndex="1001" Background="Transparent" Cursor="TopRightCorner"
+            PointerPressed="OnResizeNorthEastPressed" />
+    <Border Grid.Row="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+            ZIndex="1001" Background="Transparent" Cursor="BottomLeftCorner"
+            PointerPressed="OnResizeSouthWestPressed" />
+    <Border Grid.Row="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+            ZIndex="1001" Background="Transparent" Cursor="BottomRightCorner"
+            PointerPressed="OnResizeSouthEastPressed" />
   </Grid>
 </Window>

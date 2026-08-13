@@ -11,7 +11,7 @@ using Avalonia.Threading;
 namespace NyaLauncher.Avalonia.Controls;
 
 /// <summary>
-/// 异步加载远程图片的 Image 控件（不阻塞 UI 线程）
+/// 异步加载远程或本地图片的 Image 控件（不阻塞 UI 线程）。
 /// </summary>
 public class AsyncImage : Image
 {
@@ -37,15 +37,15 @@ public class AsyncImage : Image
 
     private static async void OnSourceUrlChanged(AsyncImage sender, AvaloniaPropertyChangedEventArgs e)
     {
-        var url = e.NewValue as string;
-        if (string.IsNullOrEmpty(url))
+        var source = e.NewValue as string;
+        if (string.IsNullOrWhiteSpace(source))
         {
             sender.Source = null;
             return;
         }
 
         // 缓存命中 → 直接设置
-        if (ImageCache.TryGetValue(url, out var cached))
+        if (ImageCache.TryGetValue(source, out var cached))
         {
             sender.Source = cached;
             return;
@@ -53,16 +53,42 @@ public class AsyncImage : Image
 
         try
         {
-            var data = await HttpClient.GetByteArrayAsync(url).ConfigureAwait(false);
+            var data = await LoadBytesAsync(source).ConfigureAwait(false);
             using var ms = new MemoryStream(data);
             var bitmap = await Task.Run(() => new Bitmap(ms)).ConfigureAwait(false);
-            ImageCache[url] = bitmap;
-            await Dispatcher.UIThread.InvokeAsync(() => { sender.Source = bitmap; });
+            ImageCache[source] = bitmap;
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (string.Equals(sender.SourceUrl, source, StringComparison.Ordinal))
+                    sender.Source = bitmap;
+            });
         }
         catch
         {
-            ImageCache[url] = null;
-            sender.Source = null;
+            ImageCache[source] = null;
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (string.Equals(sender.SourceUrl, source, StringComparison.Ordinal))
+                    sender.Source = null;
+            });
         }
+    }
+
+    private static Task<byte[]> LoadBytesAsync(string source)
+    {
+        if (Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
+            uri.Scheme == Uri.UriSchemeHttps)
+        {
+            return HttpClient.GetByteArrayAsync(uri);
+        }
+
+        return Task.Run(() =>
+        {
+            var path = Path.GetFullPath(source);
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length > 8 * 1024 * 1024)
+                throw new IOException("Local image is missing or exceeds 8 MiB.");
+            return File.ReadAllBytes(path);
+        });
     }
 }

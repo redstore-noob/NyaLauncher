@@ -1,0 +1,231 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NyaLauncher.Avalonia.TaskDetailsWindow"
+        Title="NyaLauncher 任务详情"
+        Width="900"
+        Height="570"
+        MinWidth="720"
+        MinHeight="450"
+        WindowStartupLocation="CenterOwner"
+        Background="#111522">
+  <Grid ColumnDefinitions="176,*">
+    <Border Background="#0C101B"
+            BorderBrush="#293149"
+            BorderThickness="0,0,1,0"
+            Padding="14,20">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Spacing="5" Margin="8,0,8,20">
+          <TextBlock Text="任务详情"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     Foreground="#F4F6FF" />
+          <TextBlock Text="下载与启动状态"
+                     FontSize="10"
+                     Foreground="#77809B" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="8">
+          <Button x:Name="DownloadViewButton"
+                  Content="↓  下载进度"
+                  Height="42"
+                  HorizontalContentAlignment="Left"
+                  Padding="14,0"
+                  Background="#252D47"
+                  Foreground="#E6E9FF"
+                  CornerRadius="9"
+                  Click="OnDownloadViewClick" />
+          <Button x:Name="LaunchViewButton"
+                  Content="▶  启动日志"
+                  Height="42"
+                  HorizontalContentAlignment="Left"
+                  Padding="14,0"
+                  Background="#1A2031"
+                  Foreground="#C7CDE0"
+                  CornerRadius="9"
+                  Click="OnLaunchViewClick" />
+        </StackPanel>
+
+        <Button Grid.Row="2"
+                Content="关闭窗口"
+                Padding="12,8"
+                Background="Transparent"
+                BorderBrush="#343C52"
+                BorderThickness="1"
+                Foreground="#9EA8C4"
+                CornerRadius="8"
+                Click="OnCloseClick" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Column="1" Margin="24">
+      <Grid x:Name="DownloadView" RowDefinitions="Auto,Auto,Auto,*,Auto">
+        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+          <StackPanel Spacing="5">
+            <TextBlock x:Name="DownloadTitleText"
+                       Text="Minecraft 下载进度"
+                       FontSize="21"
+                       FontWeight="SemiBold"
+                       Foreground="#F4F6FF" />
+            <TextBlock x:Name="DownloadDetailText"
+                       Text="等待下载任务…"
+                       FontSize="11"
+                       Foreground="#9EA8C4"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <Border Grid.Column="1"
+                  Background="#20283D"
+                  BorderBrush="#3A4563"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="12,7"
+                  VerticalAlignment="Center">
+            <TextBlock x:Name="DownloadPhaseText"
+                       Text="空闲"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="#AEB6FF" />
+          </Border>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Background="#191F30"
+                BorderBrush="#303A55"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16"
+                Margin="0,0,0,14">
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="总体下载进度"
+                         FontSize="12"
+                         Foreground="#CBD1E6" />
+              <TextBlock x:Name="DownloadPercentageText"
+                         Grid.Column="1"
+                         Text="0.0%"
+                         FontSize="12"
+                         FontWeight="SemiBold"
+                         Foreground="#AEB6FF" />
+            </Grid>
+            <ProgressBar x:Name="DownloadProgressBar"
+                         Height="9"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="0"
+                         Foreground="#6C7BFF"
+                         Background="#2A3148" />
+            <Grid ColumnDefinitions="*,*,*">
+              <StackPanel Spacing="2">
+                <TextBlock Text="下载速度" FontSize="9" Foreground="#6F7893" />
+                <TextBlock x:Name="DownloadSpeedText" Text="正在测速" FontSize="12" Foreground="#E1E5F4" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Text="数据进度" FontSize="9" Foreground="#6F7893" />
+                <TextBlock x:Name="DownloadBytesText" Text="0 B / 0 B" FontSize="12" Foreground="#E1E5F4" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="2">
+                <TextBlock Text="文件进度" FontSize="9" Foreground="#6F7893" />
+                <TextBlock x:Name="DownloadFilesText" Text="0 / 0" FontSize="12" Foreground="#E1E5F4" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Row="2"
+                   Text="安装阶段"
+                   FontSize="12"
+                   FontWeight="SemiBold"
+                   Foreground="#D9DDEE"
+                   Margin="2,0,0,8" />
+
+        <Border Grid.Row="3"
+                Background="#0A0E17"
+                BorderBrush="#2C344B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14">
+          <ScrollViewer>
+            <ItemsControl x:Name="DownloadStagesList">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding}"
+                             FontFamily="Consolas"
+                             FontSize="11"
+                             Foreground="#CDD3E8"
+                             Margin="2,4" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <Button x:Name="CancelDownloadButton"
+                Grid.Row="4"
+                Content="取消下载"
+                HorizontalAlignment="Right"
+                Margin="0,14,0,0"
+                Padding="18,8"
+                Background="#542D3B"
+                BorderBrush="#7D3F55"
+                BorderThickness="1"
+                Foreground="#FFD8E2"
+                CornerRadius="9"
+                Click="OnCancelDownloadClick" />
+      </Grid>
+
+      <Grid x:Name="LaunchView" RowDefinitions="Auto,*,Auto" IsVisible="False">
+        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+          <StackPanel Spacing="5">
+            <TextBlock Text="Minecraft 启动日志"
+                       FontSize="21"
+                       FontWeight="SemiBold"
+                       Foreground="#F4F6FF" />
+            <TextBlock x:Name="LaunchLogStatusText"
+                       Text="尚未启动游戏"
+                       FontSize="11"
+                       Foreground="#9EA8C4"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <Border Grid.Column="1"
+                  Background="#20283D"
+                  BorderBrush="#3A4563"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="12,7"
+                  VerticalAlignment="Center">
+            <TextBlock x:Name="LaunchLogPhaseText"
+                       Text="空闲"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="#AEB6FF" />
+          </Border>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Background="#090C14"
+                BorderBrush="#30384F"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="12">
+          <TextBox x:Name="LaunchLogTextBox"
+                   Text="等待启动任务…"
+                   IsReadOnly="True"
+                   AcceptsReturn="True"
+                   TextWrapping="NoWrap"
+                   FontFamily="Consolas"
+                   FontSize="11"
+                   Foreground="#D8DDF0"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto" />
+        </Border>
+
+        <TextBlock Grid.Row="2"
+                   Text="启动日志仅保留本次启动最近 2000 行；打开后不会因游戏退出而自动关闭"
+                   FontSize="10"
+                   Foreground="#6F7893"
+                   Margin="2,14,0,0" />
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

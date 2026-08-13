@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Version>0.1.0-gp3</Version>
   </PropertyGroup>
 
   <ItemGroup>
