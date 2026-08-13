@@ -51,10 +51,16 @@ public sealed class PolygonComponentView : UserControl
     private bool _stateDispatchScheduled;
     private PolygonComponentVisualState _visualState;
     private bool _subscribedToState;
+    private double? _requestedScale;
 
     public Control DragHandle { get; }
 
     public PolygonComponentDefinition Definition => _definition;
+
+    /// <summary>The runtime-requested scale, or null to use the workspace scale.</summary>
+    public double? RequestedScale => _requestedScale;
+
+    public event EventHandler? RequestedScaleChanged;
 
     public PolygonComponentView(
         PolygonComponentRegistration registration,
@@ -261,7 +267,14 @@ public sealed class PolygonComponentView : UserControl
 
         _appliedRevision = state.Revision;
         _appliedState = state;
+        var requestedScale = state.Scale is > 0 && double.IsFinite(state.Scale.Value)
+            ? state.Scale
+            : null;
+        var scaleChanged = requestedScale != _requestedScale;
+        _requestedScale = requestedScale;
         RefreshAppliedState();
+        if (scaleChanged)
+            RequestedScaleChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void RefreshAppliedState()

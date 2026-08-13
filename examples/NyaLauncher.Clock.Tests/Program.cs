@@ -39,7 +39,7 @@ static void Test24HourFormatting()
     var timeZone = TimeZoneInfo.CreateCustomTimeZone("Example/UTC+8", TimeSpan.FromHours(8), "Example", "Example");
     var display = ClockDisplayFormatter.Create(
         new DateTimeOffset(2026, 8, 13, 17, 2, 3, TimeSpan.Zero),
-        new ClockOptions(true, true, true),
+        new ClockOptions(true, true, true, 1),
         timeZone);
 
     Assert(display.Time == "01:02", "24-hour value should be 01:02 after conversion.");
@@ -53,7 +53,7 @@ static void Test12HourFormatting()
     var timeZone = TimeZoneInfo.CreateCustomTimeZone("Example/UTC", TimeSpan.Zero, "Example", "Example");
     var display = ClockDisplayFormatter.Create(
         new DateTimeOffset(2026, 8, 13, 13, 4, 5, TimeSpan.Zero),
-        new ClockOptions(false, false, false),
+        new ClockOptions(false, false, false, 1),
         timeZone);
 
     Assert(display.Time == "01:04", "12-hour value should not include AM/PM in the large time area.");
@@ -65,7 +65,7 @@ static void TestAuxiliaryVisibility()
 {
     var display = ClockDisplayFormatter.Create(
         DateTimeOffset.UnixEpoch,
-        new ClockOptions(true, false, false),
+        new ClockOptions(true, false, false, 1),
         TimeZoneInfo.Utc);
 
     Assert(!display.ShowTimeZone, "timezone visibility should follow settings.");
@@ -86,6 +86,10 @@ static void TestComponentLayout()
     Assert(timeArea > seconds.Bounds.Width * seconds.Bounds.Height * 20, "time must dominate the seconds area.");
     Assert(timeZone.Bounds.Y < time.Bounds.Y, "timezone must be above the main time.");
     Assert(seconds.Bounds.X > 0.5 && seconds.Bounds.Y > 0.5, "seconds must be in the lower-right region.");
+    Assert(
+        definition.MinimumSize.Width / definition.PreferredSize.Width == 0.65 &&
+        definition.MaximumSize.Width / definition.PreferredSize.Width == 1.6,
+        "component size limits should match the settings slider range.");
 }
 
 static async Task TestLiveSettingsAndDisposalAsync()
@@ -102,6 +106,11 @@ static async Task TestLiveSettingsAndDisposalAsync()
     Assert(
         instance.CurrentState.Elements[ClockComponentDefinition.PeriodElementId].IsVisible == true,
         "changing to 12-hour mode should immediately show AM/PM.");
+
+    settings.Change(ClockComponentInstance.ScaleSettingKey, 1.35);
+    Assert(
+        instance.CurrentState.Scale == 1.35,
+        "changing the size slider should immediately publish the requested scale.");
 
     await instance.DisposeAsync();
     Assert(settings.SubscriberCount == 0, "disposed clock instance should unsubscribe from settings.");
@@ -121,6 +130,7 @@ internal sealed class FakePluginSettings : IPluginSettings
     private readonly Dictionary<string, object?> _values = new(StringComparer.OrdinalIgnoreCase)
     {
         [ClockComponentInstance.FormatSettingKey] = "24",
+        [ClockComponentInstance.ScaleSettingKey] = 1.0,
         [ClockComponentInstance.ShowTimeZoneSettingKey] = true,
         [ClockComponentInstance.ShowSecondsSettingKey] = true
     };

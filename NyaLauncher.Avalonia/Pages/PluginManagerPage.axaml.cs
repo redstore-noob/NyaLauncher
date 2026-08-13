@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -708,6 +709,49 @@ public partial class PluginManagerPage : UserControl
                 editorContent = valueControl;
                 break;
 
+            case PluginSettingKind.Integer when HasNumericSliderRange(definition):
+            case PluginSettingKind.Number when HasNumericSliderRange(definition):
+                var minimum = definition.Minimum.GetValueOrDefault();
+                var maximum = definition.Maximum.GetValueOrDefault();
+                var fallback = minimum;
+                var numericValue = double.TryParse(
+                    currentValue,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var parsedNumeric)
+                    ? parsedNumeric
+                    : fallback;
+                var numericSlider = new Slider
+                {
+                    Minimum = minimum,
+                    Maximum = maximum,
+                    Value = Math.Clamp(numericValue, minimum, maximum),
+                    TickFrequency = definition.Step is > 0 ? definition.Step.Value : 1,
+                    IsSnapToTickEnabled = definition.Step is > 0,
+                    HorizontalAlignment = HorizontalAlignment.Stretch
+                };
+                var numericValueText = new TextBlock
+                {
+                    Text = FormatNumericSettingValue(numericSlider.Value, definition.Kind),
+                    Foreground = Brush.Parse("#B8C3E5"),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    MinWidth = 54
+                };
+                numericSlider.ValueChanged += (_, _) =>
+                    numericValueText.Text = FormatNumericSettingValue(
+                        numericSlider.Value,
+                        definition.Kind);
+                var numericEditor = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+                    ColumnSpacing = 12,
+                    Children = { numericSlider, numericValueText }
+                };
+                Grid.SetColumn(numericValueText, 1);
+                valueControl = numericSlider;
+                editorContent = numericEditor;
+                break;
+
             case PluginSettingKind.File:
             case PluginSettingKind.Directory:
                 var pathBox = new TextBox
@@ -912,9 +956,26 @@ public partial class PluginManagerPage : UserControl
     {
         ToggleSwitch toggle => toggle.IsChecked == true ? "true" : "false",
         ComboBox comboBox when comboBox.SelectedItem is ComboBoxItem item => item.Tag?.ToString(),
+        Slider slider when editor.Definition.Kind == PluginSettingKind.Integer =>
+            Math.Round(slider.Value).ToString(CultureInfo.InvariantCulture),
+        Slider slider => slider.Value.ToString("0.################", CultureInfo.InvariantCulture),
         TextBox textBox => textBox.Text,
         _ => null
     };
+
+    private static string FormatNumericSettingValue(
+        double value,
+        PluginSettingKind kind) =>
+        kind == PluginSettingKind.Integer
+            ? Math.Round(value).ToString(CultureInfo.InvariantCulture)
+            : value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static bool HasNumericSliderRange(PluginSettingDefinition definition) =>
+        definition.Minimum is not null &&
+        definition.Maximum is not null &&
+        double.IsFinite(definition.Minimum.Value) &&
+        double.IsFinite(definition.Maximum.Value) &&
+        definition.Maximum.Value > definition.Minimum.Value;
 
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await RefreshAsync();
 

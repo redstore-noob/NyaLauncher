@@ -16,7 +16,7 @@ internal static class ClockComponentDefinition
             .WithGlyph("◷")
             .WithShape(PolygonShapeDefinition.CutCorner(0.065))
             .WithSize(360, 210)
-            .WithSizeLimits(300, 170, 540, 315)
+            .WithSizeLimits(234, 136.5, 576, 336)
             .WithDragHandle(new ComponentRect(0.44, 0.02, 0.12, 0.07))
             .WithTheme(new PolygonComponentTheme
             {

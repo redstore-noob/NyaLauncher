@@ -29,6 +29,9 @@ public sealed partial class FeatureAreaRegistry
 
     public IReadOnlySet<string> UserAreaIds => _userAreaIds;
 
+    public IReadOnlySet<string> PluginAreaIds =>
+        _pluginAreaOwners.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     public double GlobalComponentScale { get; private set; } = 1;
 
     public IReadOnlyList<FeatureAreaAction> AvailableActions => _sourceAreas
@@ -293,6 +296,13 @@ public sealed partial class FeatureAreaRegistry
             return false;
         }
 
+        // A plugin-owned area exists only as a historical/default container.
+        // Once its last component is returned to the library, remove its
+        // personalization entry so the empty workspace cannot linger or be
+        // recreated by the still-enabled plugin.
+        if (source.ActionIds.Count == 0 && _pluginAreaOwners.ContainsKey(sourceAreaId))
+            profile.Areas.Remove(source);
+
         ApplyPersonalization(profile.Areas);
         return true;
     }
@@ -325,6 +335,13 @@ public sealed partial class FeatureAreaRegistry
         foreach (var source in _sourceAreas)
         {
             _preferences.TryGetValue(source.Id, out var preference);
+
+            // A newly enabled plugin contributes to the component catalog but
+            // must not create a workspace area before the user places one of
+            // its components. Existing personalized/plugin areas still hydrate
+            // from their saved preference and remain backward compatible.
+            if (preference is null && _pluginAreaOwners.ContainsKey(source.Id))
+                continue;
 
             var title = string.IsNullOrWhiteSpace(preference?.DisplayName)
                 ? source.Title

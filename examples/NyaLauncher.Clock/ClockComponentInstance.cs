@@ -6,6 +6,7 @@ namespace NyaLauncher.Clock;
 internal sealed class ClockComponentInstance : IPolygonComponentInstance
 {
     internal const string FormatSettingKey = "time.format";
+    internal const string ScaleSettingKey = "display.scale";
     internal const string ShowTimeZoneSettingKey = "display.timezone";
     internal const string ShowSecondsSettingKey = "display.seconds";
 
@@ -112,7 +113,10 @@ internal sealed class ClockComponentInstance : IPolygonComponentInstance
                 return;
 
             _lastDisplay = display;
-            snapshot = CreateSnapshot(Interlocked.Increment(ref _revision), display);
+            snapshot = CreateSnapshot(
+                Interlocked.Increment(ref _revision),
+                display,
+                Volatile.Read(ref _options).Scale);
             Volatile.Write(ref _currentState, snapshot);
             handler = StateChanged;
         }
@@ -126,10 +130,12 @@ internal sealed class ClockComponentInstance : IPolygonComponentInstance
             "24",
             StringComparison.Ordinal),
         _settings.Get(ShowTimeZoneSettingKey, true),
-        _settings.Get(ShowSecondsSettingKey, true));
+        _settings.Get(ShowSecondsSettingKey, true),
+        Math.Clamp(_settings.Get(ScaleSettingKey, 1.0), 0.65, 1.6));
 
     private static bool IsClockSetting(string key) =>
         string.Equals(key, FormatSettingKey, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(key, ScaleSettingKey, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(key, ShowTimeZoneSettingKey, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(key, ShowSecondsSettingKey, StringComparison.OrdinalIgnoreCase);
 
@@ -141,9 +147,13 @@ internal sealed class ClockComponentInstance : IPolygonComponentInstance
         return untilBoundary < MaximumRefreshDelay ? untilBoundary : MaximumRefreshDelay;
     }
 
-    private static ComponentStateSnapshot CreateSnapshot(long revision, ClockDisplay display) => new()
+    private static ComponentStateSnapshot CreateSnapshot(
+        long revision,
+        ClockDisplay display,
+        double scale) => new()
     {
         Revision = revision,
+        Scale = scale,
         Elements = new Dictionary<string, ComponentElementState>(StringComparer.OrdinalIgnoreCase)
         {
             [ClockComponentDefinition.TimeElementId] = new() { Text = display.Time },

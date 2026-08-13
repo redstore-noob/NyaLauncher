@@ -61,6 +61,13 @@ public sealed record ComponentStateSnapshot
 {
     public long Revision { get; init; }
 
+    /// <summary>
+    /// Optional per-instance scale relative to the component's preferred size.
+    /// Hosts clamp positive finite values to the definition's size limits. A
+    /// null value keeps the launcher's global component scale.
+    /// </summary>
+    public double? Scale { get; init; }
+
     public IReadOnlyDictionary<string, ComponentElementState> Elements { get; init; } =
         new ReadOnlyDictionary<string, ComponentElementState>(
             new Dictionary<string, ComponentElementState>(StringComparer.OrdinalIgnoreCase));

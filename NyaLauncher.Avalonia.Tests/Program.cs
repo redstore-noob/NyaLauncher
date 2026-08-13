@@ -5,6 +5,9 @@ using System.Security.Cryptography;
 using System.Text;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Plugins;
+using NyaLauncher.Avalonia.Controls;
+using NyaLauncher.Plugin.Abstractions.Components;
+using NyaLauncher.Plugin.Abstractions.Plugins;
 
 namespace NyaLauncher.Avalonia.Tests;
 
@@ -33,6 +36,9 @@ internal static class Program
             ("Prepared new install recovery removes target", TestPreparedNewInstallRecoveryAsync),
             ("Committed update recovery keeps target", TestCommittedUpdateRecoveryAsync),
             ("New install clears stale plugin trust", TestNewInstallClearsStaleStateAsync),
+            ("Plugin components start in library", TestPluginComponentsStartInLibraryAsync),
+            ("Plugin area removal persists", TestPluginAreaRemovalAsync),
+            ("Component scale snapshot validation", TestComponentScaleSnapshotAsync),
             ("Plugin storage is single-manager", TestPluginStorageSingleManagerAsync),
             ("Unsafe shutdown retains manager lock", TestUnsafeShutdownRetainsManagerLockAsync),
             ("Unresolved recovery blocks catalog scan", TestRecoveryFailureBlocksRefreshAsync),
@@ -69,6 +75,120 @@ internal static class Program
         Assert(!SemanticVersion.TryParse("1.2.3-01", out _), "numeric prerelease leading zero is rejected");
         return Task.CompletedTask;
     }
+
+    private static Task TestPluginComponentsStartInLibraryAsync()
+    {
+        var registry = CreateRegistryWithWorkspace();
+        registry.PublishPluginComponents(
+            "io.github.touristh.clock",
+            [CreateClockPluginArea()]);
+
+        Assert(
+            registry.AvailableActions.Any(action =>
+                action.Id == "io.github.touristh.clock/digital-clock"),
+            "enabled plugin component is available in the component library");
+        Assert(
+            registry.Areas.All(area => area.Id != "io.github.touristh.clock.area"),
+            "enabled plugin does not create a workspace area without personalization");
+        Assert(
+            registry.PlaceComponent("io.github.touristh.clock/digital-clock", "area-001"),
+            "library component can be placed into an existing workspace");
+        Assert(
+            registry.Areas.Single(area => area.Id == "area-001").Actions.Any(action =>
+                action.Id == "io.github.touristh.clock/digital-clock"),
+            "placed plugin component appears in the chosen workspace");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestPluginAreaRemovalAsync()
+    {
+        var registry = CreateRegistryWithWorkspace(
+            new FeatureAreaPreference
+            {
+                AreaId = "io.github.touristh.clock.area",
+                DisplayName = "电子时钟",
+                ActionIds = ["io.github.touristh.clock/digital-clock"]
+            });
+        registry.PublishPluginComponents(
+            "io.github.touristh.clock",
+            [CreateClockPluginArea()]);
+
+        Assert(
+            registry.Areas.Any(area => area.Id == "io.github.touristh.clock.area"),
+            "historical plugin workspace is restored before removal");
+        Assert(
+            registry.RemoveComponent(
+                "io.github.touristh.clock/digital-clock",
+                "io.github.touristh.clock.area"),
+            "last plugin component can be returned to the library");
+        Assert(
+            registry.Areas.All(area => area.Id != "io.github.touristh.clock.area"),
+            "empty plugin workspace is removed immediately");
+        Assert(
+            registry.CreateCurrentProfile().Areas.All(area =>
+                area.AreaId != "io.github.touristh.clock.area"),
+            "removed plugin workspace is absent from persisted personalization");
+        Assert(
+            registry.AvailableActions.Any(action =>
+                action.Id == "io.github.touristh.clock/digital-clock"),
+            "removed workspace leaves the plugin component in the library");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestComponentScaleSnapshotAsync()
+    {
+        var snapshotter = new ComponentStateSnapshotter([], []);
+        var valid = snapshotter.Snapshot(new ComponentStateSnapshot
+        {
+            Revision = 1,
+            Scale = 1.35
+        });
+        var invalid = snapshotter.Snapshot(new ComponentStateSnapshot
+        {
+            Revision = 2,
+            Scale = double.PositiveInfinity
+        });
+
+        Assert(valid.Scale == 1.35, "positive finite component scale is preserved");
+        Assert(invalid.Scale is null, "non-finite component scale is rejected");
+        return Task.CompletedTask;
+    }
+
+    private static FeatureAreaRegistry CreateRegistryWithWorkspace(
+        FeatureAreaPreference? extraPreference = null)
+    {
+        var registry = new FeatureAreaRegistry();
+        registry.Register(new FeatureAreaDefinition
+        {
+            Id = "area-001",
+            Title = "启动页",
+            Actions = []
+        });
+        var preferences = new List<FeatureAreaPreference>
+        {
+            new() { AreaId = "area-001", DisplayName = "启动页", ActionIds = [] }
+        };
+        if (extraPreference is not null)
+            preferences.Add(extraPreference);
+        registry.ApplyPersonalization(preferences);
+        return registry;
+    }
+
+    private static PluginComponentArea CreateClockPluginArea() => new()
+    {
+        Id = "io.github.touristh.clock.area",
+        Title = "电子时钟",
+        Components =
+        [
+            new PolygonComponentRegistration
+            {
+                Definition = new PolygonComponentBuilder(
+                        "io.github.touristh.clock/digital-clock",
+                        "电子时钟")
+                    .Build()
+            }
+        ]
+    };
 
     private static async Task TestRepositoryIndexAsync()
     {

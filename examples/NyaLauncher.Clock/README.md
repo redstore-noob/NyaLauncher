@@ -9,10 +9,12 @@ Avalonia 或启动器内部类型，只通过声明式 Polygon 组件和宿主�
 - 时区位于顶端的小区域，可在插件设置中隐藏。
 - 秒位于右下角的小区域，可在插件设置中隐藏。
 - 12 小时制的 AM/PM 位于左下角；24 小时制下自动隐藏。
+- 插件设置提供 65%–160% 的大小滑块，已放置实例会即时缩放。
 - 设置保存后，所有已创建的时钟实例会立即刷新。
+- 首次启用只把电子时钟加入组件库，不会自动创建新的工作区；用户可把它拖入已有功能区。
 
-设置键是稳定接口：`time.format`、`display.timezone` 和 `display.seconds`。组件 ID 是
-`io.github.touristh.clock/digital-clock`，后续版本不应改变这些 ID 或设置语义。
+设置键是稳定接口：`time.format`、`display.scale`、`display.timezone` 和 `display.seconds`。
+组件 ID 是 `io.github.touristh.clock/digital-clock`，后续版本不应改变这些 ID 或设置语义。
 
 ## 构建和测试
 

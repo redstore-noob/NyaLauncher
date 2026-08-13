@@ -33,7 +33,7 @@ if (Test-Path -LiteralPath $unexpectedSdk) {
     throw 'The host-provided SDK assembly must not be packaged.'
 }
 
-$archive = Join-Path $artifactsDirectory 'io.github.touristh.clock-1.0.0.zip'
+$archive = Join-Path $artifactsDirectory 'io.github.touristh.clock-1.1.0.zip'
 Compress-Archive -Path (Join-Path $packageDirectory '*') -DestinationPath $archive
 $item = Get-Item -LiteralPath $archive
 $sha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()

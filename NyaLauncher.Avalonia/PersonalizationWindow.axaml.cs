@@ -141,6 +141,7 @@ public partial class PersonalizationWindow : UserControl
             string.IsNullOrWhiteSpace(preference?.IconPath) ? sourceArea.IconPath : preference.IconPath);
         var iconEditor = CreateIconEditor(iconState);
         var isUserArea = _draftUserAreaIds.Contains(sourceArea.Id);
+        var isPluginArea = _registry.PluginAreaIds.Contains(sourceArea.Id);
 
         var card = new Border
         {
@@ -159,7 +160,9 @@ public partial class PersonalizationWindow : UserControl
                         nameBox,
                         descriptionBox,
                         iconState,
-                        isUserArea ? () => RemoveAreaEditor(sourceArea.Id) : null),
+                        isUserArea || isPluginArea
+                            ? () => RemoveAreaEditor(sourceArea.Id)
+                            : null),
                     iconEditor,
                     new Border
                     {

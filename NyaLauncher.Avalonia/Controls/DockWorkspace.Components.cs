@@ -335,6 +335,11 @@ public partial class DockWorkspace
                 normalBorderBrush,
                 hoverBackground,
                 placement);
+            if (polygonView is not null)
+            {
+                polygonView.RequestedScaleChanged += (_, _) =>
+                    ArrangeDesktopComponent(visual);
+            }
             _componentVisuals[ComponentPlacementKey(definition.Id, action.Id)] = visual;
             desktop.Children.Add(viewbox);
         }
@@ -355,7 +360,10 @@ public partial class DockWorkspace
 
     private void ArrangeDesktopComponent(DesktopComponentVisual visual)
     {
-        var size = GetEffectiveComponentSize(visual.Action, visual.Desktop.Bounds.Size);
+        var size = GetEffectiveComponentSize(
+            visual.Action,
+            visual.Desktop.Bounds.Size,
+            visual.PolygonView?.RequestedScale);
         visual.View.Width = size.Width;
         visual.View.Height = size.Height;
 
@@ -600,9 +608,14 @@ public partial class DockWorkspace
             (desktopPoint.Y - bounds.Y) / bounds.Height * polygonHeight));
     }
 
-    private Size GetEffectiveComponentSize(FeatureAreaAction action, Size desktopSize)
+    private Size GetEffectiveComponentSize(
+        FeatureAreaAction action,
+        Size desktopSize,
+        double? requestedScale = null)
     {
-        var componentScale = _globalComponentScale;
+        var componentScale = requestedScale is > 0 && double.IsFinite(requestedScale.Value)
+            ? requestedScale.Value
+            : _globalComponentScale;
         if (action.PolygonComponent?.Definition is { } definition)
         {
             var minimumScale = Math.Max(
