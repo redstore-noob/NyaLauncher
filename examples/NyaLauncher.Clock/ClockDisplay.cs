@@ -5,7 +5,8 @@ namespace NyaLauncher.Clock;
 internal sealed record ClockOptions(
     bool Use24HourFormat,
     bool ShowTimeZone,
-    bool ShowSeconds);
+    bool ShowSeconds,
+    double Scale);
 
 internal sealed record ClockDisplay(
     string Time,

@@ -427,6 +427,8 @@ if (invocation.Arguments is not { } arguments ||
 - 第三方组件 ID 必须是 `pluginId/local-id`，且只含合法 ID 字符；同一插件内不得重复。
 - 元素 ID 和动作 ID 在一个组件内唯一。按钮、菜单和表面动作只能引用已声明的动作。
 - `CurrentState` 和 `StateChanged` 发布的是**完整快照**，不是增量补丁。发布后不要再修改集合。
+- `ComponentStateSnapshot.Scale` 可请求当前实例相对于首选尺寸的缩放；宿主只接受有限正数，
+  并按组件的最小/最大尺寸钳制。保持为 `null` 时继续使用启动器全局组件缩放。
 - 状态字典中的键对应元素 ID；缺失元素使用定义中的默认值。
 - 动作成功结果本身不等于状态确认。TextInput 和 Slider 的权威值写入
   `ComponentElementState.Value`，Toggle 写入 `IsChecked`；插件应更新 `CurrentState`，并在异步状态变化时
@@ -465,6 +467,9 @@ var importedImagePath = string.IsNullOrWhiteSpace(importedRelativePath)
 `kind` 匹配。设置变化通过 `Changed` 事件通知，插件停止时要解除订阅。
 
 当前“插件列表”详情页会自动渲染和保存全局设置：
+
+- 同时声明有限 `minimum` 和 `maximum` 的 `Integer` / `Number` 会渲染为滑块，并按 `step`
+  吸附；缺少完整有限范围时回退为文本输入并继续由宿主校验。
 
 - Global `File` 提供系统文件选择器。保存时宿主以流式方式校验并把不超过 512 MiB 的文件复制到
   `DataDirectory/settings-files/...`，不修改原文件；设置值保存为 DataDirectory 下的相对路径，
