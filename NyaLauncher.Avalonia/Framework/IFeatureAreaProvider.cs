@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
-/// Supplies one or more workspace feature areas.
+/// Implement this interface in a plugin to contribute one or more workspace areas.
 /// </summary>
 public interface IFeatureAreaProvider
 {

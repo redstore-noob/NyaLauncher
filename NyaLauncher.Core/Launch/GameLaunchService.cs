@@ -55,12 +55,29 @@ public sealed class GameLaunchService
     private readonly object _gate = new();
     private readonly IOfflineMinecraftLauncher _launcher = new OfflineMinecraftLauncher();
     private readonly IMicrosoftAuthenticator _authenticator = new MicrosoftDeviceCodeAuthenticator();
+    private readonly Func<
+        GameInstanceSnapshot,
+        string,
+        string,
+        CancellationToken,
+        Task<MinecraftLaunchTransform>>? _launchTransformProvider;
     private readonly List<string> _logLines = [];
     private GameLaunchSnapshot _current = GameLaunchSnapshot.Idle;
     private Process? _gameProcess;
     private long _revision;
     private long _launchId;
     private int _launchInProgress;
+
+    public GameLaunchService(
+        Func<
+            GameInstanceSnapshot,
+            string,
+            string,
+            CancellationToken,
+            Task<MinecraftLaunchTransform>>? launchTransformProvider = null)
+    {
+        _launchTransformProvider = launchTransformProvider;
+    }
 
     public GameLaunchSnapshot Current
     {
@@ -216,6 +233,18 @@ public sealed class GameLaunchService
             var additionalGameArguments = versionProfile.FollowGlobalAdvancedSettings
                 ? globalLaunchSettings.AdditionalGameArguments
                 : versionProfile.AdditionalGameArguments;
+            var effectiveGameDirectory = isolatedGameDirectory ?? instance.MinecraftDirectory;
+            var launchTransform = new MinecraftLaunchTransform();
+            if (_launchTransformProvider is not null)
+            {
+                AppendLog("正在应用已启用插件的 Minecraft 启动贡献。");
+                launchTransform = await _launchTransformProvider(
+                        instance,
+                        instance.SelectedVersionId,
+                        effectiveGameDirectory,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
             AppendLog(memoryDecision.IsAutomatic
                 ? $"已根据启动前可用内存自动设置：可用 {memoryDecision.AvailableMemoryMb} MiB，" +
                   $"保留 {memoryDecision.ReservedMemoryMb} MiB，游戏最大 {memoryDecision.MaximumMemoryMb} MiB。"
@@ -240,7 +269,8 @@ public sealed class GameLaunchService
                 WindowWidth = windowWidth,
                 WindowHeight = windowHeight,
                 AdditionalJvmArguments = additionalJvmArguments,
-                AdditionalGameArguments = additionalGameArguments
+                AdditionalGameArguments = additionalGameArguments,
+                LaunchTransform = launchTransform
             };
 
             AppendLog(versionProfile.FollowGlobalAdvancedSettings

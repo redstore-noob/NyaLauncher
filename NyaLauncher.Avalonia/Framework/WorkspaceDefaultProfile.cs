@@ -48,7 +48,8 @@ public static class WorkspaceDefaultProfile
                     ActionIds =
                     [
                         "downloads",
-                        "settings"
+                        "settings",
+                        BuiltInPluginListComponent.ComponentId
                     ]
                 }
             ],
@@ -129,6 +130,14 @@ public static class WorkspaceDefaultProfile
                     RelativeX = 0.5,
                     RelativeY = 0.13121783876500862,
                     ZIndex = 26
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-003",
+                    ComponentId = BuiltInPluginListComponent.ComponentId,
+                    RelativeX = 0.5,
+                    RelativeY = 0.27,
+                    ZIndex = 27
                 }
             ]
         };

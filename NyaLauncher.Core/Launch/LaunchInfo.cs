@@ -52,6 +52,11 @@ namespace NyaLauncher.Core.Launch;
         public IReadOnlyList<string> AdditionalGameArguments { get; init; } = [];
 
         /// <summary>
+        /// 插件在原版元数据解析完成后、Java 命令行生成前应用的声明式变换。
+        /// </summary>
+        public MinecraftLaunchTransform LaunchTransform { get; init; } = new();
+
+        /// <summary>
         /// 返回一个除账号外其余配置完全相同的副本，用于在启动前替换账号。
         /// </summary>
         public MinecraftLaunchOptions WithAccount(IMinecraftAccount account) => new()
@@ -69,7 +74,8 @@ namespace NyaLauncher.Core.Launch;
             LauncherName = LauncherName,
             LauncherVersion = LauncherVersion,
             AdditionalJvmArguments = AdditionalJvmArguments,
-            AdditionalGameArguments = AdditionalGameArguments
+            AdditionalGameArguments = AdditionalGameArguments,
+            LaunchTransform = LaunchTransform
         };
     }
     /// <summary>
@@ -194,10 +200,9 @@ namespace NyaLauncher.Core.Launch;
     string WorkingDirectory,
     string NativeDirectory,
     int? RequiredJavaMajorVersion,
-    IReadOnlyList<string> Arguments);
-    /// <summary>
-    /// 
-    /// </summary>
+    IReadOnlyList<string> Arguments,
+    IReadOnlyDictionary<string, string?> EnvironmentVariables);
+    /// <summary>Minecraft 实例启动后的结果。</summary>
     /// <param name="Process"></param>
     /// <param name="VersionId"></param>
     /// <param name="Username"></param>

@@ -80,26 +80,48 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
             options.WindowWidth > 0 && options.WindowHeight > 0);
         var (classpath, nativeLibraries) =
             _libraryResolver.Resolve(profile, minecraftDirectory, features);
+        var transform = MinecraftLaunchTransformResolver.Resolve(
+            options,
+            profile.MainClass,
+            gameDirectory,
+            classpath);
         var nativeDirectory = _libraryResolver.ExtractNatives(profile.Id, nativeLibraries);
 
         try
         {
+            var configuredJava = transform.JavaExecutableOverride ?? options.JavaExecutable;
             var javaExecutable = _javaRuntimeLocator.FindJavaExecutable(
-                options.JavaExecutable,
+                configuredJava,
                 profile.RequiredJavaMajorVersion,
                 options.JavaRuntimeDirectory);
+            if (transform.JavaExecutableOverride is not null &&
+                !MinecraftLaunchTransformResolver.PathsEqual(
+                    javaExecutable,
+                    transform.JavaExecutableOverride))
+            {
+                throw new MinecraftLaunchException(
+                    "Java override did not resolve to the requested compatible executable.");
+            }
+
             var arguments = _argumentBuilder.Build(
                 profile,
                 options,
                 nativeDirectory,
-                classpath);
+                transform.Classpath,
+                transform.MainClass,
+                transform.PrependJvmArguments,
+                transform.AppendJvmArguments,
+                transform.PrependGameArguments,
+                transform.AppendGameArguments);
+            MinecraftLaunchTransformResolver.ValidateFinalArguments(arguments);
 
             return new MinecraftLaunchPlan(
                 javaExecutable,
-                gameDirectory,
+                transform.WorkingDirectory,
                 nativeDirectory,
                 profile.RequiredJavaMajorVersion,
-                arguments);
+                arguments,
+                transform.EnvironmentVariables);
         }
         catch
         {
@@ -125,6 +147,13 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            foreach (var variable in plan.EnvironmentVariables)
+            {
+                if (variable.Value is null)
+                    startInfo.Environment.Remove(variable.Key);
+                else
+                    startInfo.Environment[variable.Key] = variable.Value;
+            }
             foreach (var argument in plan.Arguments)
             {
                 startInfo.ArgumentList.Add(argument);

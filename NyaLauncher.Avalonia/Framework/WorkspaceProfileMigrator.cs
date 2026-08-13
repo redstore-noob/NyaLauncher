@@ -16,17 +16,13 @@ internal static class WorkspaceProfileMigrator
     private const int GameInstanceSelectorVersion = 4;
     private const int GameLaunchComponentVersion = 5;
     private const int VersionManagerComponentVersion = 6;
-    // testplug uses v7 for its plugin-list migration. The non-plugin branch can
-    // safely read that sibling format, discard unavailable component IDs through
-    // the registry, and write its own canonical v6 profile on the next save.
-    private const int CompatiblePluginProfileVersion = 7;
+    private const int PluginListComponentVersion = 7;
 
     public static WorkspaceProfile Migrate(WorkspaceProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        var isCompatiblePluginProfile = profile.Version == CompatiblePluginProfileVersion;
-        if (profile.Version > WorkspaceProfile.CurrentVersion && !isCompatiblePluginProfile)
+        if (profile.Version > WorkspaceProfile.CurrentVersion)
         {
             throw new NotSupportedException(
                 $"工作区配置版本 {profile.Version} 高于当前支持的版本 " +
@@ -34,9 +30,6 @@ internal static class WorkspaceProfileMigrator
         }
 
         NormalizeShape(profile);
-
-        if (isCompatiblePluginProfile)
-            profile.Version = WorkspaceProfile.CurrentVersion;
 
         if (profile.Version < CanonicalAreaIdsVersion)
         {
@@ -66,6 +59,12 @@ internal static class WorkspaceProfileMigrator
         {
             AddVersionManagerComponent(profile);
             profile.Version = VersionManagerComponentVersion;
+        }
+
+        if (profile.Version < PluginListComponentVersion)
+        {
+            MigratePluginListComponent(profile);
+            profile.Version = PluginListComponentVersion;
         }
 
         if (profile.Version != WorkspaceProfile.CurrentVersion)
@@ -158,6 +157,23 @@ internal static class WorkspaceProfileMigrator
             relativeX: 0.5,
             relativeY: 0.38,
             insertAtStart: true);
+    }
+
+    private static void MigratePluginListComponent(WorkspaceProfile profile)
+    {
+        // v6 exposed a legacy rectangular "plugins" action. Preserve any user
+        // placement while moving it onto the built-in polygon component id.
+        ReplaceComponentId(
+            profile,
+            "plugins",
+            BuiltInPluginListComponent.ComponentId);
+        EnsureComponent(
+            profile,
+            "area-003",
+            BuiltInPluginListComponent.ComponentId,
+            relativeX: 0.5,
+            relativeY: 0.27,
+            insertAtStart: false);
     }
 
     private static void ReplaceComponentId(

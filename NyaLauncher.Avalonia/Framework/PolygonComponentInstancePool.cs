@@ -111,6 +111,45 @@ internal sealed class PolygonComponentInstancePool(
             TrackDisposal(key, entry.Instance);
     }
 
+    public async Task ReleaseAndWaitAsync(
+        IEnumerable<ComponentInstanceContext> instances,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(instances);
+        var keys = instances
+            .Select(context => new ComponentInstanceKey(context.AreaId, context.ComponentId))
+            .Distinct(KeyComparer)
+            .ToArray();
+        foreach (var key in keys)
+            Release(key);
+
+        var pending = keys
+            .Select(key => _disposals.GetValueOrDefault(key))
+            .Where(task => task is not null)
+            .Distinct()
+            .Cast<Task>()
+            .ToArray();
+        if (pending.Length == 0)
+            return;
+
+        var completion = Task.WhenAll(pending);
+        var timeout = Task.Delay(ShutdownTimeout, cancellationToken);
+        if (await Task.WhenAny(completion, timeout) != completion)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new TimeoutException("插件组件未能在时限内释放。");
+        }
+
+        try
+        {
+            await completion;
+        }
+        catch (Exception)
+        {
+            // 已完成的失败任务不会再执行插件代码；观察器仍会记录并清理。
+        }
+    }
+
     public async Task ShutdownAsync()
     {
         if (!IsShuttingDown)

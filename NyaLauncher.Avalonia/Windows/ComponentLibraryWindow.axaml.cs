@@ -60,8 +60,15 @@ public partial class ComponentLibraryWindow : Window
             if (component.PolygonComponent is not null)
             {
                 var polygonCard = CreatePolygonComponentCard(component);
+                polygonCard.Opacity = component.IsDormant ? 0.58 : 1;
                 ComponentDragSource.Attach(polygonCard, component.Id, sourceAreaId: null);
                 DragDrop.SetAllowDrop(polygonCard, true);
+                if (component.IsDormant)
+                {
+                    ToolTip.SetTip(
+                        polygonCard,
+                        "插件当前未启用；仍可保留或调整此组件的位置");
+                }
                 ComponentList.Children.Add(polygonCard);
                 continue;
             }
@@ -73,7 +80,8 @@ public partial class ComponentLibraryWindow : Window
                 BorderBrush = ThemePolygonHelper.CardBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
-                Cursor = new Cursor(StandardCursorType.SizeAll)
+                Cursor = new Cursor(StandardCursorType.SizeAll),
+                Opacity = component.IsDormant ? 0.58 : 1
             };
 
             var row = new Grid
@@ -138,7 +146,9 @@ public partial class ComponentLibraryWindow : Window
 
             ToolTip.SetTip(
                 card,
-                $"拖动“{component.Title}”到目标功能区");
+                component.IsDormant
+                    ? "插件当前未启用；仍可保留或调整此组件的位置"
+                    : $"拖动“{component.Title}”到目标功能区");
             ComponentDragSource.Attach(card, component.Id, sourceAreaId: null);
             // The native drag target is resolved from the control directly under
             // the pointer. Mark every component card as a valid target as well so

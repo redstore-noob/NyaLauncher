@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Launch;
+using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -13,15 +14,18 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
     private readonly System.Action<string> _navigate;
     private readonly MinecraftProfileService _profileService;
     private readonly GameLaunchService _launchService;
+    private readonly PluginManager? _pluginManager;
 
     public BuiltInFeatureAreaProvider(
         System.Action<string> navigate,
         MinecraftProfileService profileService,
-        GameLaunchService launchService)
+        GameLaunchService launchService,
+        PluginManager? pluginManager = null)
     {
         _navigate = navigate;
         _profileService = profileService;
         _launchService = launchService;
+        _pluginManager = pluginManager;
     }
 
     public IEnumerable<FeatureAreaDefinition> GetFeatureAreas()
@@ -72,7 +76,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
         {
             Id = "area-003",
             Title = "启动器工具",
-            Subtitle = "配置与运行环境",
+            Subtitle = "配置、插件与运行环境",
             Glyph = "✦",
             Actions =
             [
@@ -81,11 +85,14 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
                 new("runtime", "Java 运行环境", "自动查找并管理 Java", "⌘",
                     () => _navigate("runtime")),
                 new("music-player", "音乐播放器", "播放音乐、管理播放列表", "♪",
-                    () => _navigate("music-player"))
+                    () => _navigate("music-player")),
+                new("plugins", "插件管理", "浏览、安装与配置插件", "◇",
+                    () => _navigate("plugins"))
             ],
             PolygonComponents =
             [
-                BuiltInMusicPlayerComponent.Create(_navigate)
+                BuiltInMusicPlayerComponent.Create(_navigate),
+                BuiltInPluginListComponent.Create(_navigate, _pluginManager)
             ]
         };
     }
