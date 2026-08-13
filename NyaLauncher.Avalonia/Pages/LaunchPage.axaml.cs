@@ -1,5 +1,3 @@
-using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -8,42 +6,43 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Launch;
-using NyaLauncher.Core.Launch.Auth;
 
 namespace NyaLauncher.Avalonia.Pages;
 
 public partial class LaunchPage : UserControl
 {
-    private readonly IOfflineMinecraftLauncher _launcher = new OfflineMinecraftLauncher();
-    private readonly IMicrosoftAuthenticator _authenticator = new MicrosoftDeviceCodeAuthenticator();
-    private string _minecraftDirectory = string.Empty;
-    private string? _gameDirectory;
-    private readonly string? _javaExecutable;
-    private readonly string _javaRuntimeDirectory;
-    private Process? _gameProcess;
+    private readonly GameLaunchService _launchService;
+    private bool _synchronizingAccountSelection;
+    private bool _synchronizingVersionSelection;
 
     public LaunchPage()
+        : this(new GameLaunchService())
     {
+    }
+
+    internal LaunchPage(GameLaunchService launchService)
+    {
+        _launchService = launchService;
         InitializeComponent();
-
-        // 优先使用 config.json 中保存的游戏目录，其次环境变量，最后默认目录。
-        MinecraftPathBox.Text =
-            LauncherConfig.GameDirectory ??
-            Environment.GetEnvironmentVariable("NYALAUNCHER_MINECRAFT_DIR") ??
-            MinecraftDirectoryLocator.GetDefaultDirectory();
-
-        // 配置中保存的首选 Java 优先；runtime 目录用于自动探测兜底。
-        _javaExecutable = LauncherConfig.JavaExecutable;
-        _javaRuntimeDirectory =
-            Environment.GetEnvironmentVariable("NYALAUNCHER_JAVA_RUNTIME") ??
-            System.IO.Path.Combine(MinecraftDirectoryLocator.GetDefaultDirectory(), "runtime");
 
         AccountSelector.ItemsSource = AccountStore.Current;
         AccountSelector.SelectedItem = AccountStore.Current.FirstOrDefault();
         AccountStore.Changed += OnAccountsChanged;
+        GameInstanceStore.Changed += OnGameInstancesChanged;
+        _launchService.Changed += OnGameLaunchChanged;
         AccountLoginOverlay.AccountAdded += OnAccountAdded;
 
-        RescanInstallation();
+        ReloadConfiguration();
+    }
+
+    /// <summary>配置目录切换后，重新载入游戏目录和首选 Java。</summary>
+    public void ReloadConfiguration()
+    {
+        MinecraftPathBox.Text =
+            LauncherConfig.GameDirectory ??
+            System.Environment.GetEnvironmentVariable("NYALAUNCHER_MINECRAFT_DIR") ??
+            MinecraftDirectoryLocator.GetDefaultDirectory();
+        _ = RescanInstallationAsync();
     }
 
     // ------------------------------------------------------------------
@@ -51,17 +50,29 @@ public partial class LaunchPage : UserControl
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// 账号列表发生增删/排序时，修复下拉框选中项：
-    /// 若当前选中项仍存在则保持，否则回退到第一个（默认）账号。
-    /// ObservableCollection 本身会让下拉框自动刷新，这里只处理选中项。
+    /// 账号列表首项是跨页面共享的当前账号；组件或设置页切换后，
+    /// 启动页的选择会同步跟随。
     /// </summary>
     private void OnAccountsChanged()
     {
-        var selected = AccountSelector.SelectedItem as LaunchAccount;
-        if (selected is null || !AccountStore.Current.Contains(selected))
+        if (!Dispatcher.UIThread.CheckAccess())
         {
-            AccountSelector.SelectedItem = AccountStore.Current.FirstOrDefault();
+            Dispatcher.UIThread.Post(OnAccountsChanged);
+            return;
         }
+
+        _synchronizingAccountSelection = true;
+        try
+        {
+            AccountSelector.SelectedItem = AccountStore.Selected;
+        }
+        finally
+        {
+            _synchronizingAccountSelection = false;
+        }
+
+        LaunchButton.Content = GetLaunchButtonText();
+        LaunchButton.IsEnabled = CanLaunch();
     }
 
     /// <summary>新建账户成功后自动选中新账号。</summary>
@@ -76,43 +87,33 @@ public partial class LaunchPage : UserControl
         AccountLoginOverlay.Show();
     }
 
+    public void ShowAccountLogin() => AccountLoginOverlay.Show();
+
+    private void OnAccountSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingAccountSelection ||
+            AccountSelector.SelectedItem is not LaunchAccount selected ||
+            ReferenceEquals(AccountStore.Selected, selected))
+        {
+            return;
+        }
+
+        AccountStore.MoveToTop(selected);
+    }
+
     // ------------------------------------------------------------------
     // 目录扫描与启动
     // ------------------------------------------------------------------
 
-    private void RescanInstallation()
+    private Task RescanInstallationAsync()
     {
-        try
-        {
-            var location = MinecraftDirectoryLocator.ResolveInstallationPath(
-                MinecraftPathBox.Text ?? string.Empty);
-            _minecraftDirectory = location.MinecraftDirectory;
-            _gameDirectory = location.GameDirectory;
-
-            var versions = MinecraftDirectoryLocator.GetInstalledVersionIds(_minecraftDirectory);
-            VersionSelector.ItemsSource = versions;
-            VersionSelector.SelectedItem =
-                location.PreferredVersionId is not null &&
-                versions.Contains(location.PreferredVersionId)
-                    ? location.PreferredVersionId
-                    : versions.FirstOrDefault();
-            LaunchButton.IsEnabled = versions.Count > 0;
-            LaunchStatusText.Text = versions.Count > 0
-                ? $"已找到 {versions.Count} 个本地版本 · 资源根目录：{_minecraftDirectory}"
-                : $"未在 {_minecraftDirectory} 找到已安装版本";
-        }
-        catch (Exception ex)
-        {
-            VersionSelector.ItemsSource = null;
-            LaunchButton.IsEnabled = false;
-            LaunchStatusText.Text = $"目录扫描失败：{ex.Message}";
-        }
+        return GameInstanceStore.RefreshAsync(MinecraftPathBox.Text);
     }
 
-    private void OnRescanClick(object? sender, RoutedEventArgs e)
+    private async void OnRescanClick(object? sender, RoutedEventArgs e)
     {
         SaveGameDirectory();
-        RescanInstallation();
+        await RescanInstallationAsync();
     }
 
     /// <summary>
@@ -136,7 +137,73 @@ public partial class LaunchPage : UserControl
 
         MinecraftPathBox.Text = path;
         SaveGameDirectory();
-        RescanInstallation();
+        await RescanInstallationAsync();
+    }
+
+    private void OnGameInstancesChanged(GameInstanceSnapshot snapshot)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnGameInstancesChanged(snapshot));
+            return;
+        }
+
+        _synchronizingVersionSelection = true;
+        try
+        {
+            if (snapshot.IsLoading)
+            {
+                VersionSelector.ItemsSource = null;
+                VersionSelector.SelectedItem = null;
+                LaunchButton.IsEnabled = false;
+                LaunchStatusText.Text = "正在扫描本地 Minecraft 游戏实例…";
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(snapshot.ErrorMessage))
+            {
+                VersionSelector.ItemsSource = null;
+                VersionSelector.SelectedItem = null;
+                LaunchButton.IsEnabled = false;
+                LaunchStatusText.Text = $"目录扫描失败：{snapshot.ErrorMessage}";
+                return;
+            }
+
+            VersionSelector.ItemsSource = snapshot.VersionIds;
+            VersionSelector.SelectedItem = snapshot.SelectedVersionId;
+            LaunchButton.IsEnabled = CanLaunch();
+            LaunchStatusText.Text = snapshot.VersionIds.Count > 0
+                ? $"已选择 {snapshot.SelectedVersionId} · 共 {snapshot.VersionIds.Count} 个本地实例 · 资源根目录：{snapshot.MinecraftDirectory}"
+                : $"未在 {snapshot.MinecraftDirectory} 找到已安装版本";
+        }
+        finally
+        {
+            _synchronizingVersionSelection = false;
+        }
+    }
+
+    private void OnVersionSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingVersionSelection ||
+            VersionSelector.SelectedItem is not string versionId)
+        {
+            return;
+        }
+
+        GameInstanceStore.Select(versionId);
+    }
+
+    private void OnGameLaunchChanged(GameLaunchSnapshot snapshot)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnGameLaunchChanged(snapshot));
+            return;
+        }
+
+        LaunchButton.Content = GetLaunchButtonText();
+        LaunchButton.IsEnabled = CanLaunch();
+        LaunchStatusText.Text = $"{snapshot.Title}：{snapshot.Message}";
     }
 
     /// <summary>把当前输入框中的游戏目录保存到 config.json。</summary>
@@ -151,122 +218,25 @@ public partial class LaunchPage : UserControl
 
     private async void OnLaunchClick(object? sender, RoutedEventArgs e)
     {
-        if (_gameProcess is { HasExited: false })
-        {
-            LaunchStatusText.Text = "游戏已经在运行。";
-            return;
-        }
-
-        if (VersionSelector.SelectedItem is not string versionId)
-        {
-            LaunchStatusText.Text = "请先安装并选择一个 Minecraft 版本。";
-            return;
-        }
-
-        if (AccountSelector.SelectedItem is not LaunchAccount selectedAccount)
-        {
-            LaunchStatusText.Text = AccountStore.Current.Count == 0
-                ? "账号列表为空，请先点击「＋ 新建账户」添加账号。"
-                : "请先选择账号。";
-            return;
-        }
-
-        LaunchButton.IsEnabled = false;
-        LaunchButton.Content = "启动中…";
-
-        try
-        {
-            // 启动前把当前输入固化到 config.json，方便下次直接使用。
-            SaveGameDirectory();
-
-            IMinecraftAccount launchAccount;
-            if (selectedAccount.Type == "microsoft" && selectedAccount.Microsoft is { } msAccount)
-            {
-                // 正版启动：先校验/刷新令牌，再走正版启动管线。
-                try
-                {
-                    msAccount = await _authenticator.ValidateAsync(msAccount);
-                }
-                catch (Exception ex)
-                {
-                    LaunchStatusText.Text =
-                        $"正版账号令牌已失效（{ex.Message}），请删除后重新添加该账号。";
-                    LaunchButton.IsEnabled = true;
-                    LaunchButton.Content = GetLaunchButtonText();
-                    return;
-                }
-
-                selectedAccount.Microsoft = msAccount;
-                AccountStore.Save();
-                launchAccount = msAccount;
-            }
-            else
-            {
-                launchAccount = OfflineAccount.Create(
-                    selectedAccount.OfflineName ?? "Player_01");
-            }
-
-            var options = new MinecraftLaunchOptions
-            {
-                MinecraftDirectory = _minecraftDirectory,
-                GameDirectory = _gameDirectory,
-                JavaExecutable = _javaExecutable,
-                JavaRuntimeDirectory = _javaRuntimeDirectory,
-                VersionId = versionId,
-                Account = launchAccount
-            };
-
-            MinecraftLaunchResult result = launchAccount is MicrosoftAccount
-                ? await new MicrosoftMinecraftLauncher(_launcher)
-                    .LaunchAsync((MicrosoftAccount)launchAccount, options)
-                : await _launcher.LaunchAsync(options);
-
-            _gameProcess = result.Process;
-            _gameProcess.Exited += OnGameExited;
-            var javaHint = result.RequiredJavaMajorVersion is int javaMajor
-                ? $"（至少需要 Java {javaMajor}，兼容更高版本）"
-                : string.Empty;
-            LaunchStatusText.Text =
-                $"已启动 {result.VersionId}，账号：{result.Username} {javaHint}";
-
-            if (_gameProcess.HasExited)
-            {
-                OnGameExited(_gameProcess, EventArgs.Empty);
-            }
-        }
-        catch (Exception ex)
-        {
-            LaunchStatusText.Text = $"启动失败：{ex.Message}";
-            LaunchButton.IsEnabled = true;
-            LaunchButton.Content = GetLaunchButtonText();
-        }
+        SaveGameDirectory();
+        var result = await _launchService.LaunchSelectedAsync();
+        if (!result.Success && !string.IsNullOrWhiteSpace(result.Message))
+            LaunchStatusText.Text = $"启动失败：{result.Message}";
     }
 
     private string GetLaunchButtonText() =>
-        AccountSelector.SelectedItem is LaunchAccount { Type: "microsoft" }
-            ? "正版启动"
-            : "离线启动";
-
-    private void OnGameExited(object? sender, EventArgs e)
-    {
-        if (sender is not Process exitedProcess)
-            return;
-
-        Dispatcher.UIThread.Post(() =>
+        _launchService.Current.Phase switch
         {
-            if (!ReferenceEquals(_gameProcess, exitedProcess))
-                return;
+            GameLaunchPhase.Preparing => "启动中…",
+            GameLaunchPhase.Running => "游戏运行中",
+            _ => AccountSelector.SelectedItem is LaunchAccount { Type: "microsoft" }
+                ? "正版启动"
+                : "离线启动"
+        };
 
-            var exitCode = exitedProcess.ExitCode;
-            LaunchStatusText.Text = exitCode == 0
-                ? "游戏已正常退出。"
-                : $"游戏已退出，退出代码：{exitCode}";
-            LaunchButton.IsEnabled = true;
-            LaunchButton.Content = GetLaunchButtonText();
-            exitedProcess.Exited -= OnGameExited;
-            exitedProcess.Dispose();
-            _gameProcess = null;
-        });
-    }
+    private bool CanLaunch() =>
+        GameInstanceStore.Current.VersionIds.Count > 0 &&
+        !_launchService.Current.IsBusy &&
+        !_launchService.Current.IsGameRunning;
 }
 

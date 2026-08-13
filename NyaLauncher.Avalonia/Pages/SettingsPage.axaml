@@ -52,61 +52,84 @@
             </Grid>
 
             <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="Java 路径"
+              <TextBlock Text="全局最大内存"
                          FontSize="14"
                          Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <Border Grid.Column="1" Background="#2A2A3E" CornerRadius="8" Padding="12,8">
+                         VerticalAlignment="Top"
+                         Margin="0,4,0,0" />
+              <StackPanel Grid.Column="1" Spacing="9">
                 <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Text="自动检测"
-                             FontSize="13"
+                  <TextBlock x:Name="MemoryRangeText"
+                             Text="系统总内存"
+                             FontSize="12"
                              Foreground="#8B8B9E"
                              VerticalAlignment="Center" />
-                  <Button Grid.Column="1"
-                          Content="浏览"
-                          Background="Transparent"
-                          Foreground="{StaticResource SystemAccentColor}"
-                          FontSize="13"
-                          Padding="8,0"
-                          Cursor="Hand" />
+                  <TextBlock x:Name="MaximumMemoryValueText"
+                             Grid.Column="1"
+                             Text="4096 MiB"
+                             FontSize="14"
+                             FontWeight="SemiBold"
+                             Foreground="{StaticResource SystemAccentColor}" />
                 </Grid>
-              </Border>
+                <Slider x:Name="MaximumMemorySlider"
+                        Minimum="512"
+                        Maximum="4096"
+                        TickFrequency="256"
+                        TickPlacement="BottomRight"
+                        IsSnapToTickEnabled="True"
+                        ValueChanged="OnMaximumMemoryValueChanged" />
+                <CheckBox x:Name="AutomaticMemoryCheckBox"
+                          Content="启动游戏时根据剩余可用内存自动调整"
+                          Foreground="#CCCCDD"
+                          IsCheckedChanged="OnAutomaticMemoryChanged" />
+                <TextBlock x:Name="AutomaticMemoryHintText"
+                           Text="关闭自动调整后，上方滑块作为所有实例都不能突破的全局上限。"
+                           FontSize="12"
+                           Foreground="#8B8B9E"
+                           TextWrapping="Wrap" />
+              </StackPanel>
             </Grid>
 
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="最大内存"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <ComboBox Grid.Column="1"
-                        PlaceholderText="4096 MB"
-                        Background="#2A2A3E"
-                        BorderThickness="0"
-                        CornerRadius="8"
-                        Padding="12,6"
-                        HorizontalAlignment="Stretch"
-                        FontSize="13">
-                <ComboBox.Items>
-                  <ComboBoxItem Content="2048 MB" />
-                  <ComboBoxItem Content="4096 MB" IsSelected="True" />
-                  <ComboBoxItem Content="6144 MB" />
-                  <ComboBoxItem Content="8192 MB" />
-                  <ComboBoxItem Content="16384 MB" />
-                </ComboBox.Items>
-              </ComboBox>
-            </Grid>
-
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="JVM 参数"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <Border Grid.Column="1" Background="#2A2A3E" CornerRadius="8" Padding="12,8">
-                <TextBlock Text="-XX:+UseG1GC -XX:+ParallelRefProcEnabled"
-                           FontSize="13"
-                           Foreground="#8B8B9E" />
-              </Border>
-            </Grid>
+            <Expander Header="高级选项" IsExpanded="False">
+              <StackPanel Spacing="9" Margin="0,8,0,0">
+                <TextBlock Text="全局 Java 路径" FontSize="12" Foreground="#8B8B9E" />
+                <TextBox x:Name="GlobalJavaExecutableBox"
+                         PlaceholderText="留空时自动检测 Java"
+                         Background="#2A2A3E"
+                         BorderThickness="0"
+                         CornerRadius="8" />
+                <Grid ColumnDefinitions="*,12,*">
+                  <StackPanel>
+                    <TextBlock Text="窗口宽度" FontSize="12" Foreground="#8B8B9E" />
+                    <TextBox x:Name="GlobalWindowWidthBox" Text="854" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="窗口高度" FontSize="12" Foreground="#8B8B9E" />
+                    <TextBox x:Name="GlobalWindowHeightBox" Text="480" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Text="附加 JVM 参数（每行一个）" FontSize="12" Foreground="#8B8B9E" />
+                <TextBox x:Name="GlobalJvmArgumentsBox"
+                         AcceptsReturn="True"
+                         MinHeight="74"
+                         PlaceholderText="例如：-XX:+UseG1GC" />
+                <TextBlock Text="附加游戏参数（每行一个）" FontSize="12" Foreground="#8B8B9E" />
+                <TextBox x:Name="GlobalGameArgumentsBox"
+                         AcceptsReturn="True"
+                         MinHeight="74" />
+                <Button Content="保存全局高级设置"
+                        HorizontalAlignment="Left"
+                        Padding="15,7"
+                        Background="{StaticResource SystemAccentColor}"
+                        Foreground="White"
+                        Click="OnSaveGlobalLaunchSettingsClick" />
+                <TextBlock x:Name="GlobalLaunchSettingsHintText"
+                           Text="实例默认跟随这里的设置。"
+                           FontSize="12"
+                           Foreground="#8B8B9E"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Expander>
           </StackPanel>
         </Border>
 
@@ -284,7 +307,7 @@
                       FontSize="18"
                       FontWeight="SemiBold"
                       Foreground="#FFFFFF" />
-            <TextBlock Text="NyaLauncher v0.1.0-pre2"
+            <TextBlock Text="NyaLauncher v0.1.0-gp3"
                       FontSize="14"
                       Foreground="#CCCCDD" />
             <TextBlock Text="基于 Avalonia UI 框架构建 · 开源 · 跨平台"

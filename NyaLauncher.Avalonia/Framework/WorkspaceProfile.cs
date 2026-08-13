@@ -4,7 +4,12 @@ namespace NyaLauncher.Avalonia.Framework;
 
 public sealed class WorkspaceProfile
 {
-    public int Version { get; set; } = 2;
+    public const int CurrentVersion = 6;
+
+    // Zero is reserved for profiles whose JSON predates (or omits) the
+    // version field. New profiles must be created through a current-profile
+    // factory, all of which assign CurrentVersion explicitly.
+    public int Version { get; set; }
 
     public double GlobalComponentScale { get; set; } = 1;
 

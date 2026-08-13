@@ -1,8 +1,15 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Pages;
 using NyaLauncher.Core.Config;
@@ -12,14 +19,22 @@ namespace NyaLauncher.Avalonia;
 public partial class MainWindow : Window
 {
     private readonly WorkspaceProfileStore _profileStore = new();
+    private readonly MinecraftProfileService _minecraftProfileService = new();
+    private readonly GameLaunchService _gameLaunchService;
+    private readonly GameDownloadService _gameDownloadService;
     private readonly LaunchPage _launchPage;
     private readonly DownloadPage _downloadPage;
+    private readonly VersionManagerPage _versionManagerPage;
     private readonly SettingsHubPage _settingsPage;
     private ComponentLibraryWindow? _componentLibraryWindow;
+    private TaskDetailsWindow? _taskDetailsWindow;
+    private bool _suppressWorkspaceSave;
+    private bool _storageChangeInProgress;
+    private bool _polygonShutdownInProgress;
+    private bool _polygonShutdownComplete;
 
     /// <summary>
-    /// Shared extension point for built-in modules and future plugins.
-    /// A plugin can register an area at runtime and the workspace updates itself.
+    /// Shared registry for the built-in feature areas and configurable components.
     /// </summary>
     public FeatureAreaRegistry FeatureAreas { get; } = new();
 
@@ -29,8 +44,16 @@ public partial class MainWindow : Window
 
         // 让 config.json 与 workspace.json 存放在同一目录（含自定义存储目录）。
         LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+        _gameLaunchService = new GameLaunchService();
+        _gameLaunchService.Changed += OnGameLaunchChanged;
+        _gameDownloadService = new GameDownloadService();
+        _gameDownloadService.Changed += OnGameDownloadChanged;
 
-        FeatureAreas.Register(new BuiltInFeatureAreaProvider(NavigateFromAction));
+        FeatureAreas.Register(new BuiltInFeatureAreaProvider(
+            NavigateFromAction,
+            _minecraftProfileService,
+            _gameLaunchService,
+            EditPlayerAppearanceAsync));
         var profile = _profileStore.Load();
         FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
         FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
@@ -42,11 +65,16 @@ public partial class MainWindow : Window
             profile.Sidebars,
             profile.ComponentPlacements,
             profile.GlobalComponentScale);
-        Workspace.LayoutChanged += (_, _) => SaveWorkspaceProfile();
+        Workspace.LayoutChanged += (_, _) =>
+        {
+            if (!_suppressWorkspaceSave && !_storageChangeInProgress)
+                SaveWorkspaceProfile();
+        };
         Workspace.ComponentDropRequested += OnComponentDropRequested;
 
-        _launchPage = new LaunchPage();
-        _downloadPage = new DownloadPage();
+        _launchPage = new LaunchPage(_gameLaunchService);
+        _downloadPage = new DownloadPage(_gameDownloadService);
+        _versionManagerPage = new VersionManagerPage();
         _settingsPage = new SettingsHubPage(
             FeatureAreas,
             _profileStore.StorageDirectory);
@@ -63,7 +91,47 @@ public partial class MainWindow : Window
                 UpdateWindowStateIcons();
         };
         UpdateWindowStateIcons();
-        Closing += (_, _) => SaveWorkspaceProfile();
+        Closing += OnWindowClosing;
+    }
+
+    private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_storageChangeInProgress)
+        {
+            e.Cancel = true;
+            ShowStatus("配置目录正在迁移，请等待完成后再关闭启动器。");
+            return;
+        }
+        if (_polygonShutdownComplete)
+            return;
+
+        e.Cancel = true;
+        if (_polygonShutdownInProgress)
+            return;
+
+        _polygonShutdownInProgress = true;
+        SaveWorkspaceProfile();
+        try
+        {
+            await Workspace.ShutdownPolygonComponentsAsync();
+        }
+        finally
+        {
+            _polygonShutdownComplete = true;
+            _polygonShutdownInProgress = false;
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    Close();
+                }
+                catch (InvalidOperationException)
+                {
+                    // The platform may have completed an operating-system shutdown
+                    // while asynchronous component cleanup was in progress.
+                }
+            });
+        }
     }
 
     private void NavigateFromAction(string actionId)
@@ -73,8 +141,18 @@ public partial class MainWindow : Window
             case "select-instance":
             case "account":
             case "launch":
-            case "instances":
                 ShowPage(_launchPage, "启动游戏");
+                break;
+
+            case "instances":
+            case "version-manager":
+                _versionManagerPage.Activate();
+                ShowPage(_versionManagerPage, "版本管理");
+                break;
+
+            case "account-login":
+                ShowPage(_launchPage, "账号登录");
+                _launchPage.ShowAccountLogin();
                 break;
 
             case "downloads":
@@ -84,7 +162,6 @@ public partial class MainWindow : Window
 
             case "settings":
             case "runtime":
-            case "plugins":
                 ShowSettings(SettingsSection.Launcher);
                 break;
 
@@ -123,6 +200,243 @@ public partial class MainWindow : Window
     private void ShowStatus(string message)
     {
         StatusText.Text = message;
+    }
+
+    private void OnGameLaunchChanged(GameLaunchSnapshot snapshot)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnGameLaunchChanged(snapshot));
+            return;
+        }
+
+        UpdateTaskActivityIndicator();
+
+        if (snapshot.Phase is GameLaunchPhase.Preparing or GameLaunchPhase.Running)
+            HeaderStatusText.Text = snapshot.Title;
+        ShowStatus($"{snapshot.Title}：{snapshot.Message}");
+    }
+
+    private void OnGameDownloadChanged(GameDownloadSnapshot snapshot)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnGameDownloadChanged(snapshot));
+            return;
+        }
+
+        UpdateTaskActivityIndicator();
+        ShowStatus($"{snapshot.StageName}：{snapshot.Detail}");
+    }
+
+    private void UpdateTaskActivityIndicator()
+    {
+        var download = _gameDownloadService.Current;
+        if (download.IsActive)
+        {
+            TaskActivityButton.IsVisible = true;
+            TaskActivityButton.Background = Brush.Parse("#2E8C78");
+            TaskActivityButton.BorderBrush = Brush.Parse("#75D9BE");
+            TaskActivityGlyph.Text = "↓";
+            TaskActivityProgress.IsVisible = true;
+            TaskActivityProgress.IsIndeterminate = download.TotalBytes <= 0;
+            TaskActivityProgress.Value = download.Percentage;
+            ToolTip.SetTip(
+                TaskActivityButton,
+                $"正在下载 Minecraft {download.VersionId}\n" +
+                $"{download.StageName} · {download.Percentage:0.0}%\n点击查看下载详情");
+            return;
+        }
+
+        var launch = _gameLaunchService.Current;
+        TaskActivityButton.IsVisible = launch.ShouldShowIndicator;
+        if (!launch.ShouldShowIndicator)
+            return;
+
+        TaskActivityButton.Background = Brush.Parse("#5968E8");
+        TaskActivityButton.BorderBrush = Brush.Parse("#9AA5FF");
+        TaskActivityProgress.IsVisible = launch.Phase == GameLaunchPhase.Preparing;
+        TaskActivityProgress.IsIndeterminate = launch.Phase == GameLaunchPhase.Preparing;
+        TaskActivityGlyph.Text = launch.Phase switch
+        {
+            GameLaunchPhase.Preparing => "…",
+            GameLaunchPhase.Running => "▶",
+            GameLaunchPhase.Failed => "!",
+            GameLaunchPhase.Exited => "✓",
+            _ => "▶"
+        };
+        ToolTip.SetTip(
+            TaskActivityButton,
+            $"{launch.Title}\n{launch.Message}\n点击查看启动日志");
+    }
+
+    private void OnTaskActivityClick(object? sender, RoutedEventArgs e)
+    {
+        var preferredView = _gameDownloadService.Current.IsActive
+            ? TaskDetailView.Download
+            : TaskDetailView.Launch;
+        if (!_gameDownloadService.Current.IsActive &&
+            !_gameLaunchService.Current.ShouldShowIndicator)
+        {
+            return;
+        }
+
+        if (_taskDetailsWindow is not null)
+        {
+            _taskDetailsWindow.ShowPreferredView();
+            _taskDetailsWindow.Activate();
+            return;
+        }
+
+        try
+        {
+            _taskDetailsWindow = new TaskDetailsWindow(
+                _gameDownloadService,
+                _gameLaunchService,
+                preferredView);
+            _taskDetailsWindow.Closed += (_, _) => _taskDetailsWindow = null;
+            _taskDetailsWindow.Show(this);
+        }
+        catch (Exception exception)
+        {
+            _taskDetailsWindow = null;
+            ShowStatus($"任务详情窗口打开失败：{exception.Message}");
+        }
+    }
+
+    private Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
+        EditPlayerAppearanceAsync(
+            PlayerAppearanceRequest request,
+            CancellationToken cancellationToken)
+    {
+        // Polygon runtimes execute actions on a worker thread so a plugin's
+        // synchronous work cannot block Avalonia. This built-in callback owns
+        // file pickers, dialogs and status controls, so cross the UI boundary
+        // explicitly before touching AccountStore or any window state.
+        return Dispatcher.UIThread.CheckAccess()
+            ? EditPlayerAppearanceOnUiThreadAsync(request, cancellationToken)
+            : Dispatcher.UIThread.InvokeAsync(
+                () => EditPlayerAppearanceOnUiThreadAsync(request, cancellationToken));
+    }
+
+    private async Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
+        EditPlayerAppearanceOnUiThreadAsync(
+            PlayerAppearanceRequest request,
+            CancellationToken cancellationToken)
+    {
+        var account = AccountStore.FindByStableKey(request.AccountKey);
+        if (account?.Type != "microsoft" || account.Microsoft is null)
+        {
+            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Failed(
+                "该正版账号已不存在，请重新选择账号。");
+        }
+
+        try
+        {
+            return request.Command switch
+            {
+                PlayerAppearanceCommand.ChangeSkin =>
+                    await ChangeMicrosoftSkinAsync(account, cancellationToken),
+                PlayerAppearanceCommand.ChangeCape =>
+                    await ChangeMicrosoftCapeAsync(account, cancellationToken),
+                _ => NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Failed(
+                    "未知的玩家外观操作。")
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
+                "已取消外观操作。");
+        }
+        catch (Exception exception)
+        {
+            ShowStatus($"玩家外观更新失败：{exception.Message}");
+            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Failed(
+                exception.Message);
+        }
+    }
+
+    private async Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
+        ChangeMicrosoftSkinAsync(LaunchAccount account, CancellationToken cancellationToken)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择 Minecraft Java 皮肤",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Minecraft 皮肤 PNG")
+                {
+                    Patterns = ["*.png"],
+                    MimeTypes = ["image/png"]
+                }
+            ]
+        });
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
+                "未选择皮肤文件。");
+        }
+
+        ValidateSkinFile(path);
+        var modelDialog = new SkinModelDialog();
+        var model = await modelDialog.ShowDialog<MinecraftSkinModel?>(this);
+        if (model is null)
+        {
+            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
+                "未选择皮肤模型。");
+        }
+
+        ShowStatus($"正在为 {account.DisplayName} 上传皮肤…");
+        await _minecraftProfileService.UploadSkinAsync(
+            account,
+            path,
+            model.Value,
+            cancellationToken);
+        ShowStatus($"已更新 {account.DisplayName} 的正版皮肤");
+        return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
+            "正版皮肤已更新。");
+    }
+
+    private async Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
+        ChangeMicrosoftCapeAsync(LaunchAccount account, CancellationToken cancellationToken)
+    {
+        ShowStatus($"正在读取 {account.DisplayName} 的披风列表…");
+        var profile = await _minecraftProfileService.GetProfileAsync(account, cancellationToken);
+        var dialog = new CapeSelectionDialog(profile);
+        var selection = await dialog.ShowDialog<CapeSelectionResult?>(this);
+        if (selection is null)
+        {
+            ShowStatus("已取消披风选择");
+            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed();
+        }
+
+        await _minecraftProfileService.SetActiveCapeAsync(
+            account,
+            selection.CapeId,
+            cancellationToken);
+        ShowStatus(selection.CapeId is null
+            ? $"已停用 {account.DisplayName} 的披风"
+            : $"已更新 {account.DisplayName} 的正版披风");
+        return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
+            selection.CapeId is null ? "已停用披风。" : "正版披风已更新。");
+    }
+
+    private static void ValidateSkinFile(string path)
+    {
+        var file = new FileInfo(path);
+        if (!file.Exists || !string.Equals(file.Extension, ".png", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("皮肤文件必须是本地 PNG 图片。");
+        if (file.Length <= 0 || file.Length > 4 * 1024 * 1024)
+            throw new InvalidDataException("皮肤文件为空或超过 4 MiB 限制。");
+
+        using var bitmap = new Bitmap(file.FullName);
+        if (bitmap.PixelSize.Width != 64 || bitmap.PixelSize.Height is not (32 or 64))
+        {
+            throw new InvalidDataException(
+                "Minecraft Java 皮肤尺寸必须为 64×64，或兼容旧版的 64×32。");
+        }
     }
 
     private void OnBackToWorkspaceClick(object? sender, RoutedEventArgs e)
@@ -202,17 +516,15 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void OnPersonalizationSaved(
+    private async void OnPersonalizationSaved(
         object? sender,
         PersonalizationResult result)
     {
-        var profile = result.Profile;
+        if (_storageChangeInProgress)
+            return;
 
-        FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
-        FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
-        FeatureAreas.ApplyPersonalization(profile.Areas);
-        Workspace.SetGlobalComponentScale(profile.GlobalComponentScale);
-        profile.GlobalComponentScale = Workspace.GlobalComponentScale;
+        _storageChangeInProgress = true;
+        var profile = result.Profile;
         profile.Layout = Workspace.ExportLayout();
         profile.Sidebars = [.. Workspace.ExportSidebars()];
         profile.ComponentPlacements = [.. Workspace.ExportComponentPlacements()];
@@ -222,28 +534,145 @@ public partial class MainWindow : Window
             var directoryChanged = !WorkspaceProfileStore.PathsEqual(
                 _profileStore.StorageDirectory,
                 result.StorageDirectory);
+            StorageDirectoryChangeTransaction? storageChange = null;
             if (directoryChanged)
             {
-                _profileStore.ChangeStorageDirectory(result.StorageDirectory, profile);
-                // 存储目录变更后，config.json 跟随 workspace.json 一起迁移。
-                LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+                var inspection = _profileStore.InspectStorageDirectory(
+                    result.StorageDirectory);
+                var action = ExistingConfigurationAction.None;
+
+                if (inspection.HasConfiguration)
+                {
+                    var dialog = new ConfigurationConflictDialog(
+                        _profileStore.StorageDirectory,
+                        inspection);
+                    var choice = await dialog.ShowDialog<ConfigurationConflictChoice>(this);
+                    if (choice == ConfigurationConflictChoice.Cancel)
+                    {
+                        _settingsPage.ReloadPersonalization(
+                            _profileStore.StorageDirectory);
+                        ShowStatus("已取消配置目录切换。");
+                        return;
+                    }
+
+                    action = choice == ConfigurationConflictChoice.DeletePrevious
+                        ? ExistingConfigurationAction.DeletePrevious
+                        : ExistingConfigurationAction.BackupPrevious;
+                }
+
+                try
+                {
+                    // Prepare copies a stable candidate without changing the
+                    // active locator or deleting the source configuration.
+                    storageChange = await Task.Run(() =>
+                        _profileStore.PrepareStorageDirectoryChange(
+                            result.StorageDirectory,
+                            profile,
+                            action));
+
+                    LauncherConfig.SetStorageDirectory(storageChange.TargetDirectory);
+                    storageChange.Complete();
+                }
+                catch (Exception migrationException)
+                {
+                    LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+
+                    if (storageChange is not null)
+                    {
+                        var rollbackFailures = await Task.Run(storageChange.Rollback);
+                        if (rollbackFailures.Count > 0)
+                        {
+                            throw new AggregateException(
+                                $"存储目录切换失败，且本次目标半成品未完全清理：" +
+                                string.Join("；", rollbackFailures),
+                                migrationException);
+                        }
+                    }
+
+                    throw;
+                }
+                AccountStore.Reload();
+                _launchPage.ReloadConfiguration();
+                profile = storageChange.AppliedProfile;
             }
             else
+            {
                 _profileStore.Save(profile);
+            }
+
+            ApplyWorkspaceProfile(
+                profile,
+                importStoredLayout: storageChange?.AppliedExistingConfiguration == true);
+            SaveWorkspaceProfile(force: true);
 
             _settingsPage.ReloadPersonalization(_profileStore.StorageDirectory);
-            ShowStatus(directoryChanged
-                ? $"个性化配置已迁移至：{_profileStore.StorageDirectory}"
-                : "个性化配置已保存并应用");
+            ShowStatus(CreateStorageChangeStatus(directoryChanged, storageChange));
         }
         catch (Exception exception)
         {
-            ShowStatus($"配置已应用，但保存失败：{exception.Message}");
+            ShowStatus($"配置保存或目录切换失败：{exception.Message}");
+        }
+        finally
+        {
+            _storageChangeInProgress = false;
         }
     }
 
-    private void SaveWorkspaceProfile()
+    private void ApplyWorkspaceProfile(
+        WorkspaceProfile profile,
+        bool importStoredLayout)
     {
+        _suppressWorkspaceSave = true;
+        try
+        {
+            FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
+            FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
+            FeatureAreas.ApplyPersonalization(profile.Areas);
+            Workspace.SetGlobalComponentScale(profile.GlobalComponentScale);
+
+            if (importStoredLayout)
+            {
+                Workspace.ImportLayout(
+                    profile.Layout,
+                    profile.Sidebars,
+                    profile.ComponentPlacements,
+                    profile.GlobalComponentScale);
+            }
+        }
+        finally
+        {
+            _suppressWorkspaceSave = false;
+        }
+    }
+
+    private static string CreateStorageChangeStatus(
+        bool directoryChanged,
+        StorageDirectoryChangeTransaction? storageChange)
+    {
+        if (!directoryChanged || storageChange is null)
+            return "个性化配置已保存并应用";
+
+        var message = storageChange.AppliedExistingConfiguration
+            ? storageChange.BackupDirectory is null
+                ? "已应用目标目录配置，旧配置已删除。"
+                : $"已应用目标目录配置，旧配置已备份至：{storageChange.BackupDirectory}"
+            : "配置已迁移至新的存储目录。";
+
+        if (storageChange.CleanupFailures.Count > 0)
+        {
+            message += $" 但部分旧文件未能删除：{string.Join("；", storageChange.CleanupFailures)}";
+        }
+
+        return message;
+    }
+
+    private void SaveWorkspaceProfile(bool force = false)
+    {
+        // Component removal, drag/drop and layout events all converge here.
+        // None may overwrite either side while a directory transaction is open.
+        if (_storageChangeInProgress && !force)
+            return;
+
         try
         {
             var profile = FeatureAreas.CreateCurrentProfile();

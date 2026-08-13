@@ -446,7 +446,7 @@ public partial class PersonalizationWindow : UserControl
 
         var profile = new WorkspaceProfile
         {
-            Version = 2,
+            Version = WorkspaceProfile.CurrentVersion,
             GlobalComponentScale = ComponentScaleSlider.Value,
             Areas = _editors.Select(editor => new FeatureAreaPreference
             {

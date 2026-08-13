@@ -4,6 +4,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
+using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Framework;
 
 namespace NyaLauncher.Avalonia;
@@ -12,6 +14,7 @@ public partial class ComponentLibraryWindow : Window
 {
     private static readonly IBrush Muted = Brush.Parse("#8F98B3");
     private FeatureAreaRegistry? _registry;
+    private bool _isClosed;
 
     public event System.EventHandler<ComponentRemovalRequestedEventArgs>? ComponentRemovalRequested;
 
@@ -24,14 +27,27 @@ public partial class ComponentLibraryWindow : Window
     {
         _registry = registry;
         _registry.Changed += OnRegistryChanged;
-        Closed += (_, _) => _registry.Changed -= OnRegistryChanged;
+        Closed += (_, _) =>
+        {
+            _isClosed = true;
+            _registry.Changed -= OnRegistryChanged;
+        };
         WireRemovalDropTarget();
         BuildComponentList();
     }
 
     private void OnRegistryChanged(object? sender, System.EventArgs e)
     {
-        BuildComponentList();
+        if (_isClosed)
+            return;
+        if (Dispatcher.UIThread.CheckAccess())
+            BuildComponentList();
+        else
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_isClosed)
+                    BuildComponentList();
+            });
     }
 
     private void BuildComponentList()
@@ -40,6 +56,15 @@ public partial class ComponentLibraryWindow : Window
 
         foreach (var component in _registry?.AvailableActions ?? [])
         {
+            if (component.PolygonComponent is not null)
+            {
+                var polygonCard = CreatePolygonComponentCard(component);
+                ComponentDragSource.Attach(polygonCard, component.Id, sourceAreaId: null);
+                DragDrop.SetAllowDrop(polygonCard, true);
+                ComponentList.Children.Add(polygonCard);
+                continue;
+            }
+
             var card = new Border
             {
                 Padding = new Thickness(13, 11),
@@ -110,7 +135,9 @@ public partial class ComponentLibraryWindow : Window
             row.Children.Add(dragGlyph);
             card.Child = row;
 
-            ToolTip.SetTip(card, $"拖动“{component.Title}”到目标功能区");
+            ToolTip.SetTip(
+                card,
+                $"拖动“{component.Title}”到目标功能区");
             ComponentDragSource.Attach(card, component.Id, sourceAreaId: null);
             // The native drag target is resolved from the control directly under
             // the pointer. Mark every component card as a valid target as well so
@@ -119,6 +146,80 @@ public partial class ComponentLibraryWindow : Window
             DragDrop.SetAllowDrop(card, true);
             ComponentList.Children.Add(card);
         }
+    }
+
+    private static Border CreatePolygonComponentCard(FeatureAreaAction component)
+    {
+        var registration = component.PolygonComponent!;
+        var preview = new PolygonComponentView(
+            registration,
+            instance: null,
+            visualState: PolygonComponentVisualState.LibraryPreview,
+            interactive: false);
+
+        var previewHost = new Viewbox
+        {
+            MaxWidth = 340,
+            MaxHeight = 190,
+            Stretch = Stretch.Uniform,
+            StretchDirection = StretchDirection.DownOnly,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            IsHitTestVisible = false,
+            Child = preview
+        };
+
+        var title = new TextBlock
+        {
+            Text = component.Title,
+            FontSize = 13,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = Brushes.White,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        var description = new TextBlock
+        {
+            Text = component.Description,
+            FontSize = 10,
+            Foreground = Muted,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        var copy = new StackPanel
+        {
+            Spacing = 3,
+            Children = { title, description }
+        };
+
+        var dragGlyph = new TextBlock
+        {
+            Text = "⠿",
+            FontSize = 20,
+            Foreground = Brush.Parse("#AAB2CC"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(dragGlyph, 1);
+
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Children = { copy, dragGlyph }
+        };
+
+        var card = new Border
+        {
+            Padding = new Thickness(13, 11),
+            Background = Brush.Parse("#1D2334"),
+            BorderBrush = Brush.Parse("#323A51"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Cursor = new Cursor(StandardCursorType.SizeAll),
+            Child = new StackPanel
+            {
+                Spacing = 10,
+                Children = { header, previewHost }
+            }
+        };
+        ToolTip.SetTip(card, $"拖动“{component.Title}”到目标功能区");
+        return card;
     }
 
     private void WireRemovalDropTarget()
@@ -163,7 +264,7 @@ public partial class ComponentLibraryWindow : Window
                 new ComponentRemovalRequestedEventArgs(
                     payload.ComponentId,
                     payload.SourceAreaId));
-            },
+        },
             RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
             handledEventsToo: true);
     }

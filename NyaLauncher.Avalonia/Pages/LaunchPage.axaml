@@ -101,7 +101,8 @@
                         PlaceholderText="未找到已安装版本"
                         Background="Transparent"
                         BorderThickness="0"
-                        FontSize="14" />
+                        FontSize="14"
+                        SelectionChanged="OnVersionSelectionChanged" />
             </StackPanel>
           </Border>
 
@@ -128,7 +129,8 @@
                         PlaceholderText="未选择账号"
                         Background="Transparent"
                         BorderThickness="0"
-                        FontSize="13">
+                        FontSize="13"
+                        SelectionChanged="OnAccountSelectionChanged">
                 <ComboBox.ItemTemplate>
                   <DataTemplate DataType="local:LaunchAccount">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -185,7 +187,7 @@
 
     <!-- 底部信息 -->
     <TextBlock Grid.Row="2"
-               Text="NyaLauncher v0.1.0-pre2 · 使用 Avalonia 构建"
+               Text="NyaLauncher v0.1.0-gp3 · 使用 Avalonia 构建"
                FontSize="12"
                Foreground="#5A5A70"
                HorizontalAlignment="Center"

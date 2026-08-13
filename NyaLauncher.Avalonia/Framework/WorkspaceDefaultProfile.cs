@@ -10,7 +10,7 @@ public static class WorkspaceDefaultProfile
     {
         return new WorkspaceProfile
         {
-            Version = 2,
+            Version = WorkspaceProfile.CurrentVersion,
             GlobalComponentScale = 1,
             Areas =
             [
@@ -21,7 +21,13 @@ public static class WorkspaceDefaultProfile
                     Description = "启动游戏功能的区域",
                     IconGlyph = "\u25B6",
                     IconPath = null,
-                    ActionIds = ["launch"]
+                    ActionIds =
+                    [
+                        BuiltInAccountSelectorComponent.ComponentId,
+                        BuiltInGameInstanceSelectorComponent.ComponentId,
+                        BuiltInSkinCapeComponent.ComponentId,
+                        BuiltInGameLaunchComponent.ComponentId
+                    ]
                 },
                 new FeatureAreaPreference
                 {
@@ -30,7 +36,7 @@ public static class WorkspaceDefaultProfile
                     Description = "自定义的功能区",
                     IconGlyph = "\u25C6",
                     IconPath = null,
-                    ActionIds = []
+                    ActionIds = [BuiltInVersionManagerComponent.ComponentId]
                 },
                 new FeatureAreaPreference
                 {
@@ -39,7 +45,11 @@ public static class WorkspaceDefaultProfile
                     Description = "设置与下载",
                     IconGlyph = "\u2699",
                     IconPath = null,
-                    ActionIds = ["downloads", "settings"]
+                    ActionIds =
+                    [
+                        "downloads",
+                        "settings"
+                    ]
                 }
             ],
             CustomAreas = [],
@@ -67,10 +77,42 @@ public static class WorkspaceDefaultProfile
                 new ComponentPlacementProfile
                 {
                     AreaId = "area-001",
-                    ComponentId = "launch",
-                    RelativeX = 0.5115384615384608,
-                    RelativeY = 0.46466721446179143,
+                    ComponentId = BuiltInAccountSelectorComponent.ComponentId,
+                    RelativeX = 0.5,
+                    RelativeY = 0.13,
+                    ZIndex = 85
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-001",
+                    ComponentId = BuiltInGameInstanceSelectorComponent.ComponentId,
+                    RelativeX = 0.5,
+                    RelativeY = 0.38,
                     ZIndex = 86
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-001",
+                    ComponentId = BuiltInSkinCapeComponent.ComponentId,
+                    RelativeX = 0.16,
+                    RelativeY = 0.68,
+                    ZIndex = 87
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-001",
+                    ComponentId = BuiltInGameLaunchComponent.ComponentId,
+                    RelativeX = 0.65,
+                    RelativeY = 0.68,
+                    ZIndex = 88
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-002",
+                    ComponentId = BuiltInVersionManagerComponent.ComponentId,
+                    RelativeX = 0.5,
+                    RelativeY = 0.38,
+                    ZIndex = 89
                 },
                 new ComponentPlacementProfile
                 {

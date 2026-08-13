@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
-/// Runtime registry shared by built-in features and future plugins.
+/// Runtime registry shared by built-in features and Polygon components.
 /// Source definitions form a global action catalog; personalized areas are
 /// projected from that catalog and can freely select their displayed actions.
 /// </summary>
@@ -40,6 +41,8 @@ public sealed class FeatureAreaRegistry
     {
         ArgumentNullException.ThrowIfNull(area);
 
+        area = NormalizeSourceArea(area);
+
         if (string.IsNullOrWhiteSpace(area.Id))
             throw new ArgumentException("Feature area id cannot be empty.", nameof(area));
 
@@ -60,6 +63,55 @@ public sealed class FeatureAreaRegistry
 
         foreach (var area in provider.GetFeatureAreas())
             Register(area);
+    }
+
+    /// <summary>
+    /// Convenience entry point for a third-party polygon component provider.
+    /// Contributions are merged into an existing area when possible; otherwise
+    /// a new source area is created from the supplied metadata.
+    /// </summary>
+    public void RegisterPolygonComponents(
+        string areaId,
+        string title,
+        string subtitle,
+        string glyph,
+        IPolygonComponentProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        var registrations = provider.GetPolygonComponents()
+            ?? throw new ArgumentException(
+                "Polygon component provider returned null.",
+                nameof(provider));
+        var existingIndex = _sourceAreas.FindIndex(area =>
+            string.Equals(area.Id, areaId, StringComparison.OrdinalIgnoreCase));
+        if (existingIndex < 0)
+        {
+            Register(new FeatureAreaDefinition
+            {
+                Id = areaId,
+                Title = title,
+                Subtitle = subtitle,
+                Glyph = glyph,
+                PolygonComponents = registrations
+            });
+            return;
+        }
+
+        var existing = _sourceAreas[existingIndex];
+        var merged = NormalizeSourceArea(new FeatureAreaDefinition
+        {
+            Id = existing.Id,
+            Title = existing.Title,
+            Subtitle = existing.Subtitle,
+            Glyph = existing.Glyph,
+            IconPath = existing.IconPath,
+            ContentFactory = existing.ContentFactory,
+            Actions = existing.Actions,
+            PolygonComponents = registrations
+        }, replacingAreaId: existing.Id);
+        _sourceAreas[existingIndex] = merged;
+        RebuildPersonalizedAreas();
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void SetGlobalComponentScale(double scale)
@@ -138,7 +190,7 @@ public sealed class FeatureAreaRegistry
     {
         return new WorkspaceProfile
         {
-            Version = 2,
+            Version = WorkspaceProfile.CurrentVersion,
             GlobalComponentScale = GlobalComponentScale,
             Areas = _areas.Select(area => new FeatureAreaPreference
             {
@@ -157,7 +209,7 @@ public sealed class FeatureAreaRegistry
     {
         return new WorkspaceProfile
         {
-            Version = 2,
+            Version = WorkspaceProfile.CurrentVersion,
             GlobalComponentScale = 1,
             Areas = _sourceAreas.Select(area => new FeatureAreaPreference
             {
@@ -306,10 +358,89 @@ public sealed class FeatureAreaRegistry
                 Glyph = glyph,
                 IconPath = iconPath,
                 ContentFactory = source.ContentFactory,
-                Actions = actions
+                Actions = actions,
+                PolygonComponents = []
             });
         }
     }
+
+    private FeatureAreaDefinition NormalizeSourceArea(
+        FeatureAreaDefinition source,
+        string? replacingAreaId = null)
+    {
+        var actions = source.Actions?.ToList() ?? [];
+        foreach (var registration in source.PolygonComponents ?? [])
+            actions.Add(CreatePolygonAction(registration));
+
+        var knownIds = _sourceAreas
+            .Where(area => !string.Equals(
+                area.Id,
+                replacingAreaId,
+                StringComparison.OrdinalIgnoreCase))
+            .SelectMany(area => area.Actions)
+            .Select(action => action.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var localIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var action in actions)
+        {
+            if (string.IsNullOrWhiteSpace(action.Id))
+                throw new ArgumentException("Component id cannot be empty.", nameof(source));
+            if (!localIds.Add(action.Id) || knownIds.Contains(action.Id))
+            {
+                throw new InvalidOperationException(
+                    $"Component id '{action.Id}' is already registered.");
+            }
+        }
+
+        return new FeatureAreaDefinition
+        {
+            Id = source.Id,
+            Title = source.Title,
+            Subtitle = source.Subtitle,
+            Glyph = source.Glyph,
+            IconPath = source.IconPath,
+            ContentFactory = source.ContentFactory,
+            Actions = actions.ToArray(),
+            PolygonComponents = []
+        };
+    }
+
+    /// <summary>
+    /// Converts a framework-neutral Polygon registration into the workspace's
+    /// existing action catalog while keeping the validated definition snapshot.
+    /// </summary>
+    private static FeatureAreaAction CreatePolygonAction(
+        PolygonComponentRegistration? registration)
+    {
+        if (registration?.Definition is null)
+            throw CreateNullRegistrationException();
+
+        var definition = PolygonComponentValidator.ValidateAndSnapshot(
+            registration.Definition);
+        var registrationSnapshot = new PolygonComponentRegistration
+        {
+            Definition = definition,
+            Factory = registration.Factory
+        };
+        return new FeatureAreaAction(
+            definition.Id,
+            definition.Title,
+            definition.Description,
+            definition.Glyph)
+        {
+            BaseWidth = definition.PreferredSize.Width,
+            BaseHeight = definition.PreferredSize.Height,
+            PolygonComponent = registrationSnapshot
+        };
+    }
+
+    private static ComponentDefinitionException CreateNullRegistrationException() =>
+        new([
+            new ComponentValidationError(
+                "registration.null",
+                "$.polygonComponents",
+                "多边形组件注册不能为空。")
+        ]);
 
     private List<UserFeatureAreaProfile> CreateUserAreaProfiles()
     {
@@ -337,7 +468,8 @@ public sealed class FeatureAreaRegistry
                 : area.Subtitle.Trim(),
             Glyph = string.IsNullOrWhiteSpace(area.Glyph) ? "◇" : area.Glyph,
             IconPath = area.IconPath,
-            Actions = []
+            Actions = [],
+            PolygonComponents = []
         };
     }
 }

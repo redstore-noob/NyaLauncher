@@ -21,12 +21,16 @@ public static class AccountStore
     /// <summary>内存中的权威账号列表（可观察集合，UI 绑定后自动同步）。</summary>
     public static ObservableCollection<LaunchAccount> Current { get; } = LoadFromDisk();
 
+    /// <summary>列表首项是所有页面和组件共享的当前账号。</summary>
+    public static LaunchAccount? Selected => Current.FirstOrDefault();
+
     /// <summary>账号列表发生变化（增/删/排序）时触发。订阅者异常相互隔离，不影响他人。</summary>
     public static event Action? Changed;
 
     public static void Add(LaunchAccount account)
     {
-        Current.Add(account);
+        ArgumentNullException.ThrowIfNull(account);
+        Current.Insert(0, account);
         Save();
         RaiseChanged();
     }
@@ -44,12 +48,101 @@ public static class AccountStore
     /// <summary>把指定账号设为默认（移到列表顶部）。</summary>
     public static void MoveToTop(LaunchAccount account)
     {
+        ArgumentNullException.ThrowIfNull(account);
+        if (ReferenceEquals(Current.FirstOrDefault(), account))
+            return;
+
         if (Current.Remove(account))
         {
             Current.Insert(0, account);
             Save();
             RaiseChanged();
         }
+    }
+
+    public static string GetStableKey(LaunchAccount account)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        var identity = account.Type switch
+        {
+            "microsoft" => account.Microsoft?.Uuid,
+            "offline" => account.OfflineName,
+            _ => account.DisplayName
+        };
+        return $"{account.Type}:{(string.IsNullOrWhiteSpace(identity) ? account.DisplayName : identity)}";
+    }
+
+    /// <summary>通过持久身份切换当前账号；成功后该账号会移动到列表首项。</summary>
+    public static bool SelectByStableKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return false;
+
+        var account = Current.FirstOrDefault(candidate => string.Equals(
+            GetStableKey(candidate),
+            key,
+            StringComparison.OrdinalIgnoreCase));
+        if (account is null)
+            return false;
+
+        MoveToTop(account);
+        return true;
+    }
+
+    public static LaunchAccount? FindByStableKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return null;
+        return Current.FirstOrDefault(candidate => string.Equals(
+            GetStableKey(candidate),
+            key,
+            StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// 在配置存储目录切换后，从新的 config.json 重新载入账号，同时保留集合实例，
+    /// 使已经绑定到该集合的页面自动刷新。
+    /// </summary>
+    public static void Reload()
+    {
+        var loaded = LoadFromDisk();
+        Current.Clear();
+        foreach (var account in loaded)
+            Current.Add(account);
+
+        RaiseChanged();
+    }
+
+    public static void UpdateMicrosoftAccount(
+        LaunchAccount account,
+        MicrosoftAccount microsoftAccount)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentNullException.ThrowIfNull(microsoftAccount);
+        if (!Current.Contains(account) ||
+            !string.Equals(account.Type, "microsoft", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("只能更新账号存储中的正版账号。");
+        }
+
+        account.Microsoft = microsoftAccount;
+        Save();
+        RaiseChanged();
+    }
+
+    public static void UpdateOfflineSkin(LaunchAccount account, string skinId)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentException.ThrowIfNullOrWhiteSpace(skinId);
+        if (!Current.Contains(account) ||
+            !string.Equals(account.Type, "offline", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("只能更新账号存储中的离线账号。");
+        }
+
+        account.OfflineSkinId = skinId;
+        Save();
+        RaiseChanged();
     }
 
     /// <summary>是否已存在同名离线账号（忽略大小写）。</summary>
@@ -76,7 +169,8 @@ public static class AccountStore
                 : new AccountDto
                 {
                     Type = "offline",
-                    OfflineName = account.OfflineName
+                    OfflineName = account.OfflineName,
+                    OfflineSkinId = account.OfflineSkinId
                 }).ToList();
 
         var json = JsonSerializer.Serialize(dtos);
@@ -146,7 +240,10 @@ public static class AccountStore
                             {
                                 Type = "offline",
                                 DisplayName = dto.OfflineName,
-                                OfflineName = dto.OfflineName
+                                OfflineName = dto.OfflineName,
+                                OfflineSkinId = string.IsNullOrWhiteSpace(dto.OfflineSkinId)
+                                    ? "steve"
+                                    : dto.OfflineSkinId
                             });
                         }
                     }
@@ -194,5 +291,6 @@ public static class AccountStore
         public string? ClientId { get; set; }
         public DateTimeOffset? ExpiresAt { get; set; }
         public string? OfflineName { get; set; }
+        public string? OfflineSkinId { get; set; }
     }
 }

@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NyaLauncher.Avalonia.CapeSelectionDialog"
+        Title="选择披风"
+        Width="460"
+        Height="500"
+        MinHeight="360"
+        CanResize="True"
+        ShowInTaskbar="False"
+        Background="#111522"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="26">
+    <StackPanel Spacing="9">
+      <TextBlock Text="选择正版账号披风"
+                 FontSize="21"
+                 FontWeight="Bold"
+                 Foreground="#F6F7FF" />
+      <TextBlock Text="这里只显示该 Minecraft 正版账号已经拥有的披风。"
+                 FontSize="12"
+                 Foreground="#A5AEC7" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" Margin="0,18" VerticalScrollBarVisibility="Auto">
+      <StackPanel x:Name="CapeList" Spacing="8" />
+    </ScrollViewer>
+
+    <StackPanel Grid.Row="2"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="10">
+      <Button Content="取消"
+              Padding="16,8"
+              Click="OnCancelClick" />
+      <Button Content="不使用披风"
+              Padding="16,8"
+              Click="OnDisableCapeClick" />
+    </StackPanel>
+  </Grid>
+</Window>

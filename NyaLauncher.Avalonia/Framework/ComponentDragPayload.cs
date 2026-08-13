@@ -3,6 +3,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NyaLauncher.Avalonia.Framework;
 
@@ -51,10 +53,51 @@ public sealed record ComponentDragPayload(string ComponentId, string? SourceArea
 public static class ComponentDragSource
 {
     private const double DragThreshold = 6;
+    private static readonly TimeSpan LongPressDuration = TimeSpan.FromMilliseconds(420);
 
     public static void Attach(Control control, string componentId, string? sourceAreaId)
     {
         PendingDrag? pending = null;
+
+        void CancelPending()
+        {
+            var candidate = pending;
+            pending = null;
+            if (candidate is null)
+                return;
+            candidate.Cancellation.Cancel();
+            candidate.Cancellation.Dispose();
+        }
+
+        async Task StartDragAsync(PendingDrag candidate)
+        {
+            if (!ReferenceEquals(pending, candidate))
+                return;
+
+            pending = null;
+            candidate.Cancellation.Dispose();
+            candidate.PressedEvent.Pointer.Capture(control);
+            await DragDrop.DoDragDropAsync(
+                candidate.PressedEvent,
+                candidate.Payload.CreateDataTransfer(),
+                candidate.Payload.IsFromLibrary
+                    ? DragDropEffects.Copy
+                    : DragDropEffects.Move);
+        }
+
+        async Task StartAfterLongPressAsync(PendingDrag candidate)
+        {
+            try
+            {
+                await Task.Delay(LongPressDuration, candidate.Cancellation.Token);
+                await StartDragAsync(candidate);
+            }
+            catch (OperationCanceledException)
+            {
+                // Releasing or moving before the long-press threshold keeps the
+                // original child click interaction intact.
+            }
+        }
 
         control.AddHandler(
             InputElement.PointerPressedEvent,
@@ -63,10 +106,15 @@ public static class ComponentDragSource
                 if (!args.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
                     return;
 
-                pending = new PendingDrag(
+                CancelPending();
+                var candidate = new PendingDrag(
                     args,
                     args.GetPosition(control),
-                    new ComponentDragPayload(componentId, sourceAreaId));
+                    new ComponentDragPayload(componentId, sourceAreaId),
+                    new CancellationTokenSource());
+                pending = candidate;
+                if (!candidate.Payload.IsFromLibrary)
+                    _ = StartAfterLongPressAsync(candidate);
             },
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
@@ -87,29 +135,30 @@ public static class ComponentDragSource
                 if (Math.Abs(delta.X) < DragThreshold && Math.Abs(delta.Y) < DragThreshold)
                     return;
 
-                pending = null;
+                if (!candidate.Payload.IsFromLibrary)
+                {
+                    CancelPending();
+                    return;
+                }
+
                 args.Handled = true;
-                await DragDrop.DoDragDropAsync(
-                    candidate.PressedEvent,
-                    candidate.Payload.CreateDataTransfer(),
-                    candidate.Payload.IsFromLibrary
-                        ? DragDropEffects.Copy
-                        : DragDropEffects.Move);
+                await StartDragAsync(candidate);
             },
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
 
         control.AddHandler(
             InputElement.PointerReleasedEvent,
-            (_, _) => pending = null,
+            (_, _) => CancelPending(),
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
 
-        control.PointerCaptureLost += (_, _) => pending = null;
+        control.PointerCaptureLost += (_, _) => CancelPending();
     }
 
     private sealed record PendingDrag(
         PointerPressedEventArgs PressedEvent,
         Point Origin,
-        ComponentDragPayload Payload);
+        ComponentDragPayload Payload,
+        CancellationTokenSource Cancellation);
 }

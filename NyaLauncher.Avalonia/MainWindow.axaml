@@ -199,7 +199,7 @@
                    TextTrimming="CharacterEllipsis" />
 
         <TextBlock Grid.Column="2"
-                   Text="v0.1.0-pre2"
+                   Text="v0.1.0-gp3"
                    FontFamily="Consolas"
                    FontSize="9"
                    Foreground="#59627C"
@@ -271,6 +271,44 @@
       </Border>
       <ContentControl x:Name="PageHost" Grid.Row="1" />
     </Grid>
+
+    <!-- The global task entry stays above the workspace and navigated pages.
+         Downloads take priority; the details window can switch to launch logs. -->
+    <Button x:Name="TaskActivityButton"
+            Grid.RowSpan="3"
+            Width="62"
+            Height="62"
+            Margin="0,0,24,50"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            ZIndex="900"
+            Background="#5968E8"
+            BorderBrush="#9AA5FF"
+            BorderThickness="2"
+            CornerRadius="31"
+            Cursor="Hand"
+            IsVisible="False"
+            AutomationProperties.AutomationId="TaskActivityButton"
+            AutomationProperties.Name="查看当前任务详情"
+            Click="OnTaskActivityClick">
+      <Grid IsHitTestVisible="False">
+        <TextBlock x:Name="TaskActivityGlyph"
+                   Text="…"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Foreground="White"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center" />
+        <ProgressBar x:Name="TaskActivityProgress"
+                     Width="34"
+                     Height="3"
+                     Margin="0,0,0,9"
+                     VerticalAlignment="Bottom"
+                     IsIndeterminate="True"
+                     Foreground="White"
+                     Background="#4050C8" />
+      </Grid>
+    </Button>
 
     <!-- Borderless-window resize grips.  They stay above both the workspace
          and navigated pages while remaining visually transparent. -->

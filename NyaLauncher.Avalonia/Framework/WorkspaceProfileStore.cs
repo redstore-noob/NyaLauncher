@@ -8,12 +8,20 @@ namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
 /// Persists front-end personalization independently from launcher business data.
-/// Invalid or outdated files fall back to the registered defaults.
+/// Invalid or unreadable files fall back to the registered defaults. Supported
+/// older schemas are upgraded in memory; newer schemas are rejected unchanged.
 /// </summary>
 public sealed class WorkspaceProfileStore
 {
-    private const string ProfileFileName = "workspace.json";
+    public const string ProfileFileName = "workspace.json";
+    public const string LauncherConfigFileName = "config.json";
     private const string LocationFileName = "workspace-location.txt";
+
+    private static readonly string[] ConfigurationFileNames =
+    [
+        ProfileFileName,
+        LauncherConfigFileName
+    ];
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -34,10 +42,17 @@ public sealed class WorkspaceProfileStore
 
     public string FilePath => Path.Combine(StorageDirectory, ProfileFileName);
 
-    public WorkspaceProfileStore(string? storageDirectory = null)
+    private readonly string _locationFilePath;
+
+    public WorkspaceProfileStore(
+        string? storageDirectory = null,
+        string? locationFilePath = null)
     {
+        _locationFilePath = locationFilePath ?? LocationFilePath;
         StorageDirectory = NormalizeStorageDirectory(
-            storageDirectory ?? LoadConfiguredDirectory() ?? PlatformDefaultDirectory);
+            storageDirectory ??
+            LoadConfiguredDirectory(_locationFilePath) ??
+            PlatformDefaultDirectory);
     }
 
     public WorkspaceProfile Load()
@@ -50,9 +65,7 @@ public sealed class WorkspaceProfileStore
             var json = File.ReadAllText(FilePath);
             var profile = JsonSerializer.Deserialize<WorkspaceProfile>(json, SerializerOptions)
                           ?? WorkspaceDefaultProfile.Create();
-            MigrateLegacyAreaIds(profile);
-            NormalizeProfile(profile);
-            return profile;
+            return WorkspaceProfileMigrator.Migrate(profile);
         }
         catch (JsonException)
         {
@@ -75,26 +88,411 @@ public sealed class WorkspaceProfileStore
         SaveToPath(profile, FilePath);
     }
 
-    public void ChangeStorageDirectory(string storageDirectory, WorkspaceProfile profile)
+    public StorageDirectoryInspection InspectStorageDirectory(string storageDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storageDirectory);
-        ArgumentNullException.ThrowIfNull(profile);
 
         var targetDirectory = NormalizeStorageDirectory(storageDirectory);
         if (File.Exists(targetDirectory))
             throw new IOException("所选路径不是文件夹。");
 
-        var previousFilePath = FilePath;
-        var targetFilePath = Path.Combine(targetDirectory, ProfileFileName);
-        SaveToPath(profile, targetFilePath);
-        SaveConfiguredDirectory(targetDirectory);
-        StorageDirectory = targetDirectory;
+        EnsurePathHasNoReparsePoints(targetDirectory);
+        var existingFiles = Directory.Exists(targetDirectory)
+            ? Directory.EnumerateFileSystemEntries(targetDirectory)
+                .Select(entry =>
+                {
+                    if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        throw new IOException(
+                            $"目标配置目录包含不允许的符号链接或 junction：{entry}");
+                    }
 
-        if (!PathsEqual(previousFilePath, targetFilePath) && File.Exists(previousFilePath))
+                    return Path.GetFileName(entry);
+                })
+                .OfType<string>()
+                .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(fileName => fileName, StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            : [];
+
+        if (existingFiles.Length > 0)
         {
-            File.Delete(previousFilePath);
-            TryDeleteEmptyDirectory(Path.GetDirectoryName(previousFilePath));
+            var hasWorkspace = existingFiles.Contains(ProfileFileName);
+            var hasLauncherConfig = existingFiles.Contains(LauncherConfigFileName);
+            if (!hasWorkspace || !hasLauncherConfig)
+            {
+                throw new InvalidDataException(
+                    "现有目标目录必须同时包含 workspace.json 与 config.json，" +
+                    "不能带着部分配置切换。");
+            }
+
+            _ = ValidateConfigurationBundle(targetDirectory);
         }
+
+        return new StorageDirectoryInspection(targetDirectory, existingFiles);
+    }
+
+    /// <summary>
+    /// Prepares a storage-directory switch without changing the persisted
+    /// locator or removing the old files. The caller must bind every consumer
+    /// to <see cref="StorageDirectoryChangeTransaction.TargetDirectory"/> before
+    /// calling <see cref="StorageDirectoryChangeTransaction.Complete"/>.
+    /// </summary>
+    public StorageDirectoryChangeTransaction PrepareStorageDirectoryChange(
+        string storageDirectory,
+        WorkspaceProfile profile,
+        ExistingConfigurationAction existingConfigurationAction = ExistingConfigurationAction.None)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(storageDirectory);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var inspection = InspectStorageDirectory(storageDirectory);
+        var targetDirectory = inspection.Directory;
+        if (PathsEqual(StorageDirectory, targetDirectory))
+        {
+            Save(profile);
+            return StorageDirectoryChangeTransaction.CreateNoOp(
+                this,
+                StorageDirectory,
+                profile);
+        }
+
+        if (inspection.HasConfiguration &&
+            existingConfigurationAction is not (
+                ExistingConfigurationAction.DeletePrevious or
+                ExistingConfigurationAction.BackupPrevious))
+        {
+            throw new InvalidOperationException(
+                "目标目录已存在配置文件，必须先指定旧配置的处理方式。");
+        }
+
+        var previousDirectory = StorageDirectory;
+        EnsurePathHasNoReparsePoints(previousDirectory);
+        if (IsContainedBy(previousDirectory, targetDirectory) ||
+            IsContainedBy(targetDirectory, previousDirectory))
+        {
+            throw new InvalidOperationException(
+                "新旧配置目录不能互为父子目录。请选择彼此独立的位置。");
+        }
+        if (inspection.HasConfiguration && !inspection.HasCompleteConfiguration)
+        {
+            throw new InvalidDataException(
+                "目标目录只包含部分配置。必须同时存在 workspace.json 与 config.json，" +
+                "或使用一个不含配置的新目录。");
+        }
+        string? backupDirectory = null;
+        var targetDirectoryExisted = Directory.Exists(targetDirectory);
+
+        try
+        {
+            WorkspaceProfile appliedProfile;
+            if (inspection.HasConfiguration)
+            {
+                // Existing targets are read-only until the switch commits. Parse
+                // both JSON files now so malformed or future-schema data cannot
+                // become the launcher's next startup root.
+                appliedProfile = ValidateConfigurationBundle(targetDirectory);
+                if (existingConfigurationAction == ExistingConfigurationAction.BackupPrevious)
+                {
+                    backupDirectory = CopyPreviousConfigurationToBackup(
+                        previousDirectory,
+                        targetDirectory);
+                }
+            }
+            else
+            {
+                CopyConfigurationFiles(previousDirectory, targetDirectory);
+                SaveToPath(profile, Path.Combine(targetDirectory, ProfileFileName));
+                appliedProfile = ValidateConfigurationBundle(targetDirectory);
+            }
+
+            return new StorageDirectoryChangeTransaction(
+                this,
+                previousDirectory,
+                targetDirectory,
+                appliedProfile,
+                inspection.HasConfiguration,
+                backupDirectory,
+                targetDirectoryExisted);
+        }
+        catch
+        {
+            // A new target belongs to this attempt. Remove only the files copied
+            // by migration; an existing complete target remains user-owned.
+            if (!inspection.HasConfiguration)
+            {
+                _ = CleanupPreparedTarget(
+                    targetDirectory,
+                    targetDirectoryExisted);
+            }
+            else if (backupDirectory is not null)
+            {
+                TryDeleteOwnedDirectory(backupDirectory);
+            }
+
+            throw;
+        }
+    }
+
+    internal void CompleteStorageDirectoryChange(StorageDirectoryChangeTransaction transaction)
+    {
+        // The locator is the commit marker. Source configuration stays untouched
+        // until every consumer has accepted the target.
+        SaveConfiguredDirectory(transaction.TargetDirectory);
+        StorageDirectory = transaction.TargetDirectory;
+        transaction.SetCleanupFailures(DeleteConfigurationFiles(transaction.PreviousDirectory));
+        TryDeleteEmptyDirectory(transaction.PreviousDirectory);
+    }
+
+    internal IReadOnlyList<string> RollbackStorageDirectoryChange(
+        StorageDirectoryChangeTransaction transaction)
+    {
+        // StorageDirectory and the locator still point at PreviousDirectory
+        // because they are only changed by CompleteStorageDirectoryChange.
+        if (transaction.AppliedExistingConfiguration)
+        {
+            if (transaction.BackupDirectory is null)
+                return [];
+
+            return TryDeleteOwnedDirectory(transaction.BackupDirectory);
+        }
+
+        return CleanupPreparedTarget(
+            transaction.TargetDirectory,
+            transaction.TargetDirectoryExisted);
+    }
+
+    private static void CopyConfigurationFiles(string sourceDirectory, string targetDirectory)
+    {
+        Directory.CreateDirectory(targetDirectory);
+
+        foreach (var fileName in ConfigurationFileNames)
+        {
+            var sourcePath = Path.Combine(sourceDirectory, fileName);
+            if (!File.Exists(sourcePath))
+                continue;
+
+            File.Copy(sourcePath, Path.Combine(targetDirectory, fileName), overwrite: false);
+        }
+
+    }
+
+    private static string? CopyPreviousConfigurationToBackup(
+        string previousDirectory,
+        string targetDirectory)
+    {
+        var existingSourceFiles = ConfigurationFileNames
+            .Where(fileName => File.Exists(Path.Combine(previousDirectory, fileName)))
+            .ToArray();
+        if (existingSourceFiles.Length == 0)
+            return null;
+
+        var backupRoot = Path.Combine(targetDirectory, "backup");
+        EnsurePathHasNoReparsePoints(backupRoot);
+        Directory.CreateDirectory(backupRoot);
+        EnsurePathHasNoReparsePoints(backupRoot);
+
+        var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var backupDirectory = Path.Combine(backupRoot, $"previous-config-{timestamp}");
+        for (var suffix = 2; Directory.Exists(backupDirectory); suffix++)
+        {
+            backupDirectory = Path.Combine(
+                backupRoot,
+                $"previous-config-{timestamp}-{suffix}");
+        }
+
+        Directory.CreateDirectory(backupDirectory);
+        try
+        {
+            foreach (var fileName in existingSourceFiles)
+            {
+                File.Copy(
+                    Path.Combine(previousDirectory, fileName),
+                    Path.Combine(backupDirectory, fileName),
+                    overwrite: false);
+            }
+
+            return backupDirectory;
+        }
+        catch
+        {
+            // This directory was uniquely created by the current attempt, so a
+            // failed backup must not accumulate an ambiguous partial snapshot.
+            TryDeleteOwnedDirectory(backupDirectory);
+            throw;
+        }
+    }
+
+    private static IReadOnlyList<string> DeleteConfigurationFiles(string directory)
+    {
+        var failures = new List<string>();
+        foreach (var fileName in ConfigurationFileNames)
+        {
+            var filePath = Path.Combine(directory, fileName);
+            try
+            {
+                if (File.Exists(filePath))
+                    File.Delete(filePath);
+            }
+            catch (IOException exception)
+            {
+                failures.Add($"{fileName}：{exception.Message}");
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                failures.Add($"{fileName}：{exception.Message}");
+            }
+        }
+
+        return failures;
+    }
+
+    private static IReadOnlyList<string> CleanupPreparedTarget(
+        string targetDirectory,
+        bool targetDirectoryExisted)
+    {
+        var failures = new List<string>();
+        foreach (var fileName in ConfigurationFileNames)
+        {
+            var filePath = Path.Combine(targetDirectory, fileName);
+            try
+            {
+                if (File.Exists(filePath))
+                    File.Delete(filePath);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                failures.Add($"{fileName}：{exception.Message}");
+            }
+        }
+
+        if (!targetDirectoryExisted)
+            TryDeleteEmptyDirectory(targetDirectory);
+
+        return failures;
+    }
+
+    private static IReadOnlyList<string> TryDeleteOwnedDirectory(string directory)
+    {
+        try
+        {
+            DeleteDirectoryTree(directory);
+            TryDeleteEmptyDirectory(Path.GetDirectoryName(directory));
+            return [];
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return [$"{directory}：{exception.Message}"];
+        }
+    }
+
+    private static void DeleteDirectoryTree(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return;
+
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException($"拒绝删除重解析点目录：{root}");
+
+        // Validate the complete tree before deleting its first entry so cleanup
+        // cannot traverse outside the directory owned by this migration.
+        var files = new List<string>();
+        var directories = new List<string> { root };
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            foreach (var entry in Directory.EnumerateFileSystemEntries(current))
+            {
+                var fullPath = Path.GetFullPath(entry);
+                if (!IsContainedBy(root, fullPath))
+                    throw new IOException($"目录条目越过迁移根目录：{entry}");
+                var attributes = File.GetAttributes(fullPath);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException($"目录包含重解析点，已保留旧目录：{entry}");
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    directories.Add(fullPath);
+                    pending.Push(fullPath);
+                }
+                else
+                {
+                    files.Add(fullPath);
+                }
+            }
+        }
+
+        foreach (var file in files)
+            File.Delete(file);
+        foreach (var child in directories.OrderByDescending(path => path.Length))
+            Directory.Delete(child, recursive: false);
+    }
+
+    private static bool IsContainedBy(string root, string candidate)
+    {
+        var normalizedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        var prefix = Path.EndsInDirectorySeparator(normalizedRoot)
+            ? normalizedRoot
+            : normalizedRoot + Path.DirectorySeparatorChar;
+        return Path.GetFullPath(candidate).StartsWith(
+            prefix,
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
+    }
+
+    private static void EnsurePathHasNoReparsePoints(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(fullPath) ?? string.Empty;
+        var current = root;
+        foreach (var segment in fullPath[root.Length..].Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if (!File.Exists(current) && !Directory.Exists(current))
+                continue;
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException($"配置目录不能经过符号链接或 junction：{current}");
+        }
+    }
+
+    private static WorkspaceProfile ValidateConfigurationBundle(string directory)
+    {
+        var workspacePath = Path.Combine(directory, ProfileFileName);
+        var configPath = Path.Combine(directory, LauncherConfigFileName);
+        ValidateJsonFileSize(workspacePath, 16 * 1024 * 1024);
+        ValidateJsonFileSize(configPath, 4 * 1024 * 1024);
+
+        try
+        {
+            var workspace = JsonSerializer.Deserialize<WorkspaceProfile>(
+                                File.ReadAllText(workspacePath),
+                                SerializerOptions) ??
+                            throw new InvalidDataException("workspace.json 不能是 null。");
+            var migratedWorkspace = WorkspaceProfileMigrator.Migrate(workspace);
+            using var config = JsonDocument.Parse(File.ReadAllText(configPath));
+            if (config.RootElement.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("config.json 的根节点必须是 JSON 对象。");
+            return migratedWorkspace;
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("目标目录中的配置 JSON 无效。", exception);
+        }
+    }
+
+    private static void ValidateJsonFileSize(string path, long maximumBytes)
+    {
+        if (!File.Exists(path))
+            throw new InvalidDataException($"目标目录缺少 {Path.GetFileName(path)}。");
+        if (new FileInfo(path).Length > maximumBytes)
+            throw new InvalidDataException(
+                $"{Path.GetFileName(path)} 超过 {maximumBytes} 字节限制。");
     }
 
     public static bool PathsEqual(string left, string right)
@@ -109,22 +507,19 @@ public sealed class WorkspaceProfileStore
 
     private static void SaveToPath(WorkspaceProfile profile, string filePath)
     {
-        var directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrWhiteSpace(directory))
-            Directory.CreateDirectory(directory);
-
+        profile = WorkspaceProfileMigrator.Migrate(profile);
         var json = JsonSerializer.Serialize(profile, SerializerOptions);
-        File.WriteAllText(filePath, json);
+        WriteTextAtomically(filePath, json);
     }
 
-    private static string? LoadConfiguredDirectory()
+    private static string? LoadConfiguredDirectory(string locationFilePath)
     {
         try
         {
-            if (!File.Exists(LocationFilePath))
+            if (!File.Exists(locationFilePath))
                 return null;
 
-            var directory = File.ReadAllText(LocationFilePath).Trim();
+            var directory = File.ReadAllText(locationFilePath).Trim();
             return string.IsNullOrWhiteSpace(directory) ? null : directory;
         }
         catch (IOException)
@@ -137,20 +532,66 @@ public sealed class WorkspaceProfileStore
         }
     }
 
-    private static void SaveConfiguredDirectory(string directory)
+    private void SaveConfiguredDirectory(string directory)
     {
         if (PathsEqual(directory, PlatformDefaultDirectory))
         {
-            if (File.Exists(LocationFilePath))
-                File.Delete(LocationFilePath);
+            if (File.Exists(_locationFilePath))
+                File.Delete(_locationFilePath);
             return;
         }
 
-        var locatorDirectory = Path.GetDirectoryName(LocationFilePath);
+        var locatorDirectory = Path.GetDirectoryName(_locationFilePath);
         if (!string.IsNullOrWhiteSpace(locatorDirectory))
             Directory.CreateDirectory(locatorDirectory);
 
-        File.WriteAllText(LocationFilePath, directory);
+        WriteTextAtomically(_locationFilePath, directory);
+    }
+
+    private static void WriteTextAtomically(string filePath, string contents)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+
+        var temporaryPath = Path.Combine(
+            directory ?? string.Empty,
+            $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(contents);
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None,
+                       bufferSize: 16 * 1024,
+                       FileOptions.WriteThrough))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+
+            // Rename occurs inside one directory, so readers observe either the
+            // previous complete document or the new complete document.
+            File.Move(temporaryPath, filePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                try
+                {
+                    File.Delete(temporaryPath);
+                }
+                catch (Exception exception) when (
+                    exception is IOException or UnauthorizedAccessException)
+                {
+                    // Preserve the original write/replace outcome; a locked temp
+                    // file can be cleaned by a later maintenance pass.
+                }
+            }
+        }
     }
 
     private static string NormalizeStorageDirectory(string directory)
@@ -178,81 +619,135 @@ public sealed class WorkspaceProfileStore
         }
     }
 
-    private static void MigrateLegacyAreaIds(WorkspaceProfile profile)
+}
+
+public enum ExistingConfigurationAction
+{
+    None,
+    DeletePrevious,
+    BackupPrevious
+}
+
+public sealed record StorageDirectoryInspection(
+    string Directory,
+    IReadOnlyList<string> ExistingFileNames)
+{
+    public bool HasConfiguration => ExistingFileNames.Count > 0;
+
+    public bool HasCompleteConfiguration =>
+        ExistingFileNames.Contains(WorkspaceProfileStore.ProfileFileName) &&
+        ExistingFileNames.Contains(WorkspaceProfileStore.LauncherConfigFileName);
+}
+
+/// <summary>
+/// A prepared storage switch. Preparation may copy data to an empty target,
+/// but only <see cref="Complete"/> changes the startup locator and removes the
+/// previous files. Dispose-like implicit commits are intentionally avoided.
+/// </summary>
+public sealed class StorageDirectoryChangeTransaction
+{
+    private readonly WorkspaceProfileStore _owner;
+    private readonly object _syncRoot = new();
+    private readonly bool _isNoOp;
+    private TransactionState _state;
+
+    internal StorageDirectoryChangeTransaction(
+        WorkspaceProfileStore owner,
+        string previousDirectory,
+        string targetDirectory,
+        WorkspaceProfile appliedProfile,
+        bool appliedExistingConfiguration,
+        string? backupDirectory,
+        bool targetDirectoryExisted,
+        bool isNoOp = false)
     {
-        var legacyIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["launch"] = "area-001",
-            ["resources"] = "area-002",
-            ["launcher"] = "area-003"
-        };
-
-        foreach (var area in profile.Areas)
-        {
-            if (legacyIds.TryGetValue(area.AreaId, out var migratedId))
-                area.AreaId = migratedId;
-        }
-
-        foreach (var sidebar in profile.Sidebars)
-        {
-            if (legacyIds.TryGetValue(sidebar.AreaId, out var migratedId))
-                sidebar.AreaId = migratedId;
-        }
-
-        foreach (var placement in profile.ComponentPlacements)
-        {
-            if (legacyIds.TryGetValue(placement.AreaId, out var migratedId))
-                placement.AreaId = migratedId;
-        }
-
-        MigrateLayoutNode(profile.Layout, legacyIds);
+        _owner = owner;
+        PreviousDirectory = previousDirectory;
+        TargetDirectory = targetDirectory;
+        AppliedProfile = appliedProfile;
+        AppliedExistingConfiguration = appliedExistingConfiguration;
+        BackupDirectory = backupDirectory;
+        TargetDirectoryExisted = targetDirectoryExisted;
+        _isNoOp = isNoOp;
     }
 
-    private static void NormalizeProfile(WorkspaceProfile profile)
+    public string PreviousDirectory { get; }
+
+    public string TargetDirectory { get; }
+
+    public WorkspaceProfile AppliedProfile { get; }
+
+    public bool AppliedExistingConfiguration { get; }
+
+    public string? BackupDirectory { get; }
+
+    public IReadOnlyList<string> CleanupFailures { get; private set; } = [];
+
+    public IReadOnlyList<string> RollbackFailures { get; private set; } = [];
+
+    internal bool TargetDirectoryExisted { get; }
+
+    internal static StorageDirectoryChangeTransaction CreateNoOp(
+        WorkspaceProfileStore owner,
+        string directory,
+        WorkspaceProfile profile) =>
+        new(
+            owner,
+            directory,
+            directory,
+            profile,
+            appliedExistingConfiguration: false,
+            backupDirectory: null,
+            targetDirectoryExisted: true,
+            isNoOp: true);
+
+    /// <summary>
+    /// Persists the target locator and only then performs best-effort cleanup of
+    /// the previous configuration files.
+    /// </summary>
+    public void Complete()
     {
-        profile.Version = 2;
-        profile.GlobalComponentScale = Math.Clamp(
-            double.IsFinite(profile.GlobalComponentScale)
-                ? profile.GlobalComponentScale
-                : 1,
-            FeatureAreaRegistry.MinimumComponentScale,
-            FeatureAreaRegistry.MaximumComponentScale);
-
-        profile.ComponentPlacements = profile.ComponentPlacements
-            .Where(placement =>
-                !string.IsNullOrWhiteSpace(placement.AreaId) &&
-                !string.IsNullOrWhiteSpace(placement.ComponentId))
-            .GroupBy(
-                placement => $"{placement.AreaId}\0{placement.ComponentId}",
-                StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.Last())
-            .ToList();
-
-        foreach (var placement in profile.ComponentPlacements)
+        lock (_syncRoot)
         {
-            placement.RelativeX = Math.Clamp(
-                double.IsFinite(placement.RelativeX) ? placement.RelativeX : 0.5,
-                0,
-                1);
-            placement.RelativeY = Math.Clamp(
-                double.IsFinite(placement.RelativeY) ? placement.RelativeY : 0.5,
-                0,
-                1);
-            placement.ZIndex = Math.Max(0, placement.ZIndex);
+            if (_state == TransactionState.Completed)
+                return;
+            if (_state == TransactionState.RolledBack)
+                throw new InvalidOperationException("存储目录切换已回滚，不能再提交。");
+
+            if (!_isNoOp)
+                _owner.CompleteStorageDirectoryChange(this);
+            _state = TransactionState.Completed;
         }
     }
 
-    private static void MigrateLayoutNode(
-        DockLayoutProfile? node,
-        IReadOnlyDictionary<string, string> legacyIds)
+    /// <summary>
+    /// Removes artifacts created while preparing an empty target. Existing
+    /// target configuration is never deleted; only this attempt's backup is.
+    /// </summary>
+    public IReadOnlyList<string> Rollback()
     {
-        if (node is null)
-            return;
+        lock (_syncRoot)
+        {
+            if (_state == TransactionState.RolledBack)
+                return RollbackFailures;
+            if (_state == TransactionState.Completed)
+                throw new InvalidOperationException("存储目录切换已提交，不能再回滚。");
 
-        if (node.AreaId is not null && legacyIds.TryGetValue(node.AreaId, out var migratedId))
-            node.AreaId = migratedId;
+            RollbackFailures = _isNoOp
+                ? []
+                : _owner.RollbackStorageDirectoryChange(this);
+            _state = TransactionState.RolledBack;
+            return RollbackFailures;
+        }
+    }
 
-        foreach (var child in node.Children)
-            MigrateLayoutNode(child, legacyIds);
+    internal void SetCleanupFailures(IReadOnlyList<string> failures) =>
+        CleanupFailures = failures;
+
+    private enum TransactionState
+    {
+        Prepared,
+        Completed,
+        RolledBack
     }
 }

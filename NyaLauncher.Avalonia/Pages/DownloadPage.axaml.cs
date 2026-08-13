@@ -17,6 +17,7 @@ namespace NyaLauncher.Avalonia.Pages;
 public partial class DownloadPage : UserControl
 {
     private const int PageSize = 50;
+    private readonly GameDownloadService _downloadService;
 
     private List<MinecraftVersion>? _allVersions;
     private List<ModrinthProject>? _allMods;
@@ -42,12 +43,66 @@ public partial class DownloadPage : UserControl
     private bool _initialListEffectsQueued;
 
     public DownloadPage()
+        : this(new GameDownloadService())
     {
+    }
+
+    internal DownloadPage(GameDownloadService downloadService)
+    {
+        _downloadService = downloadService;
         InitializeComponent();
+        _downloadService.Changed += OnDownloadChanged;
         LoadingOverlay.IsVisible = true;
         AttachedToVisualTree += OnAttachedToVisualTree;
         _ = LoadAllAsync();
         StartSpinnerAnimation();
+    }
+
+    private async void OnDownloadVersionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: MinecraftVersion version })
+            return;
+
+        if (_downloadService.Current.IsActive)
+        {
+            DownloadTaskStatusText.Text =
+                $"正在下载 Minecraft {_downloadService.Current.VersionId}，请等待当前任务结束。";
+            return;
+        }
+
+        DownloadTaskStatusText.Text = $"正在创建 Minecraft {version.Id} 下载任务…";
+        await _downloadService.StartAsync(version);
+    }
+
+    private void OnDownloadChanged(GameDownloadSnapshot snapshot)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnDownloadChanged(snapshot));
+            return;
+        }
+
+        DownloadTaskStatusText.Text = snapshot.Phase switch
+        {
+            GameDownloadPhase.Preparing => $"正在准备 Minecraft {snapshot.VersionId}",
+            GameDownloadPhase.Downloading =>
+                $"{snapshot.StageName} · {snapshot.Percentage:0.0}% · {FormatSpeed(snapshot.BytesPerSecond)}",
+            GameDownloadPhase.Completed => $"Minecraft {snapshot.VersionId} 安装完成",
+            GameDownloadPhase.Failed => $"下载失败：{snapshot.Detail}",
+            GameDownloadPhase.Cancelled => "下载任务已取消",
+            _ => "选择版本后开始下载"
+        };
+    }
+
+    private static string FormatSpeed(double bytesPerSecond)
+    {
+        if (!double.IsFinite(bytesPerSecond) || bytesPerSecond <= 0)
+            return "正在测速";
+        if (bytesPerSecond >= 1024 * 1024)
+            return $"{bytesPerSecond / (1024 * 1024):0.00} MiB/s";
+        if (bytesPerSecond >= 1024)
+            return $"{bytesPerSecond / 1024:0.0} KiB/s";
+        return $"{bytesPerSecond:0} B/s";
     }
 
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)

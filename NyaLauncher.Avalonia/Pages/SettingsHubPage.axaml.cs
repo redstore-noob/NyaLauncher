@@ -12,6 +12,7 @@ public enum SettingsSection
 
 public partial class SettingsHubPage : UserControl
 {
+    private readonly SettingsPage _launcherSettings;
     private PersonalizationWindow? _personalization;
 
     public event EventHandler<PersonalizationResult>? PersonalizationSaved;
@@ -19,7 +20,8 @@ public partial class SettingsHubPage : UserControl
     public SettingsHubPage()
     {
         InitializeComponent();
-        LegacySettingsHost.Content = new SettingsPage();
+        _launcherSettings = new SettingsPage();
+        LegacySettingsHost.Content = _launcherSettings;
     }
 
     public SettingsHubPage(
@@ -39,6 +41,7 @@ public partial class SettingsHubPage : UserControl
 
     public void ReloadPersonalization(string storageDirectory)
     {
+        _launcherSettings.ReloadMemorySettings();
         _personalization?.Reload(storageDirectory);
     }
 }
