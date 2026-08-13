@@ -28,6 +28,8 @@ public partial class PluginManagerPage : UserControl
     private readonly Dictionary<string, SettingEditor> _settingEditors =
         new(StringComparer.OrdinalIgnoreCase);
     private PluginManager? _pluginManager;
+    private PluginRepositoryClient? _repositoryClient;
+    private PluginRepositoryWindow? _repositoryWindow;
     private IReadOnlyList<PluginListItem> _allItems = [];
     private string? _selectedPluginId;
     private bool _synchronizingSelection;
@@ -44,6 +46,15 @@ public partial class PluginManagerPage : UserControl
     internal PluginManagerPage(PluginManager pluginManager) : this()
     {
         Attach(pluginManager);
+    }
+
+    internal PluginManagerPage(
+        PluginManager pluginManager,
+        PluginRepositoryClient repositoryClient) : this()
+    {
+        Attach(pluginManager);
+        _repositoryClient = repositoryClient ??
+                            throw new ArgumentNullException(nameof(repositoryClient));
     }
 
     internal void Attach(PluginManager pluginManager)
@@ -906,6 +917,28 @@ public partial class PluginManagerPage : UserControl
     };
 
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await RefreshAsync();
+
+    private void OnOpenRepositoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (_pluginManager is null || _repositoryClient is null)
+        {
+            StatusText.Text = "在线插件仓库尚未连接。";
+            return;
+        }
+
+        if (_repositoryWindow is not null)
+        {
+            _repositoryWindow.Activate();
+            return;
+        }
+
+        _repositoryWindow = new PluginRepositoryWindow(_pluginManager, _repositoryClient);
+        _repositoryWindow.Closed += (_, _) => _repositoryWindow = null;
+        if (TopLevel.GetTopLevel(this) is Window owner)
+            _repositoryWindow.Show(owner);
+        else
+            _repositoryWindow.Show();
+    }
 
     private void OnOpenPackagesDirectoryClick(object? sender, RoutedEventArgs e)
     {

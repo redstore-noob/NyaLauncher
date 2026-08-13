@@ -1,0 +1,327 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NyaLauncher.Avalonia.PluginRepositoryWindow"
+        x:CompileBindings="False"
+        Title="NyaLauncher 在线插件仓库"
+        Width="980"
+        Height="680"
+        MinWidth="820"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="#151826">
+  <Window.Styles>
+    <Style Selector="Border.RepositoryRow">
+      <Setter Property="Background" Value="#22283A" />
+      <Setter Property="BorderBrush" Value="#30384F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="11" />
+      <Setter Property="Margin" Value="0,0,0,7" />
+    </Style>
+    <Style Selector="Border.RepositoryRow:pointerover">
+      <Setter Property="Background" Value="#29314A" />
+      <Setter Property="BorderBrush" Value="#465377" />
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBoxItem:selected Border.RepositoryRow">
+      <Setter Property="Background" Value="#303959" />
+      <Setter Property="BorderBrush" Value="#7C8CFF" />
+    </Style>
+    <Style Selector="Button.Primary">
+      <Setter Property="Background" Value="#5968E8" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Padding" Value="18,8" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24,20">
+    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,14">
+      <StackPanel Spacing="3">
+        <TextBlock Text="在线插件仓库"
+                   FontSize="23"
+                   FontWeight="SemiBold"
+                   Foreground="#F4F6FF" />
+        <TextBlock Text="第三方插件由各自作者发布，安装前请确认来源与能力"
+                   FontSize="11"
+                   Foreground="#838DA8" />
+      </StackPanel>
+      <Button Grid.Column="1"
+              Content="打开 GitHub 仓库"
+              Margin="12,0,0,0"
+              Padding="14,8"
+              Click="OnOpenRepositoryClick" />
+      <Button x:Name="RefreshRepositoryButton"
+              Grid.Column="2"
+              Content="刷新索引"
+              Margin="8,0,0,0"
+              Padding="14,8"
+              Click="OnRefreshRepositoryClick" />
+    </Grid>
+
+    <Border Grid.Row="1"
+            Background="#362E1E"
+            BorderBrush="#705D2F"
+            BorderThickness="1"
+            CornerRadius="9"
+            Padding="12,9"
+            Margin="0,0,0,13">
+      <TextBlock Text="收录不等于安全审计。插件会在启动器进程内运行；下载时将校验固定大小与 SHA-256。"
+                 FontSize="10"
+                 Foreground="#E8CD8E"
+                 TextWrapping="Wrap" />
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="320,16,*">
+      <Border Background="#1D2233"
+              BorderBrush="#30384F"
+              BorderThickness="1"
+              CornerRadius="13"
+              Padding="12">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <TextBox x:Name="RepositorySearchBox"
+                   PlaceholderText="搜索名称、作者或 ID"
+                   TextChanged="OnRepositorySearchChanged" />
+          <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="3,11,3,8">
+            <TextBlock Text="可用插件"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="#DDE2F4" />
+            <TextBlock x:Name="RepositoryCountText"
+                       Grid.Column="1"
+                       Text="0"
+                       FontSize="10"
+                       Foreground="#7E88A4" />
+          </Grid>
+          <Grid Grid.Row="2">
+            <ListBox x:Name="RepositoryPluginList"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     SelectionChanged="OnRepositorySelectionChanged">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Classes="RepositoryRow" Cursor="Hand">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                      <Border Width="38" Height="38" CornerRadius="10" Background="#303958">
+                        <TextBlock Text="{Binding Initial}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#C8CEFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F2F4FF"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Metadata}"
+                                   FontSize="9"
+                                   Foreground="#7E88A4"
+                                   TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <Border Background="{Binding StatusBackground}"
+                                  CornerRadius="6"
+                                  Padding="6,2"
+                                  HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding StatusText}"
+                                       FontSize="8"
+                                       FontWeight="SemiBold"
+                                       Foreground="{Binding StatusForeground}" />
+                          </Border>
+                          <Border Background="{Binding ReviewBackground}"
+                                  CornerRadius="6"
+                                  Padding="6,2"
+                                  HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding ReviewText}"
+                                       FontSize="8"
+                                       FontWeight="SemiBold"
+                                       Foreground="{Binding ReviewForeground}" />
+                          </Border>
+                        </StackPanel>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <StackPanel x:Name="EmptyRepositoryView"
+                        Spacing="7"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+              <TextBlock Text="◇"
+                         FontSize="30"
+                         Foreground="#6674DB"
+                         HorizontalAlignment="Center" />
+              <TextBlock x:Name="EmptyRepositoryTitle"
+                         Text="正在读取仓库…"
+                         FontSize="14"
+                         FontWeight="SemiBold"
+                         Foreground="#DDE2F4"
+                         HorizontalAlignment="Center" />
+              <TextBlock x:Name="EmptyRepositoryHint"
+                         Text="索引来自 NyaLauncher-Plugins"
+                         Width="230"
+                         FontSize="10"
+                         Foreground="#7E88A4"
+                         TextAlignment="Center"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border x:Name="RepositoryLoadingOverlay"
+                    IsVisible="False"
+                    Background="#B31D2233"
+                    CornerRadius="10">
+              <StackPanel Spacing="10"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                <ProgressBar Width="150" IsIndeterminate="True" />
+                <TextBlock Text="正在读取远程索引…"
+                           FontSize="11"
+                           Foreground="#C8CEFF" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="2"
+              Background="#1A1F2F"
+              BorderBrush="#30384F"
+              BorderThickness="1"
+              CornerRadius="13"
+              Padding="20">
+        <Grid>
+          <StackPanel x:Name="EmptyRepositoryDetails"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Spacing="8">
+            <TextBlock Text="＋"
+                       FontSize="36"
+                       Foreground="#6674DB"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="请选择一个在线插件"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="#DDE2F4" />
+          </StackPanel>
+
+          <Grid x:Name="RepositoryDetails" IsVisible="False" RowDefinitions="Auto,*,Auto">
+            <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,16">
+              <Border Width="48" Height="48" CornerRadius="13" Background="#303958">
+                <TextBlock x:Name="RepositoryDetailsInitial"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="#C8CEFF"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Margin="13,0" Spacing="3" VerticalAlignment="Center">
+                <TextBlock x:Name="RepositoryDetailsName"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="#F4F6FF" />
+                <TextBlock x:Name="RepositoryDetailsSummary"
+                           FontSize="10"
+                           Foreground="#838DA8" />
+              </StackPanel>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1">
+              <StackPanel Spacing="12">
+                <TextBlock x:Name="RepositoryDetailsDescription"
+                           Foreground="#DDE2F4"
+                           TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="插件 ID" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsId" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="作者" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsAuthors" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="许可证 / 分类" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsLicense" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="可用版本" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsVersion" Grid.Column="1" Foreground="#E7EAF7" />
+                </Grid>
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="仓库审核" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsReview"
+                             Grid.Column="1"
+                             Foreground="#E7EAF7"
+                             TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="所需能力" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsCapabilities" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="下载校验" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsHash"
+                             Grid.Column="1"
+                             FontFamily="Consolas"
+                             FontSize="10"
+                             Foreground="#E7EAF7"
+                             TextWrapping="Wrap" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Content="插件源仓库" Padding="12,6" Click="OnOpenPluginSourceClick" />
+                  <Button x:Name="OpenReleaseNotesButton"
+                          Content="发行说明"
+                          Padding="12,6"
+                          Click="OnOpenReleaseNotesClick" />
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+
+            <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,16,0,0">
+              <ProgressBar x:Name="InstallProgressBar"
+                           IsVisible="False"
+                           Minimum="0"
+                           Maximum="1"
+                           Height="5" />
+              <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+                <TextBlock x:Name="InstallHintText"
+                           FontSize="10"
+                           Foreground="#8F99B3"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+                <Button x:Name="CancelInstallButton"
+                        Grid.Column="1"
+                        Content="取消"
+                        IsVisible="False"
+                        Margin="8,0,0,0"
+                        Padding="14,8"
+                        Click="OnCancelInstallClick" />
+                <Button x:Name="InstallPluginButton"
+                        Grid.Column="2"
+                        Classes="Primary"
+                        Content="安装"
+                        Margin="8,0,0,0"
+                        Click="OnInstallPluginClick" />
+              </Grid>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <TextBlock x:Name="RepositoryStatusText"
+               Grid.Row="3"
+               Text="准备读取在线插件仓库"
+               FontSize="11"
+               Foreground="#838DA8"
+               Margin="2,13,0,0"
+               TextWrapping="Wrap" />
+  </Grid>
+</Window>

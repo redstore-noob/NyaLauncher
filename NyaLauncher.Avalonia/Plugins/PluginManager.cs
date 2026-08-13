@@ -21,11 +21,14 @@ internal sealed partial class PluginManager : IAsyncDisposable
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan RuntimeCreationTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(15);
+    private static readonly object RetainedManagerLocksGate = new();
+    private static readonly List<FileStream> RetainedManagerLocks = [];
 
     private readonly FeatureAreaRegistry _featureAreas;
     private readonly Func<string, CancellationToken, Task> _drainPluginComponents;
     private readonly object _initializationGate = new();
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly Dictionary<string, PluginPackage> _packages =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PluginRuntimeHost> _runtimes =
@@ -36,9 +39,11 @@ internal sealed partial class PluginManager : IAsyncDisposable
     private readonly Dictionary<string, PluginStatus> _status =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _quarantined = new(StringComparer.OrdinalIgnoreCase);
+    private FileStream? _repositoryManagerLock;
     private PluginCatalog _catalog;
     private PluginCatalogSnapshot _current;
     private Task? _initializationTask;
+    private string? _repositoryRecoveryError;
     private bool _storageTransition;
     private bool _disposed;
 
@@ -49,7 +54,19 @@ internal sealed partial class PluginManager : IAsyncDisposable
     {
         _featureAreas = featureAreas ?? throw new ArgumentNullException(nameof(featureAreas));
         _drainPluginComponents = drainPluginComponents ?? ((_, _) => Task.CompletedTask);
-        _catalog = new PluginCatalog(storageDirectory);
+        _catalog = new PluginCatalog(storageDirectory, loadState: false);
+        try
+        {
+            _repositoryManagerLock = PluginPackageInstaller.AcquireManagerLock(_catalog);
+            _catalog.ReloadState();
+            _repositoryRecoveryError =
+                PluginPackageInstaller.RecoverInterruptedTransactions(_catalog);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _repositoryRecoveryError =
+                $"另一个 NyaLauncher 进程正在使用插件目录，或锁文件不可用：{exception.Message}";
+        }
         _current = PluginCatalogSnapshot.Empty(_catalog.PackagesDirectory);
     }
 
@@ -85,11 +102,17 @@ internal sealed partial class PluginManager : IAsyncDisposable
             ThrowIfDisposed();
             ThrowIfStorageTransition();
             Publish(CreateCatalogSnapshot(isScanning: true));
+            if (!TryRecoverRepositoryTransactions())
+            {
+                Publish(CreateCatalogSnapshot(error: _repositoryRecoveryError));
+                return;
+            }
             await RefreshCoreAsync(cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            Publish(CreateCatalogSnapshot(error: exception.Message));
+            _repositoryRecoveryError = $"插件目录刷新失败：{exception.Message}";
+            Publish(CreateCatalogSnapshot(error: _repositoryRecoveryError));
         }
         finally
         {
@@ -112,6 +135,11 @@ internal sealed partial class PluginManager : IAsyncDisposable
         {
             ThrowIfDisposed();
             ThrowIfStorageTransition();
+            if (enabled && !string.IsNullOrWhiteSpace(_repositoryRecoveryError))
+            {
+                return PluginOperationResult.Failed(
+                    $"插件目录尚未安全恢复，不能启用插件：{_repositoryRecoveryError}");
+            }
             if (!_packages.TryGetValue(pluginId, out var package) || package.Manifest is null)
                 return PluginOperationResult.Failed("插件包不存在或清单无效。");
             if (package.Status is PluginStatus.Invalid or PluginStatus.Incompatible)
@@ -216,6 +244,11 @@ internal sealed partial class PluginManager : IAsyncDisposable
         {
             ThrowIfDisposed();
             ThrowIfStorageTransition();
+            if (!string.IsNullOrWhiteSpace(_repositoryRecoveryError))
+            {
+                return PluginOperationResult.Failed(
+                    $"插件目录尚未安全恢复，不能修改授权：{_repositoryRecoveryError}");
+            }
             if (!_packages.TryGetValue(pluginId, out var package) || package.Manifest is null)
                 return PluginOperationResult.Failed("插件不存在或清单无效。");
             if (_quarantined.Contains(pluginId))
@@ -277,13 +310,19 @@ internal sealed partial class PluginManager : IAsyncDisposable
     {
         ThrowIfDisposed();
         await _lifecycleGate.WaitAsync(cancellationToken);
+        FileStream? nextManagerLock = null;
         try
         {
             ThrowIfDisposed();
             // Validate and scan the destination before stopping anything in the
             // current catalog. Once suspension starts, the switch is committed
             // and cancellation must not leave the launcher bound to old data.
-            var nextCatalog = new PluginCatalog(storageDirectory);
+            var nextCatalog = new PluginCatalog(storageDirectory, loadState: false);
+            nextManagerLock = PluginPackageInstaller.AcquireManagerLock(nextCatalog);
+            nextCatalog.ReloadState();
+            var recoveryError = PluginPackageInstaller.RecoverInterruptedTransactions(nextCatalog);
+            if (!string.IsNullOrWhiteSpace(recoveryError))
+                throw new InvalidDataException($"目标插件目录存在未恢复事务：{recoveryError}");
             var nextPackages = await Task.Run(nextCatalog.Scan, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -323,12 +362,18 @@ internal sealed partial class PluginManager : IAsyncDisposable
             _quarantined.Clear();
             _quarantined.UnionWith(blockedUntilRestart);
             _catalog = nextCatalog;
+            var previousManagerLock = _repositoryManagerLock;
+            _repositoryManagerLock = nextManagerLock;
+            nextManagerLock = null;
+            previousManagerLock?.Dispose();
+            _repositoryRecoveryError = null;
             Publish(PluginCatalogSnapshot.Empty(_catalog.PackagesDirectory));
             await RefreshCoreAsync(CancellationToken.None, nextPackages);
             _storageTransition = false;
         }
         finally
         {
+            nextManagerLock?.Dispose();
             _lifecycleGate.Release();
         }
     }
@@ -347,6 +392,11 @@ internal sealed partial class PluginManager : IAsyncDisposable
         try
         {
             ThrowIfDisposed();
+            if (!TryRecoverRepositoryTransactions())
+            {
+                throw new InvalidOperationException(
+                    $"插件目录尚未安全就绪，不能迁移存储目录：{_repositoryRecoveryError}");
+            }
             if (_storageTransition)
                 throw new InvalidOperationException("插件存储目录迁移已经在进行中。");
             if (_quarantined.Count > 0 || _retiredRuntimes.Count > 0)
@@ -405,6 +455,11 @@ internal sealed partial class PluginManager : IAsyncDisposable
         {
             ThrowIfDisposed();
             _storageTransition = false;
+            if (!TryRecoverRepositoryTransactions())
+            {
+                Publish(CreateCatalogSnapshot(error: _repositoryRecoveryError));
+                throw new InvalidDataException(_repositoryRecoveryError);
+            }
             await RefreshCoreAsync(CancellationToken.None);
         }
         finally
@@ -421,9 +476,11 @@ internal sealed partial class PluginManager : IAsyncDisposable
                 return;
             _disposed = true;
         }
+        _shutdownCancellation.Cancel();
 
         using var shutdown = new CancellationTokenSource(ShutdownTimeout);
         var gateEntered = false;
+        var shutdownCompleted = false;
         try
         {
             await _lifecycleGate.WaitAsync(shutdown.Token);
@@ -434,6 +491,7 @@ internal sealed partial class PluginManager : IAsyncDisposable
                 .GroupBy(runtime => runtime.Manifest.Id, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             var safeToDispose = new List<PluginRuntimeHost>();
+            var runtimeShutdownSafe = true;
             foreach (var group in runtimeGroups)
             {
                 if (_quarantined.Contains(group.Key) ||
@@ -441,6 +499,7 @@ internal sealed partial class PluginManager : IAsyncDisposable
                         runtime,
                         ReferenceEqualityComparer.Instance)))
                 {
+                    runtimeShutdownSafe = false;
                     continue;
                 }
 
@@ -454,6 +513,7 @@ internal sealed partial class PluginManager : IAsyncDisposable
                 {
                     // A component may still be executing code from this ALC.
                     // Keep the whole generation alive until process exit.
+                    runtimeShutdownSafe = false;
                 }
             }
 
@@ -469,7 +529,8 @@ internal sealed partial class PluginManager : IAsyncDisposable
 
             var disposal = Task.WhenAll(safeToDispose.Select(DisposeRuntimeSafelyAsync));
             ObserveBackgroundFailure(disposal);
-            await disposal.WaitAsync(shutdown.Token);
+            var disposalResults = await disposal.WaitAsync(shutdown.Token);
+            shutdownCompleted = runtimeShutdownSafe && disposalResults.All(result => result);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
@@ -481,6 +542,23 @@ internal sealed partial class PluginManager : IAsyncDisposable
         {
             if (gateEntered)
                 _lifecycleGate.Release();
+            var managerLock = Interlocked.Exchange(ref _repositoryManagerLock, null);
+            if (managerLock is not null)
+            {
+                if (shutdownCompleted)
+                {
+                    managerLock.Dispose();
+                }
+                else
+                {
+                    // A repository commit or third-party runtime may still be
+                    // active after the bounded shutdown wait. Keep ownership of
+                    // this plugin tree until process exit so another launcher
+                    // cannot race the unfinished operation.
+                    lock (RetainedManagerLocksGate)
+                        RetainedManagerLocks.Add(managerLock);
+                }
+            }
         }
     }
 
@@ -1171,15 +1249,39 @@ internal sealed partial class PluginManager : IAsyncDisposable
             entry.LastError = state.LastError;
         });
 
-    private static async Task DisposeRuntimeSafelyAsync(PluginRuntimeHost runtime)
+    private bool TryRecoverRepositoryTransactions()
+    {
+        if (_repositoryManagerLock is null)
+        {
+            try
+            {
+                _repositoryManagerLock = PluginPackageInstaller.AcquireManagerLock(_catalog);
+                _catalog.ReloadState();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                _repositoryRecoveryError =
+                    $"另一个 NyaLauncher 进程正在使用插件目录，或锁文件不可用：{exception.Message}";
+                return false;
+            }
+        }
+
+        _repositoryRecoveryError =
+            PluginPackageInstaller.RecoverInterruptedTransactions(_catalog);
+        return string.IsNullOrWhiteSpace(_repositoryRecoveryError);
+    }
+
+    private static async Task<bool> DisposeRuntimeSafelyAsync(PluginRuntimeHost runtime)
     {
         try
         {
             await runtime.DisposeAsync();
+            return runtime.IsUnloaded;
         }
         catch (Exception)
         {
             // Shutdown is best-effort once plugin code has been isolated.
+            return false;
         }
     }
 }
