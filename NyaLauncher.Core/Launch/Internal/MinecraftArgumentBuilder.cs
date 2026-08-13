@@ -14,7 +14,12 @@ internal sealed class MinecraftArgumentBuilder
         MinecraftVersionProfile profile,
         MinecraftLaunchOptions options,
         string nativeDirectory,
-        IReadOnlyList<string> classpath)
+        IReadOnlyList<string> classpath,
+        string mainClass,
+        IReadOnlyList<string> prependJvmArguments,
+        IReadOnlyList<string> appendJvmArguments,
+        IReadOnlyList<string> prependGameArguments,
+        IReadOnlyList<string> appendGameArguments)
     {
         ValidateMemory(options);
 
@@ -83,11 +88,12 @@ internal sealed class MinecraftArgumentBuilder
             ["is_quick_play_realms"] = false
         };
 
-        var result = new List<string>
-        {
+        var result = new List<string>();
+        result.AddRange(prependJvmArguments);
+        result.AddRange([
             $"-Xms{options.MinimumMemoryMb}M",
             $"-Xmx{options.MaximumMemoryMb}M"
-        };
+        ]);
         result.AddRange(options.AdditionalJvmArguments);
 
         if (profile.JvmArguments.Count > 0)
@@ -107,7 +113,9 @@ internal sealed class MinecraftArgumentBuilder
             result.Add(classpathValue);
         }
 
-        result.Add(profile.MainClass);
+        result.AddRange(appendJvmArguments);
+        result.Add(mainClass);
+        result.AddRange(prependGameArguments);
 
         if (profile.GameArguments.Count > 0)
         {
@@ -124,6 +132,7 @@ internal sealed class MinecraftArgumentBuilder
         }
 
         result.AddRange(options.AdditionalGameArguments);
+        result.AddRange(appendGameArguments);
         return result;
     }
 

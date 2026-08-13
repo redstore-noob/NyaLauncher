@@ -21,7 +21,7 @@ public sealed class FeatureAreaDefinition
     public string? IconPath { get; init; }
 
     /// <summary>
-    /// Creates arbitrary area content for launcher-owned feature providers.
+    /// Creates arbitrary area content. This is the primary extension point for plugins.
     /// When omitted, <see cref="Actions"/> are rendered by the built-in action view.
     /// </summary>
     public Func<Control>? ContentFactory { get; init; }
@@ -29,7 +29,8 @@ public sealed class FeatureAreaDefinition
     public IReadOnlyList<FeatureAreaAction> Actions { get; init; } = [];
 
     /// <summary>
-    /// Declarative components adapted into the same global catalog used by actions.
+    /// Declarative components contributed by a plugin. The registry adapts them
+    /// into the same global component catalog used by legacy actions.
     /// </summary>
     public IReadOnlyList<PolygonComponentRegistration> PolygonComponents { get; init; } = [];
 }

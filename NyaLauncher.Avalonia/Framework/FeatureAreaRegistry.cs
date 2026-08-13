@@ -6,11 +6,11 @@ using NyaLauncher.Plugin.Abstractions.Components;
 namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
-/// Runtime registry shared by built-in features and Polygon components.
+/// Runtime registry shared by built-in features and future plugins.
 /// Source definitions form a global action catalog; personalized areas are
 /// projected from that catalog and can freely select their displayed actions.
 /// </summary>
-public sealed class FeatureAreaRegistry
+public sealed partial class FeatureAreaRegistry
 {
     public const double MinimumComponentScale = 0.65;
     public const double MaximumComponentScale = 1.6;
@@ -143,6 +143,7 @@ public sealed class FeatureAreaRegistry
             };
         }
 
+        HydrateDormantProfileEntries();
         RebuildPersonalizedAreas();
         Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -306,6 +307,8 @@ public sealed class FeatureAreaRegistry
 
         _preferences.Remove(id);
         _userAreaIds.Remove(id);
+        _hydratedAreaIds.Remove(id);
+        _pluginAreaOwners.Remove(id);
         RebuildPersonalizedAreas();
         Changed?.Invoke(this, EventArgs.Empty);
         return true;
@@ -404,43 +407,6 @@ public sealed class FeatureAreaRegistry
             PolygonComponents = []
         };
     }
-
-    /// <summary>
-    /// Converts a framework-neutral Polygon registration into the workspace's
-    /// existing action catalog while keeping the validated definition snapshot.
-    /// </summary>
-    private static FeatureAreaAction CreatePolygonAction(
-        PolygonComponentRegistration? registration)
-    {
-        if (registration?.Definition is null)
-            throw CreateNullRegistrationException();
-
-        var definition = PolygonComponentValidator.ValidateAndSnapshot(
-            registration.Definition);
-        var registrationSnapshot = new PolygonComponentRegistration
-        {
-            Definition = definition,
-            Factory = registration.Factory
-        };
-        return new FeatureAreaAction(
-            definition.Id,
-            definition.Title,
-            definition.Description,
-            definition.Glyph)
-        {
-            BaseWidth = definition.PreferredSize.Width,
-            BaseHeight = definition.PreferredSize.Height,
-            PolygonComponent = registrationSnapshot
-        };
-    }
-
-    private static ComponentDefinitionException CreateNullRegistrationException() =>
-        new([
-            new ComponentValidationError(
-                "registration.null",
-                "$.polygonComponents",
-                "多边形组件注册不能为空。")
-        ]);
 
     private List<UserFeatureAreaProfile> CreateUserAreaProfiles()
     {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -13,17 +14,20 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
     private readonly MinecraftProfileService _profileService;
     private readonly GameLaunchService _launchService;
     private readonly Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> _editAppearance;
+    private readonly PluginManager? _pluginManager;
 
     public BuiltInFeatureAreaProvider(
         System.Action<string> navigate,
         MinecraftProfileService profileService,
         GameLaunchService launchService,
-        Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> editAppearance)
+        Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> editAppearance,
+        PluginManager? pluginManager = null)
     {
         _navigate = navigate;
         _profileService = profileService;
         _launchService = launchService;
         _editAppearance = editAppearance;
+        _pluginManager = pluginManager;
     }
 
     public IEnumerable<FeatureAreaDefinition> GetFeatureAreas()
@@ -74,7 +78,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
         {
             Id = "area-003",
             Title = "启动器工具",
-            Subtitle = "配置与运行环境",
+            Subtitle = "配置、插件与运行环境",
             Glyph = "✦",
             Actions =
             [
@@ -82,6 +86,10 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
                     () => _navigate("settings")),
                 new("runtime", "Java 运行环境", "自动查找并管理 Java", "⌘",
                     () => _navigate("runtime"))
+            ],
+            PolygonComponents =
+            [
+                BuiltInPluginListComponent.Create(_navigate, _pluginManager)
             ]
         };
     }

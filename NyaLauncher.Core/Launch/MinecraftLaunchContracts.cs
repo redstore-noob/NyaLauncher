@@ -39,6 +39,12 @@ public sealed class MinecraftLaunchOptions
 
     public IReadOnlyList<string> AdditionalGameArguments { get; init; } = [];
 
+    /// <summary>
+    /// Optional declarative changes applied after the vanilla launch metadata is
+    /// resolved and before the Java command line is rendered.
+    /// </summary>
+    public MinecraftLaunchTransform LaunchTransform { get; init; } = new();
+
     /// <summary>复制当前配置并替换账号。</summary>
     public MinecraftLaunchOptions WithAccount(IMinecraftAccount account)
     {
@@ -59,7 +65,8 @@ public sealed class MinecraftLaunchOptions
             LauncherName = LauncherName,
             LauncherVersion = LauncherVersion,
             AdditionalJvmArguments = AdditionalJvmArguments,
-            AdditionalGameArguments = AdditionalGameArguments
+            AdditionalGameArguments = AdditionalGameArguments,
+            LaunchTransform = LaunchTransform
         };
     }
 }

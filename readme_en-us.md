@@ -11,14 +11,14 @@
 ## ✨ Overview
 
 **NyaLauncher** is a cross-platform Minecraft launcher built with **Avalonia UI 12.1.1** and **.NET 10**.<br>
-It is lightweight and fast, with a strong emphasis on **privacy** and **interface customization**, giving you full control while enjoying the game.
+It is lightweight and fast, with a strong emphasis on **privacy** and **plugin extensibility**, giving you full control while enjoying the game.
 
 ---
 
 ## 🎯 Key Features
 
 - 🚀 **Cross-platform** — Windows, macOS, and Linux with a nearly consistent look and feel.
-- ⬡ **Extensible component framework** — Built-in features share one declarative contract for custom shapes, content, and interactions.
+- 🔌 **Extensible plugin framework** — Built-in and third-party components share one contract, with package discovery, consent, lifecycle, settings, and Minecraft instance extensions integrated.
 - 🛡️ **Privacy-first** — No telemetry or third-party tracking. Uses a custom token encryption approach to reduce token leakage via registry and other vectors.
 - ⚡ **Lightweight & efficient** — Built with .NET 10 and Avalonia, organized around focused responsibilities and on-demand extensions.
 - 🎨 **Modern UI** — Smooth design based on Avalonia, with customization support.
@@ -54,7 +54,7 @@ It is lightweight and fast, with a strong emphasis on **privacy** and **interfac
   </tr>
   <tr>
 	<td>🔌 Plugin system</td>
-	<td><span>🚧 In development</span></td>
+	<td><span>✅ v1 foundation implemented</span></td>
   </tr>
   <tr>
 	<td>🛡️ Privacy protections</td>
@@ -78,7 +78,7 @@ It is lightweight and fast, with a strong emphasis on **privacy** and **interfac
 
 ## ⬡ Polygon Component Framework
 
-- `NyaLauncher.Plugin.Abstractions` provides component contracts with no Avalonia dependency, keeping component definitions independent from the launcher's UI implementation.
+- `NyaLauncher.Plugin.Abstractions` provides a public contract with no Avalonia dependency, allowing third-party extensions to describe components without referencing the launcher's UI implementation.
 - Convex and concave polygon outlines can be declared with normalized `[0,1]` coordinates, together with separate preferred, minimum, and maximum sizes.
 - Components can combine text, crop-aware images, buttons, progress bars, and dropdown menus; buttons and menu rows invoke asynchronous commands through stable action IDs.
 - Each interactive component receives an independent runtime instance from its factory and updates text, image sources, progress, menu rows, enabled, visible, and indeterminate states through immutable snapshots with increasing `Revision` values.
@@ -87,6 +87,10 @@ It is lightweight and fast, with a strong emphasis on **privacy** and **interfac
 - Polygon components and legacy button components enter the same component catalog and reuse workspace drag-and-drop, relative positioning, scaling, stacking, and sidebar behavior.
 - gp3 includes Account Selector, Game Instance Selector, Version Selection & Management, Launch Game, Skin & Cape, and Download Task Progress components. The existing instance component retains its quick dropdown, while the new version component opens the full management page.
 - `workspace.json` stores only the stable component ID, feature area, relative coordinates, and stacking order; the provider restores component geometry, content definitions, and transient state.
+
+> `v0.1.0-gp3` integrates package discovery, capability consent, lifecycle/unloading, declarative settings, components, transactional instance actions, and per-launch contributions.
+> Authors may define a completely new mod protocol and Java loader without depending on Forge, Fabric, or another existing loader. See the
+> [plugin development specification](NyaLauncher.Plugin.Abstractions/README.md) for package structure, APIs, examples, and safety boundaries. Plugins run in the launcher process; capability consent is not an operating-system sandbox.
 
 ---
 
@@ -160,7 +164,7 @@ It is lightweight and fast, with a strong emphasis on **privacy** and **interfac
 | NyaLauncher.Core                  | Core launch functionality for NyaLauncher        |
 | NyaLauncher.Avalonia              | Frontend UI based on Avalonia                    |
 | NyaLauncher.Avalonia.Animations   | Animation library for NyaLauncher UI             |
-| NyaLauncher.Plugin.Abstractions   | UI-independent component contracts, geometry, elements, runtime state, and validation |
+| NyaLauncher.Plugin.Abstractions   | UI-independent contracts, geometry, elements, runtime state, and validation for third-party components |
 | NyaLauncher.MinecraftTokenCrypto  | (**Not public for certain reasons**) Encryption algorithm for Minecraft account tokens |
 
 ---
@@ -218,7 +222,7 @@ v0.1.0-gp3
 - Restored the original interaction model: short presses keep button or menu behavior, while a long press anywhere on the visible component starts dragging; no fixed drag handle is shown or required.
 - Fixed the UI freeze during the first offline-skin load and blank avatars when no Minecraft directory is configured. Directory scans, JAR reads, and fallback PNG generation now run as cancelable background work, with all nine textures cached per directory context.
 - Fixed Mojang profile texture URLs being discarded when returned as HTTP, incorrect cropping of legacy 64×32 skins, the hat layer covering the face, and the cape dialog failing across UI-thread boundaries. Microsoft avatars now support both 64×32 and 64×64 skins, and owned capes can be selected normally.
-- Workspace persistence continues to store only stable component IDs, feature areas, relative coordinates, and stacking order; component definitions and transient progress are not persisted.
+- Workspace persistence continues to store only stable component IDs, feature areas, relative coordinates, and stacking order; plugin definitions and transient progress are not persisted.
 - Improved configuration-directory migration: existing target configuration can be adopted while the previous configuration is deleted or backed up, followed by a workspace and launch-configuration refresh.
 - Standardized the newgui frontend version as `v0.1.0-gp3`; the Core launcher version remains `0.1.0`.
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
@@ -41,7 +42,9 @@ public partial class DockWorkspace
 
     /// <summary>
     /// Stops creating polygon runtimes and gives all current runtimes a bounded
-    /// opportunity to finish asynchronous cleanup before the owning window exits.
+    /// opportunity to finish asynchronous cleanup. Call this before the owning
+    /// window exits so a well-behaved plugin can release its resources without
+    /// allowing an unresponsive plugin to hold the process open forever.
     /// </summary>
     public async Task ShutdownPolygonComponentsAsync()
     {
@@ -58,6 +61,23 @@ public partial class DockWorkspace
         }
 
         await _polygonComponentInstancePool.ShutdownAsync();
+    }
+
+    internal Task DrainPluginComponentsAsync(
+        string pluginId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        var instances = _registry?.Areas
+            .SelectMany(area => area.Actions
+                .Where(action => string.Equals(
+                    action.OwnerPluginId,
+                    pluginId,
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(action => new ComponentInstanceContext(action.Id, area.Id))) ?? [];
+        return _polygonComponentInstancePool.ReleaseAndWaitAsync(
+            instances,
+            cancellationToken);
     }
 
     public IReadOnlyList<ComponentPlacementProfile> ExportComponentPlacements()
@@ -285,8 +305,15 @@ public partial class DockWorkspace
             {
                 Stretch = Stretch.Uniform,
                 StretchDirection = StretchDirection.Both,
+                Opacity = action.IsDormant ? 0.58 : 1,
                 Child = componentSurface
             };
+            if (action.IsDormant)
+            {
+                ToolTip.SetTip(
+                    viewbox,
+                    "提供此组件的插件当前未启用；布局和位置会保留");
+            }
             ComponentDragSource.Attach(
                 viewbox,
                 action.Id,

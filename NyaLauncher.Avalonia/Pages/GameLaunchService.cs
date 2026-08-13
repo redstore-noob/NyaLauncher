@@ -1,13 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Launch.Auth;
 using NyaLauncher.Plugin.Abstractions.Components;
+using NyaLauncher.Plugin.Abstractions.Minecraft;
 
 namespace NyaLauncher.Avalonia.Pages;
 
@@ -56,12 +61,18 @@ internal sealed class GameLaunchService
     private readonly object _gate = new();
     private readonly IOfflineMinecraftLauncher _launcher = new OfflineMinecraftLauncher();
     private readonly IMicrosoftAuthenticator _authenticator = new MicrosoftDeviceCodeAuthenticator();
+    private readonly PluginManager? _pluginManager;
     private readonly List<string> _logLines = [];
     private GameLaunchSnapshot _current = GameLaunchSnapshot.Idle;
     private Process? _gameProcess;
     private long _revision;
     private long _launchId;
     private int _launchInProgress;
+
+    public GameLaunchService(PluginManager? pluginManager = null)
+    {
+        _pluginManager = pluginManager;
+    }
 
     public GameLaunchSnapshot Current
     {
@@ -186,6 +197,19 @@ internal sealed class GameLaunchService
             var additionalGameArguments = versionProfile.FollowGlobalAdvancedSettings
                 ? globalLaunchSettings.AdditionalGameArguments
                 : versionProfile.AdditionalGameArguments;
+            var effectiveGameDirectory = isolatedGameDirectory ?? instance.MinecraftDirectory;
+            var launchTransform = new MinecraftLaunchTransform();
+            if (_pluginManager is not null)
+            {
+                AppendLog("正在应用已启用插件的 Minecraft 启动贡献。");
+                var descriptor = CreatePluginInstanceDescriptor(
+                    instance,
+                    instance.SelectedVersionId,
+                    effectiveGameDirectory);
+                launchTransform = await _pluginManager
+                    .BuildLaunchTransformAsync(descriptor, cancellationToken)
+                    .ConfigureAwait(false);
+            }
             AppendLog(memoryDecision.IsAutomatic
                 ? $"已根据启动前可用内存自动设置：可用 {memoryDecision.AvailableMemoryMb} MiB，" +
                   $"保留 {memoryDecision.ReservedMemoryMb} MiB，游戏最大 {memoryDecision.MaximumMemoryMb} MiB。"
@@ -210,7 +234,8 @@ internal sealed class GameLaunchService
                 WindowWidth = windowWidth,
                 WindowHeight = windowHeight,
                 AdditionalJvmArguments = additionalJvmArguments,
-                AdditionalGameArguments = additionalGameArguments
+                AdditionalGameArguments = additionalGameArguments,
+                LaunchTransform = launchTransform
             };
 
             AppendLog(versionProfile.FollowGlobalAdvancedSettings
@@ -258,6 +283,41 @@ internal sealed class GameLaunchService
         {
             Volatile.Write(ref _launchInProgress, 0);
         }
+    }
+
+    internal static MinecraftInstanceDescriptor CreatePluginInstanceDescriptor(
+        GameInstanceSnapshot instance,
+        string versionId,
+        string gameDirectory)
+    {
+        var minecraftDirectory = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(instance.MinecraftDirectory));
+        var normalizedGameDirectory = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(gameDirectory));
+        var identityPath = OperatingSystem.IsWindows()
+            ? minecraftDirectory.ToUpperInvariant()
+            : minecraftDirectory;
+        var identityText = $"{identityPath}\0{versionId}";
+        var instanceId = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(identityText))).ToLowerInvariant();
+
+        return new MinecraftInstanceDescriptor
+        {
+            InstanceId = instanceId,
+            DisplayName = versionId,
+            VersionId = versionId,
+            MinecraftDirectory = minecraftDirectory,
+            GameDirectory = normalizedGameDirectory,
+            Metadata = new ReadOnlyDictionary<string, string>(
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["versionDirectory"] = Path.Combine(
+                        minecraftDirectory,
+                        "versions",
+                        versionId),
+                    ["sourcePath"] = instance.SourcePath
+                })
+        };
     }
 
     private bool IsProcessRunning()

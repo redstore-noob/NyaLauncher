@@ -16,6 +16,7 @@ internal static class WorkspaceProfileMigrator
     private const int GameInstanceSelectorVersion = 4;
     private const int GameLaunchComponentVersion = 5;
     private const int VersionManagerComponentVersion = 6;
+    private const int PluginListComponentVersion = 7;
 
     public static WorkspaceProfile Migrate(WorkspaceProfile profile)
     {
@@ -58,6 +59,12 @@ internal static class WorkspaceProfileMigrator
         {
             AddVersionManagerComponent(profile);
             profile.Version = VersionManagerComponentVersion;
+        }
+
+        if (profile.Version < PluginListComponentVersion)
+        {
+            MigratePluginListComponent(profile);
+            profile.Version = PluginListComponentVersion;
         }
 
         if (profile.Version != WorkspaceProfile.CurrentVersion)
@@ -150,6 +157,23 @@ internal static class WorkspaceProfileMigrator
             relativeX: 0.5,
             relativeY: 0.38,
             insertAtStart: true);
+    }
+
+    private static void MigratePluginListComponent(WorkspaceProfile profile)
+    {
+        // v6 exposed a legacy rectangular "plugins" action. Preserve any user
+        // placement while moving it onto the built-in polygon component id.
+        ReplaceComponentId(
+            profile,
+            "plugins",
+            BuiltInPluginListComponent.ComponentId);
+        EnsureComponent(
+            profile,
+            "area-003",
+            BuiltInPluginListComponent.ComponentId,
+            relativeX: 0.5,
+            relativeY: 0.27,
+            insertAtStart: false);
     }
 
     private static void ReplaceComponentId(
