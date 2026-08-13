@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private readonly WorkspaceProfileStore _profileStore = new();
     private readonly MinecraftProfileService _minecraftProfileService = new();
     private readonly PluginManager _pluginManager;
+    private readonly PluginRepositoryClient _pluginRepositoryClient;
     private readonly GameLaunchService _gameLaunchService;
     private readonly GameDownloadService _gameDownloadService;
     private readonly LaunchPage _launchPage;
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
             _profileStore.StorageDirectory,
             FeatureAreas,
             Workspace.DrainPluginComponentsAsync);
+        _pluginRepositoryClient = new PluginRepositoryClient();
         _gameLaunchService = new GameLaunchService(_pluginManager);
         _gameLaunchService.Changed += OnGameLaunchChanged;
         _gameDownloadService = new GameDownloadService();
@@ -87,7 +89,9 @@ public partial class MainWindow : Window
         _settingsPage = new SettingsHubPage(
             FeatureAreas,
             _profileStore.StorageDirectory);
-        _pluginManagerPage = new PluginManagerPage(_pluginManager);
+        _pluginManagerPage = new PluginManagerPage(
+            _pluginManager,
+            _pluginRepositoryClient);
         _settingsPage.PersonalizationSaved += OnPersonalizationSaved;
 
         AddHandler(
@@ -141,6 +145,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _pluginRepositoryClient.Dispose();
             _polygonShutdownComplete = true;
             _polygonShutdownInProgress = false;
             Dispatcher.UIThread.Post(() =>

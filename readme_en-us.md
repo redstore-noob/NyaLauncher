@@ -87,6 +87,7 @@ It is lightweight and fast, with a strong emphasis on **privacy** and **plugin e
 - Polygon components and legacy button components enter the same component catalog and reuse workspace drag-and-drop, relative positioning, scaling, stacking, and sidebar behavior.
 - gp3 includes Account Selector, Game Instance Selector, Version Selection & Management, Launch Game, Skin & Cape, and Download Task Progress components. The existing instance component retains its quick dropdown, while the new version component opens the full management page.
 - `workspace.json` stores only the stable component ID, feature area, relative coordinates, and stacking order; the provider restores component geometry, content definitions, and transient state.
+- The plugin page can open the independent [NyaLauncher-Plugins](https://github.com/TouristH/NyaLauncher-Plugins) registry, verify author-hosted GitHub Release assets by exact size and SHA-256, and install them. Administrator-reviewed versions whose exact artifact hash matches show a green badge; unreviewed versions require an explicit risk confirmation before download. Third-party authors can fork that registry and request listing through a pull request.
 
 > `v0.1.0-gp3` integrates package discovery, capability consent, lifecycle/unloading, declarative settings, components, transactional instance actions, and per-launch contributions.
 > Authors may define a completely new mod protocol and Java loader without depending on Forge, Fabric, or another existing loader. See the

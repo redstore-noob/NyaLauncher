@@ -34,7 +34,7 @@
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="26,22">
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,16">
       <StackPanel Spacing="4" VerticalAlignment="Center">
         <TextBlock Text="插件列表"
                    FontSize="23"
@@ -49,13 +49,19 @@
                    ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
       </StackPanel>
       <Button Grid.Column="1"
-              Content="打开插件文件夹"
+              Content="在线插件仓库"
               Margin="12,0,0,0"
+              Padding="14,8"
+              VerticalAlignment="Center"
+              Click="OnOpenRepositoryClick" />
+      <Button Grid.Column="2"
+              Content="打开插件文件夹"
+              Margin="8,0,0,0"
               Padding="14,8"
               VerticalAlignment="Center"
               Click="OnOpenPackagesDirectoryClick" />
       <Button x:Name="RefreshButton"
-              Grid.Column="2"
+              Grid.Column="3"
               Content="重新扫描"
               Margin="8,0,0,0"
               Padding="14,8"

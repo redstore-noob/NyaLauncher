@@ -186,10 +186,11 @@ internal sealed class PluginCatalog
     private readonly object _stateGate = new();
     private PluginStateDocument _state = new();
 
-    public PluginCatalog(string storageDirectory)
+    public PluginCatalog(string storageDirectory, bool loadState = true)
     {
         SetStorageDirectory(storageDirectory);
-        LoadState();
+        if (loadState)
+            LoadState();
     }
 
     public string StorageDirectory { get; private set; } = string.Empty;
@@ -439,7 +440,7 @@ internal sealed class PluginCatalog
                 StringComparer.OrdinalIgnoreCase);
             if (_state.Plugins.Count > MaximumRememberedPlugins)
                 throw new InvalidDataException(
-                    $"插件状态超过 {MaximumRememberedPlugins} 条记录。" );
+                    $"插件状态超过 {MaximumRememberedPlugins} 条记录。");
             foreach (var pluginId in _state.Plugins.Keys.ToArray())
             {
                 var entry = _state.Plugins[pluginId];
@@ -733,7 +734,7 @@ internal sealed class PluginCatalog
         {
             var contents = JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions);
             if (maximumBytes is int limit && contents.Length > limit)
-                throw new InvalidDataException($"JSON 文件不能超过 {limit} 字节。" );
+                throw new InvalidDataException($"JSON 文件不能超过 {limit} 字节。");
             File.WriteAllBytes(temporaryPath, contents);
             File.Move(temporaryPath, filePath, overwrite: true);
         }
@@ -812,7 +813,7 @@ internal sealed class PluginCatalog
             81920,
             FileOptions.SequentialScan);
         if (stream.Length > maximumBytes)
-            throw new InvalidDataException($"{displayName} 不能超过 {maximumBytes} 字节。" );
+            throw new InvalidDataException($"{displayName} 不能超过 {maximumBytes} 字节。");
 
         using var memory = new MemoryStream((int)Math.Min(stream.Length, maximumBytes));
         var buffer = new byte[81920];
@@ -820,7 +821,7 @@ internal sealed class PluginCatalog
         while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
         {
             if (memory.Length + read > maximumBytes)
-                throw new InvalidDataException($"{displayName} 不能超过 {maximumBytes} 字节。" );
+                throw new InvalidDataException($"{displayName} 不能超过 {maximumBytes} 字节。");
             memory.Write(buffer, 0, read);
         }
 
