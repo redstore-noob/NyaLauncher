@@ -20,6 +20,7 @@ public sealed partial class FeatureAreaRegistry
     private readonly Dictionary<string, FeatureAreaPreference> _preferences =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _userAreaIds = new(StringComparer.OrdinalIgnoreCase);
+    private bool _personalizationApplied;
 
     public event EventHandler? Changed;
 
@@ -147,6 +148,7 @@ public sealed partial class FeatureAreaRegistry
         }
 
         HydrateDormantProfileEntries();
+        _personalizationApplied = true;
         RebuildPersonalizedAreas();
         Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -336,11 +338,12 @@ public sealed partial class FeatureAreaRegistry
         {
             _preferences.TryGetValue(source.Id, out var preference);
 
-            // A newly enabled plugin contributes to the component catalog but
-            // must not create a workspace area before the user places one of
-            // its components. Existing personalized/plugin areas still hydrate
-            // from their saved preference and remain backward compatible.
-            if (preference is null && _pluginAreaOwners.ContainsKey(source.Id))
+            // Once a profile has been applied, its area list is authoritative.
+            // Registered built-in and plugin sources remain in the component
+            // catalog, but an omitted source must not recreate a workspace the
+            // user removed. Before the first profile is applied, registrations
+            // can still project their shipped defaults.
+            if (preference is null && _personalizationApplied)
                 continue;
 
             var title = string.IsNullOrWhiteSpace(preference?.DisplayName)

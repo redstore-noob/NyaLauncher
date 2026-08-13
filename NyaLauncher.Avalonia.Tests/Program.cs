@@ -38,6 +38,7 @@ internal static class Program
             ("New install clears stale plugin trust", TestNewInstallClearsStaleStateAsync),
             ("Plugin components start in library", TestPluginComponentsStartInLibraryAsync),
             ("Plugin area removal persists", TestPluginAreaRemovalAsync),
+            ("All workspace areas can be removed", TestAllWorkspaceAreasCanBeRemovedAsync),
             ("Component scale snapshot validation", TestComponentScaleSnapshotAsync),
             ("Plugin storage is single-manager", TestPluginStorageSingleManagerAsync),
             ("Unsafe shutdown retains manager lock", TestUnsafeShutdownRetainsManagerLockAsync),
@@ -132,6 +133,42 @@ internal static class Program
             registry.AvailableActions.Any(action =>
                 action.Id == "io.github.touristh.clock/digital-clock"),
             "removed workspace leaves the plugin component in the library");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestAllWorkspaceAreasCanBeRemovedAsync()
+    {
+        var registry = new FeatureAreaRegistry();
+        registry.Register(new FeatureAreaDefinition
+        {
+            Id = "area-001",
+            Title = "启动页",
+            Actions = []
+        });
+        registry.Register(new FeatureAreaDefinition
+        {
+            Id = "area-002",
+            Title = "设置页",
+            Actions = []
+        });
+        registry.ApplyPersonalization([
+            new FeatureAreaPreference { AreaId = "area-001", DisplayName = "启动页" },
+            new FeatureAreaPreference { AreaId = "area-002", DisplayName = "设置页" }
+        ]);
+        Assert(registry.Areas.Count == 2, "both built-in workspaces initially exist");
+
+        registry.ApplyPersonalization([]);
+        Assert(registry.Areas.Count == 0, "an empty profile removes every built-in workspace");
+        Assert(registry.CreateCurrentProfile().Areas.Count == 0, "empty workspace persists as empty");
+        Assert(registry.SourceAreas.Count == 2, "removed workspaces leave component sources registered");
+
+        registry.Register(new FeatureAreaDefinition
+        {
+            Id = "plugin.area",
+            Title = "插件来源",
+            Actions = []
+        });
+        Assert(registry.Areas.Count == 0, "new sources do not recreate a removed workspace");
         return Task.CompletedTask;
     }
 

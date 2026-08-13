@@ -80,13 +80,13 @@ public partial class PersonalizationWindow : UserControl
         AreaEditors.Children.Clear();
         _editors.Clear();
 
-        var preferences = profile.Areas.ToDictionary(
-            preference => preference.AreaId,
+        var sources = _registry.SourceAreas.ToDictionary(
+            area => area.Id,
             StringComparer.OrdinalIgnoreCase);
-
-        foreach (var sourceArea in _registry.SourceAreas)
+        foreach (var preference in profile.Areas)
         {
-            preferences.TryGetValue(sourceArea.Id, out var preference);
+            if (!sources.TryGetValue(preference.AreaId, out var sourceArea))
+                continue;
             AddAreaEditor(sourceArea, preference);
         }
     }
@@ -142,7 +142,6 @@ public partial class PersonalizationWindow : UserControl
             string.IsNullOrWhiteSpace(preference?.IconPath) ? sourceArea.IconPath : preference.IconPath);
         var iconEditor = CreateIconEditor(iconState);
         var isUserArea = _draftUserAreaIds.Contains(sourceArea.Id);
-        var isPluginArea = _registry.PluginAreaIds.Contains(sourceArea.Id);
 
         var card = new Border
         {
@@ -161,9 +160,7 @@ public partial class PersonalizationWindow : UserControl
                         nameBox,
                         descriptionBox,
                         iconState,
-                        isUserArea || isPluginArea
-                            ? () => RemoveAreaEditor(sourceArea.Id)
-                            : null),
+                        () => RemoveAreaEditor(sourceArea.Id)),
                     iconEditor,
                     new Border
                     {
@@ -302,7 +299,7 @@ public partial class PersonalizationWindow : UserControl
                 Cursor = new Cursor(StandardCursorType.Hand),
                 VerticalAlignment = VerticalAlignment.Top
             };
-            ToolTip.SetTip(deleteButton, "保存配置后永久删除此自定义功能区");
+            ToolTip.SetTip(deleteButton, "保存配置后从工作区移除此功能区；可通过重置恢复默认功能区");
             deleteButton.Click += (_, _) => deleteArea();
             Grid.SetColumn(deleteButton, 3);
             grid.Children.Add(deleteButton);
@@ -315,7 +312,7 @@ public partial class PersonalizationWindow : UserControl
     {
         var editor = _editors.FirstOrDefault(candidate =>
             string.Equals(candidate.AreaId, areaId, StringComparison.OrdinalIgnoreCase));
-        if (editor is null || !editor.IsUserArea)
+        if (editor is null)
             return;
 
         AreaEditors.Children.Remove(editor.Card);
@@ -496,8 +493,10 @@ public partial class PersonalizationWindow : UserControl
 
     private void OnCreateAreaClick(object? sender, RoutedEventArgs e)
     {
-        var nextNumber = _editors
-            .Select(editor => ParseAreaNumber(editor.AreaId))
+        var nextNumber = _registry.SourceAreas
+            .Select(area => area.Id)
+            .Concat(_editors.Select(editor => editor.AreaId))
+            .Select(ParseAreaNumber)
             .DefaultIfEmpty(0)
             .Max() + 1;
         var id = $"area-{nextNumber:000}";
