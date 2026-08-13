@@ -45,9 +45,8 @@ internal sealed class PolygonComponentInstancePool(
                 return existing.Instance;
             }
 
-            // A hot-published registration may reuse the same area/component
-            // key while supplying a new factory. Never let it inherit an
-            // instance created by the previous plugin load context.
+            // A refreshed registration may reuse the same area/component key
+            // while supplying a new factory. Never reuse its previous instance.
             Release(key);
         }
 
@@ -63,13 +62,13 @@ internal sealed class PolygonComponentInstancePool(
 
         try
         {
-            var pluginInstance = registration.Factory.Create(
+            var componentInstance = registration.Factory.Create(
                 new ComponentInstanceContext(componentId, areaId));
-            if (pluginInstance is null)
+            if (componentInstance is null)
                 return null;
 
             var instance = new PolygonComponentInstanceHost(
-                pluginInstance,
+                componentInstance,
                 registration.Definition);
             _instances[key] = new InstanceEntry(
                 instance,
@@ -110,46 +109,6 @@ internal sealed class PolygonComponentInstancePool(
         _instances.Clear();
         foreach (var (key, entry) in instances)
             TrackDisposal(key, entry.Instance);
-    }
-
-    public async Task ReleaseAndWaitAsync(
-        IEnumerable<ComponentInstanceContext> instances,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(instances);
-        var keys = instances
-            .Select(context => new ComponentInstanceKey(context.AreaId, context.ComponentId))
-            .Distinct(KeyComparer)
-            .ToArray();
-        foreach (var key in keys)
-            Release(key);
-
-        var pending = keys
-            .Select(key => _disposals.GetValueOrDefault(key))
-            .Where(task => task is not null)
-            .Distinct()
-            .Cast<Task>()
-            .ToArray();
-        if (pending.Length == 0)
-            return;
-
-        var completion = Task.WhenAll(pending);
-        var timeout = Task.Delay(ShutdownTimeout, cancellationToken);
-        if (await Task.WhenAny(completion, timeout) != completion)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            throw new TimeoutException("插件组件未能在时限内释放。");
-        }
-
-        try
-        {
-            await completion;
-        }
-        catch (Exception)
-        {
-            // A completed fault no longer executes plugin code, so lifecycle
-            // shutdown can continue after the observer records the failure.
-        }
     }
 
     public async Task ShutdownAsync()
