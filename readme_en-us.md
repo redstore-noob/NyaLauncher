@@ -224,6 +224,7 @@ v0.1.0-gp3
 - Fixed the UI freeze during the first offline-skin load and blank avatars when no Minecraft directory is configured. Directory scans, JAR reads, and fallback PNG generation now run as cancelable background work, with all nine textures cached per directory context.
 - Fixed Mojang profile texture URLs being discarded when returned as HTTP, incorrect cropping of legacy 64×32 skins, the hat layer covering the face, and the cape dialog failing across UI-thread boundaries. Microsoft avatars now support both 64×32 and 64×64 skins, and owned capes can be selected normally.
 - Workspace persistence continues to store only stable component IDs, feature areas, relative coordinates, and stacking order; plugin definitions and transient progress are not persisted.
+- Fixed Personalization showing a plugin source that existed only in the component library as an unwanted fourth feature area. Built-in, plugin, and user-created areas now share the same removal rule and can all be removed until the workspace is blank. An empty area list is persisted explicitly and is not repopulated by later registrations; Reset still restores the three default areas.
 - Improved configuration-directory migration: existing target configuration can be adopted while the previous configuration is deleted or backed up, followed by a workspace and launch-configuration refresh.
 - Standardized the newgui frontend version as `v0.1.0-gp3`; the Core launcher version remains `0.1.0`.
 
