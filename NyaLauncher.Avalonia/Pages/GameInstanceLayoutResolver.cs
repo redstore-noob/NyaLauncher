@@ -354,10 +354,5 @@ internal static class GameInstanceLayoutResolver
         new(false, directory, provider, evidence);
 
     private static bool PathsEqual(string left, string right) =>
-        string.Equals(
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-            OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
+        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 }

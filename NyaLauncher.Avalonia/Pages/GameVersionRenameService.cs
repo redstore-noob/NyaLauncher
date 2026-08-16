@@ -253,12 +253,7 @@ internal static class GameVersionRenameService
     }
 
     private static bool PathsEqual(string left, string right) =>
-        string.Equals(
-            Path.GetFullPath(left),
-            Path.GetFullPath(right),
-            OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
+        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 
     private sealed record JsonMutation(string Path, JsonNode Document);
 }

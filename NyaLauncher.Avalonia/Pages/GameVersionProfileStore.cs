@@ -264,9 +264,7 @@ internal static class GameVersionProfileStore
     }
 
     private static bool PathsEqual(string left, string right) =>
-        !string.IsNullOrWhiteSpace(left) &&
-        !string.IsNullOrWhiteSpace(right) &&
-        PathComparer.Equals(NormalizePathOrOriginal(left), NormalizePathOrOriginal(right));
+        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 
     private static void RaiseChanged()
     {

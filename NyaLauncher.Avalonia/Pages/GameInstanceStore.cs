@@ -257,25 +257,8 @@ internal static class GameInstanceStore
         }
     }
 
-    private static bool PathsEqual(string? left, string? right)
-    {
-        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-            return false;
-
-        try
-        {
-            return string.Equals(
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-                OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    private static bool PathsEqual(string? left, string? right) =>
+        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 
     private static void RaiseChanged(GameInstanceSnapshot snapshot)
     {

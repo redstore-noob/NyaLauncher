@@ -58,28 +58,4 @@ public static class ManifestGet
         // 按发布时间降序排列
         return [.. versions.OrderByDescending(version => version.ReleaseTime)];
     }
-
-    /// <summary>
-    /// 从 Mojang 官方源获取指定类型的版本列表。
-    /// </summary>
-    public static Task<List<MinecraftVersion>> GetVersionsByTypeAsync(string type) =>
-        GetVersionsByTypeAsync(type, DefaultManifestUrl);
-
-    /// <summary>
-    /// 从自定义地址获取指定类型的版本列表。
-    /// </summary>
-    /// <param name="type">要筛选的版本类型。</param>
-    /// <param name="url">版本清单的绝对地址。</param>
-    public static async Task<List<MinecraftVersion>> GetVersionsByTypeAsync(
-        string type,
-        string url = DefaultManifestUrl)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(type);
-
-        var versions = await GetVersionsAsync(url);
-        return [.. versions.Where(version => string.Equals(
-            version.Type,
-            type,
-            StringComparison.Ordinal))];
-    }
 }

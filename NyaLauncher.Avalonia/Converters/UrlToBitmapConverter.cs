@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
-using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -12,14 +12,12 @@ namespace NyaLauncher.Avalonia.Controls;
 
 /// <summary>
 /// 异步加载远程或本地图片的 Image 控件（不阻塞 UI 线程）。
+/// 字节获取与裁剪钳制复用 <see cref="ComponentImageLoader"/> 的现有实现，
+/// 头像显示与多边形组件的皮肤贴图走同一套逻辑。
 /// </summary>
 public class AsyncImage : Image
 {
     private static readonly ConcurrentDictionary<string, Bitmap?> ImageCache = new();
-    private static readonly HttpClient HttpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(10)
-    };
 
     public static readonly StyledProperty<string?> SourceUrlProperty =
         AvaloniaProperty.Register<AsyncImage, string?>(nameof(SourceUrl));
@@ -30,9 +28,33 @@ public class AsyncImage : Image
         set => SetValue(SourceUrlProperty, value);
     }
 
+    /// <summary>
+    /// 可选裁剪区域（像素坐标）。设置后只显示原图中的这一块，
+    /// 例如 Minecraft 皮肤里的脸部 8×8 像素：8,8,8,8。
+    /// </summary>
+    public static readonly StyledProperty<PixelRect?> CropRectProperty =
+        AvaloniaProperty.Register<AsyncImage, PixelRect?>(nameof(CropRect));
+
+    public PixelRect? CropRect
+    {
+        get => GetValue(CropRectProperty);
+        set => SetValue(CropRectProperty, value);
+    }
+
     static AsyncImage()
     {
         SourceUrlProperty.Changed.AddClassHandler<AsyncImage>(OnSourceUrlChanged);
+        CropRectProperty.Changed.AddClassHandler<AsyncImage>(OnCropRectChanged);
+    }
+
+    private static void OnCropRectChanged(AsyncImage sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        // 裁剪区域变化时，直接用缓存位图重设 Source，无需重新加载
+        var source = sender.SourceUrl;
+        if (string.IsNullOrWhiteSpace(source))
+            return;
+        if (ImageCache.TryGetValue(source, out var cached))
+            sender.SetSource(cached);
     }
 
     private static async void OnSourceUrlChanged(AsyncImage sender, AvaloniaPropertyChangedEventArgs e)
@@ -40,27 +62,29 @@ public class AsyncImage : Image
         var source = e.NewValue as string;
         if (string.IsNullOrWhiteSpace(source))
         {
-            sender.Source = null;
+            sender.SetSource(null);
             return;
         }
 
         // 缓存命中 → 直接设置
         if (ImageCache.TryGetValue(source, out var cached))
         {
-            sender.Source = cached;
+            sender.SetSource(cached);
             return;
         }
 
         try
         {
-            var data = await LoadBytesAsync(source).ConfigureAwait(false);
+            // 复用 ComponentImageLoader：支持 HTTPS、本地文件与 data:image/png 三种来源
+            var data = await ComponentImageLoader.LoadBytesAsync(source, CancellationToken.None)
+                .ConfigureAwait(false);
             using var ms = new MemoryStream(data);
             var bitmap = await Task.Run(() => new Bitmap(ms)).ConfigureAwait(false);
             ImageCache[source] = bitmap;
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 if (string.Equals(sender.SourceUrl, source, StringComparison.Ordinal))
-                    sender.Source = bitmap;
+                    sender.SetSource(bitmap);
             });
         }
         catch
@@ -69,26 +93,32 @@ public class AsyncImage : Image
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 if (string.Equals(sender.SourceUrl, source, StringComparison.Ordinal))
-                    sender.Source = null;
+                    sender.SetSource(null);
             });
         }
     }
 
-    private static Task<byte[]> LoadBytesAsync(string source)
+    /// <summary>
+    /// 应用位图，必要时用 <see cref="CroppedBitmap"/> 裁剪到 <see cref="CropRect"/>。
+    /// 裁剪区域先经 <see cref="ComponentImageLoader.ClampCropRect"/> 钳制到位图范围内。
+    /// </summary>
+    private void SetSource(Bitmap? bitmap)
     {
-        if (Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
-            uri.Scheme == Uri.UriSchemeHttps)
+        if (bitmap is null || CropRect is not { } crop)
         {
-            return HttpClient.GetByteArrayAsync(uri);
+            Source = bitmap;
+            return;
         }
 
-        return Task.Run(() =>
+        try
         {
-            var path = Path.GetFullPath(source);
-            var info = new FileInfo(path);
-            if (!info.Exists || info.Length > 8 * 1024 * 1024)
-                throw new IOException("Local image is missing or exceeds 8 MiB.");
-            return File.ReadAllBytes(path);
-        });
+            var clamped = ComponentImageLoader.ClampCropRect(crop, bitmap.PixelSize);
+            Source = new CroppedBitmap(bitmap, clamped);
+        }
+        catch (ArgumentException)
+        {
+            // 裁剪失败时回退为整图，避免显示异常
+            Source = bitmap;
+        }
     }
 }

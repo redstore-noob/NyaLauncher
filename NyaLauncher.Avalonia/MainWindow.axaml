@@ -14,7 +14,8 @@
         MinHeight="620"
         Background="#0D101A"
         WindowDecorations="None"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Loaded="Control_OnLoaded">
 
   <Window.Styles>
     <Style Selector="Button.WindowButton">
@@ -104,7 +105,7 @@
                         CornerRadius="7"
                         Padding="7,2"
                         VerticalAlignment="Center">
-                  <TextBlock Text="NEW GUI"
+                  <TextBlock Text="PREVIEW 预览版本"
                              FontSize="8"
                              FontWeight="Bold"
                              Foreground="#AEB6FF" />
@@ -187,6 +188,9 @@
                   Content="▦ 组件库"
                   ToolTip.Tip="打开组件库；可添加组件，也可拖回组件库移除"
                   Click="OnComponentLibraryClick" />
+          <Button
+              Content="⚙️设定"
+              Click="Button_OnClick"/>
         </StackPanel>
 
         <TextBlock x:Name="StatusText"
@@ -203,6 +207,7 @@
                    FontFamily="Consolas"
                    FontSize="9"
                    Foreground="#59627C"
+                   x:Name="MainWindowVersionText"
                    VerticalAlignment="Center" />
       </Grid>
     </Border>

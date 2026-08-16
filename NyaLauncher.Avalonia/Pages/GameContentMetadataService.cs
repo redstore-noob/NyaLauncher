@@ -918,55 +918,7 @@ internal static partial class GameContentMetadataService
                 }
         }
 
-        private static void WritePng(Stream target, byte[] pixels)
-        {
-            target.Write(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
-            Span<byte> header = stackalloc byte[13];
-            BinaryPrimitives.WriteInt32BigEndian(header, Size);
-            BinaryPrimitives.WriteInt32BigEndian(header[4..], Size);
-            header[8] = 8;
-            header[9] = 6;
-            WriteChunk(target, "IHDR", header);
-
-            using var compressed = new MemoryStream();
-            using (var zlib = new ZLibStream(compressed, CompressionLevel.SmallestSize, true))
-            {
-                for (var row = 0; row < Size; row++)
-                {
-                    zlib.WriteByte(0);
-                    zlib.Write(pixels, row * Size * 4, Size * 4);
-                }
-            }
-            WriteChunk(target, "IDAT", compressed.ToArray());
-            WriteChunk(target, "IEND", []);
-        }
-
-        private static void WriteChunk(Stream target, string type, ReadOnlySpan<byte> data)
-        {
-            Span<byte> length = stackalloc byte[4];
-            BinaryPrimitives.WriteInt32BigEndian(length, data.Length);
-            target.Write(length);
-            var typeBytes = Encoding.ASCII.GetBytes(type);
-            target.Write(typeBytes);
-            target.Write(data);
-            var crcInput = new byte[typeBytes.Length + data.Length];
-            typeBytes.CopyTo(crcInput, 0);
-            data.CopyTo(crcInput.AsSpan(typeBytes.Length));
-            Span<byte> crc = stackalloc byte[4];
-            BinaryPrimitives.WriteUInt32BigEndian(crc, ComputeCrc32(crcInput));
-            target.Write(crc);
-        }
-
-        private static uint ComputeCrc32(ReadOnlySpan<byte> data)
-        {
-            var crc = 0xFFFFFFFFu;
-            foreach (var value in data)
-            {
-                crc ^= value;
-                for (var bit = 0; bit < 8; bit++)
-                    crc = (crc >> 1) ^ ((crc & 1) == 0 ? 0u : 0xEDB88320u);
-            }
-            return ~crc;
-        }
+        private static void WritePng(Stream target, byte[] pixels) =>
+            NyaLauncher.Core.Tools.PngEncoder.EncodeTo(target, Size, Size, pixels);
     }
 }

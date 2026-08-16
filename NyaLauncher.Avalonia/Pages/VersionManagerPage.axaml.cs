@@ -709,22 +709,8 @@ public partial class VersionManagerPage : UserControl
         return paths.FirstOrDefault(path => PathsEqual(path, target));
     }
 
-    private static bool PathsEqual(string left, string right)
-    {
-        try
-        {
-            return string.Equals(
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-                OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    private static bool PathsEqual(string left, string right) =>
+        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 
     private static bool TryReadInt(TextBox textBox, out int value) =>
         int.TryParse(textBox.Text?.Trim(), out value);

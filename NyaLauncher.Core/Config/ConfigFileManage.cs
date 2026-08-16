@@ -144,39 +144,6 @@ public class ConfigFileManage
         }
     }
 
-    /// <summary>添加一条尚不存在的 Java 路径。</summary>
-    public bool JavaPathAdd(string javaPath, string javaVersion)
-    {
-        if (string.IsNullOrWhiteSpace(javaPath) || string.IsNullOrWhiteSpace(javaVersion))
-            return false;
-
-        return Update(config =>
-        {
-            var entries = config[JavaPathKey] as JsonArray;
-            if (entries is null)
-            {
-                entries = [];
-                config[JavaPathKey] = entries;
-            }
-
-            var alreadyExists = entries
-                .OfType<JsonObject>()
-                .Any(entry => string.Equals(
-                    ReadString(entry["path"]),
-                    javaPath,
-                    StringComparison.Ordinal));
-            if (alreadyExists)
-                return false;
-
-            entries.Add(new JsonObject
-            {
-                ["path"] = javaPath,
-                ["version"] = javaVersion
-            });
-            return true;
-        }, "添加 Java 路径");
-    }
-
     /// <summary>
     /// 用唯一的首选项替换 Java 路径列表。整个替换只进行一次原子写入。
     /// </summary>

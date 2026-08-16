@@ -806,14 +806,8 @@ public sealed class PolygonComponentView : UserControl
         int y,
         int width,
         int height,
-        PixelSize pixelSize)
-    {
-        var clampedX = Math.Clamp(x, 0, pixelSize.Width - 1);
-        var clampedY = Math.Clamp(y, 0, pixelSize.Height - 1);
-        var clampedWidth = Math.Clamp(width, 1, pixelSize.Width - clampedX);
-        var clampedHeight = Math.Clamp(height, 1, pixelSize.Height - clampedY);
-        return new PixelRect(clampedX, clampedY, clampedWidth, clampedHeight);
-    }
+        PixelSize pixelSize) =>
+        ComponentImageLoader.ClampCropRect(new PixelRect(x, y, width, height), pixelSize);
 
     private ElementVisual CreateButtonElement(ButtonElementDefinition definition)
     {

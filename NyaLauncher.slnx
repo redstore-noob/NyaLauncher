@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/解决方案项/">
+    <File Path="LICENSE" />
     <File Path="readme.md" />
   </Folder>
   <Project Path="NyaLauncher.Avalonia.Animations/NyaLauncher.Avalonia.Animations.csproj" />

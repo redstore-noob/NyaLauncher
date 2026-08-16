@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Core.Config;
 
@@ -65,12 +66,7 @@ public static class LauncherConfig
     }
 
     private static bool PathsEqual(string left, string right) =>
-        string.Equals(
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-            OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
+        PathUtil.PathsEqual(left, right);
 
     /// <summary>游戏根目录（.minecraft 或自定义目录）；未配置时返回 null。</summary>
     public static string? GameDirectory

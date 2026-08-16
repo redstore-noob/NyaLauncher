@@ -2,7 +2,9 @@ using System;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Dialogs;
 using Avalonia.Interactivity;
+using NyaLauncher.Core;
 
 namespace NyaLauncher.Avalonia.Pages;
 
@@ -10,13 +12,13 @@ public partial class SettingsPage : UserControl
 {
     private bool _synchronizingMemorySettings = true;
 
+    /// <summary>用户点击"打开账户管理"时触发，由宿主页面转发给主窗口完成跳转。</summary>
+    public event EventHandler? AccountManageRequested;
+
     public SettingsPage()
     {
         InitializeComponent();
         ReloadMemorySettings();
-        // ObservableCollection 绑定：增删账号时 ItemsControl 自动更新，无需手动刷新。
-        AccountList.ItemsSource = AccountStore.Current;
-        AccountLoginOverlay.AccountAdded += OnAccountAdded;
     }
 
     public void ReloadMemorySettings()
@@ -135,33 +137,14 @@ public partial class SettingsPage : UserControl
             .Where(line => line.Length > 0)
             .ToArray();
 
-    private void OnAddAccountClick(object? sender, RoutedEventArgs e)
+    private void OnOpenAccountManageClick(object? sender, RoutedEventArgs e)
     {
-        AccountLoginOverlay.Show();
+        AccountManageRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnAccountAdded(object? sender, LaunchAccount account)
+    private void Control_OnLoaded(object? sender, RoutedEventArgs e)
     {
-        AccountHintText.Text = $"已添加账号：{account.DisplayName}";
-    }
-
-    private void OnSetDefaultClick(object? sender, RoutedEventArgs e)
-    {
-        if ((sender as Button)?.DataContext is LaunchAccount account)
-        {
-            AccountStore.MoveToTop(account);
-            AccountHintText.Text = $"已设为默认：{account.DisplayName}";
-        }
-    }
-
-    private void OnDeleteAccountClick(object? sender, RoutedEventArgs e)
-    {
-        if ((sender as Button)?.DataContext is LaunchAccount account)
-        {
-            AccountStore.Remove(account);
-            AccountHintText.Text = AccountStore.Current.Count == 0
-                ? $"已删除账号：{account.DisplayName}（账号列表已清空）"
-                : $"已删除账号：{account.DisplayName}";
-        }
+        LauncherText.Text = "NyaLauncher版本号:" + NyaLauncherInfo.MainVersion +"."+ NyaLauncherInfo.SubVersion +"."+ NyaLauncherInfo.FixVersion + NyaLauncherInfo.Suffix;
+        
     }
 }

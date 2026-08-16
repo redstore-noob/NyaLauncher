@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:NyaLauncher.Avalonia.Pages"
-             x:Class="NyaLauncher.Avalonia.Pages.SettingsPage">
+             x:Class="NyaLauncher.Avalonia.Pages.SettingsPage"
+             Loaded="Control_OnLoaded">
   <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
 
     <!-- 标题区 -->
@@ -207,95 +207,32 @@
           </StackPanel>
         </Border>
 
-        <!-- 账户管理 -->
+        <!-- 账户管理（入口卡片，完整管理界面已迁移到独立的账户管理页面） -->
         <Border Background="#1E1E2E"
                 CornerRadius="16"
                 Padding="24,20">
-          <StackPanel Spacing="20">
-            <Grid ColumnDefinitions="*,Auto">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <StackPanel Spacing="8" VerticalAlignment="Center">
               <TextBlock Text="账户管理"
                          FontSize="18"
                          FontWeight="SemiBold"
-                         Foreground="#FFFFFF"
-                         VerticalAlignment="Center" />
-              <Button Grid.Column="1"
-                      Content="＋ 新建账户"
-                      Background="{StaticResource SystemAccentColor}"
-                      Foreground="White"
-                      CornerRadius="8"
-                      Padding="16,6"
-                      FontSize="13"
-                      FontWeight="SemiBold"
-                      Cursor="Hand"
-                      Click="OnAddAccountClick" />
-            </Grid>
-
-            <ItemsControl x:Name="AccountList">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="local:LaunchAccount">
-                  <Border Background="#2A2A3E"
-                          CornerRadius="12"
-                          Padding="16,14"
-                          Margin="0,0,0,10">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                      <Border Width="40" Height="40"
-                              CornerRadius="10"
-                              Background="#3A3A50">
-                        <TextBlock Text="{Binding Badge}"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource SystemAccentColor}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                      </Border>
-                      <StackPanel Grid.Column="1"
-                                  VerticalAlignment="Center"
-                                  Spacing="2">
-                        <TextBlock Text="{Binding DisplayName}"
-                                   FontSize="15"
-                                   FontWeight="SemiBold"
-                                   Foreground="#FFFFFF" />
-                        <TextBlock Text="{Binding TypeLabel}"
-                                   FontSize="12"
-                                   Foreground="#8B8B9E" />
-                      </StackPanel>
-                      <Button Grid.Column="2"
-                              Content="设为默认"
-                              Background="#2D2D44"
-                              Foreground="#CCCCDD"
-                              CornerRadius="6"
-                              Padding="12,4"
-                              FontSize="12"
-                              VerticalAlignment="Center"
-                              Cursor="Hand"
-                              Click="OnSetDefaultClick" />
-                      <Button Grid.Column="3"
-                              Content="删除"
-                              Background="Transparent"
-                              Foreground="#E56B6B"
-                              CornerRadius="6"
-                              Padding="12,4"
-                              FontSize="12"
-                              VerticalAlignment="Center"
-                              Cursor="Hand"
-                              Click="OnDeleteAccountClick">
-                        <Button.Styles>
-                          <Style Selector="Button:hover">
-                            <Setter Property="Foreground" Value="#FF8A8A" />
-                          </Style>
-                        </Button.Styles>
-                      </Button>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <TextBlock x:Name="AccountHintText"
-                       FontSize="12"
-                       Foreground="#8B8B9E"
-                       TextWrapping="Wrap" />
-          </StackPanel>
+                         Foreground="#FFFFFF" />
+              <TextBlock Text="管理正版与离线账号、切换默认账号并编辑玩家外观"
+                         FontSize="12"
+                         Foreground="#8B8B9E" />
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Content="打开账户管理"
+                    Background="{StaticResource SystemAccentColor}"
+                    Foreground="White"
+                    CornerRadius="8"
+                    Padding="18,9"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    VerticalAlignment="Center"
+                    Cursor="Hand"
+                    Click="OnOpenAccountManageClick" />
+          </Grid>
         </Border>
 
         <!-- 关于 -->
@@ -307,19 +244,26 @@
                       FontSize="18"
                       FontWeight="SemiBold"
                       Foreground="#FFFFFF" />
-            <TextBlock Text="NyaLauncher v0.1.0-gp3"
+            <TextBlock Text="NyaLauncher"
                       FontSize="14"
+                      x:Name="LauncherText"
                       Foreground="#CCCCDD" />
-            <TextBlock Text="基于 Avalonia UI 框架构建 · 开源 · 跨平台"
+            <TextBlock
+              FontSize="14"
+              Foreground="#CCCCDD">除闭源模块,该软件基于Apache-2.0分发。</TextBlock>
+            <TextBlock Text="项目链接:https://www.github.com/redstore-noob/NyaLauncher"
                       FontSize="13"
+                      x:Name="VersionText"
                       Foreground="#8B8B9E" />
+            <HyperlinkButton
+              NavigateUri="https://www.github.com/redstore-noob/NyaLauncher"
+              Content="为我们的项目点上Star✨">
+              
+            </HyperlinkButton>
           </StackPanel>
         </Border>
 
       </StackPanel>
     </ScrollViewer>
-
-    <!-- 新建账户 / 设备码 遮罩（共享控件） -->
-    <local:AccountLoginOverlay x:Name="AccountLoginOverlay" Grid.RowSpan="2" />
   </Grid>
 </UserControl>

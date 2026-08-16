@@ -17,10 +17,15 @@ public partial class SettingsHubPage : UserControl
 
     public event EventHandler<PersonalizationResult>? PersonalizationSaved;
 
+    /// <summary>转发自 <see cref="SettingsPage.AccountManageRequested"/>，供主窗口跳转到账户管理页面。</summary>
+    public event EventHandler? AccountManageRequested;
+
     public SettingsHubPage()
     {
         InitializeComponent();
         _launcherSettings = new SettingsPage();
+        _launcherSettings.AccountManageRequested += (_, _) =>
+            AccountManageRequested?.Invoke(this, EventArgs.Empty);
         LegacySettingsHost.Content = _launcherSettings;
     }
 

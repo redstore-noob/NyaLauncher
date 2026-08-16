@@ -29,9 +29,9 @@ public sealed class WorkspaceProfileStore
         WriteIndented = true
     };
 
-    public static string PlatformDefaultDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "NyaLauncher");
+    // 默认存储目录统一引用 Core 侧配置的默认值，避免重复计算
+    public static string PlatformDefaultDirectory { get; } =
+        NyaLauncher.Core.Config.LauncherConfig.DefaultStorageDirectory;
 
     public static string LocationFilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -495,15 +495,8 @@ public sealed class WorkspaceProfileStore
                 $"{Path.GetFileName(path)} 超过 {maximumBytes} 字节限制。");
     }
 
-    public static bool PathsEqual(string left, string right)
-    {
-        return string.Equals(
-            NormalizeStorageDirectory(left),
-            NormalizeStorageDirectory(right),
-            OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
-    }
+    public static bool PathsEqual(string left, string right) =>
+        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 
     private static void SaveToPath(WorkspaceProfile profile, string filePath)
     {

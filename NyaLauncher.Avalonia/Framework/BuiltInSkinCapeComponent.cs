@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using NyaLauncher.Avalonia.Pages;
 using NyaLauncher.Plugin.Abstractions.Components;
 
@@ -17,12 +18,17 @@ internal static class BuiltInSkinCapeComponent
     private const string AccountKeyArgument = "accountKey";
     private const string SkinIdArgument = "skinId";
 
+    /// <summary>
+    /// 正版账号的换肤/换披风涉及原生文件选择对话框与模态窗口，
+    /// 在多边形组件的后台线程中直接弹出容易卡死，因此统一跳转到账户管理页面，
+    /// 由页面在 UI 线程上完成操作。离线默认皮肤的选择仍在此组件内联完成。
+    /// </summary>
     public static PolygonComponentRegistration Create(
         MinecraftProfileService profileService,
-        Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> editor)
+        Action<string> navigate)
     {
         ArgumentNullException.ThrowIfNull(profileService);
-        ArgumentNullException.ThrowIfNull(editor);
+        ArgumentNullException.ThrowIfNull(navigate);
 
         var definition = new PolygonComponentBuilder(ComponentId, "皮肤与披风")
             .WithDescription("显示当前皮肤头像，并编辑正版皮肤、正版披风或离线默认皮肤")
@@ -68,14 +74,14 @@ internal static class BuiltInSkinCapeComponent
         {
             Definition = definition,
             Factory = new DelegatePolygonComponentFactory(
-                _ => new SkinCapeInstance(profileService, editor))
+                _ => new SkinCapeInstance(profileService, navigate))
         };
     }
 
     private sealed class SkinCapeInstance : IPolygonComponentInstance
     {
         private readonly MinecraftProfileService _profileService;
-        private readonly Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> _editor;
+        private readonly Action<string> _navigate;
         private readonly object _stateGate = new();
         private ComponentStateSnapshot _currentState;
         private CancellationTokenSource? _appearanceRefresh;
@@ -87,10 +93,10 @@ internal static class BuiltInSkinCapeComponent
 
         public SkinCapeInstance(
             MinecraftProfileService profileService,
-            Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> editor)
+            Action<string> navigate)
         {
             _profileService = profileService;
-            _editor = editor;
+            _navigate = navigate;
             _currentState = CreateState(Interlocked.Increment(ref _revision));
             AccountStore.Changed += OnAccountsChanged;
             _profileService.AppearanceChanged += OnAppearanceChanged;
@@ -115,15 +121,12 @@ internal static class BuiltInSkinCapeComponent
 
             switch (invocation.ActionId)
             {
+                // 正版换肤 / 换披风：跳转到账户管理页面完成（避免在组件后台线程弹原生对话框卡死）
                 case ChangeSkinActionId when selected.Type == "microsoft":
-                    return await _editor(
-                        new PlayerAppearanceRequest(PlayerAppearanceCommand.ChangeSkin, accountKey),
-                        cancellationToken).ConfigureAwait(false);
-
                 case ChangeCapeActionId when selected.Type == "microsoft":
-                    return await _editor(
-                        new PlayerAppearanceRequest(PlayerAppearanceCommand.ChangeCape, accountKey),
-                        cancellationToken).ConfigureAwait(false);
+                    await Dispatcher.UIThread.InvokeAsync(() => _navigate("account"));
+                    return ComponentActionResult.Completed(
+                        "已打开账户管理页面，请在那里完成皮肤或披风操作。");
 
                 case SelectOfflineSkinActionId when selected.Type == "offline":
                     if (invocation.Arguments is null ||
@@ -464,13 +467,3 @@ internal static class BuiltInSkinCapeComponent
             string.IsNullOrWhiteSpace(value) ? "?" : value.Trim()[..1].ToUpperInvariant();
     }
 }
-
-internal enum PlayerAppearanceCommand
-{
-    ChangeSkin,
-    ChangeCape
-}
-
-internal sealed record PlayerAppearanceRequest(
-    PlayerAppearanceCommand Command,
-    string AccountKey);

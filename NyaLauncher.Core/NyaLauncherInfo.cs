@@ -7,12 +7,15 @@ namespace NyaLauncher.Core
     /// <summary>
     /// 关于启动器的版本信息的存储位置
     /// </summary>
-    readonly struct NyaLauncherInfo
+    public struct NyaLauncherInfo
     {
         public static int MainVersion { get; } = 0;
-        public static double SubVersion { get; } = 0.1;
-        public static double FixVersion { get; } = 0.0;
+        public static int SubVersion { get; } = 1;
+        public static int FixVersion { get; } = 0;
+        public static string Suffix { get; } = "Preview-3";
+        public static string Prefix { get; } = "NyaLauncher";
         public static double ExtensionVersion { get; } = 0.1;
+        public static string LauncherFork { get; } = "main";
         public static string VersionName { get; } = "Haiku";
     }
 }

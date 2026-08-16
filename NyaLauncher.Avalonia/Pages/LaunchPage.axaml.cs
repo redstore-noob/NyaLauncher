@@ -6,6 +6,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Launch;
+using NyaLauncher.Core;
 
 namespace NyaLauncher.Avalonia.Pages;
 
@@ -238,5 +239,10 @@ public partial class LaunchPage : UserControl
         GameInstanceStore.Current.VersionIds.Count > 0 &&
         !_launchService.Current.IsBusy &&
         !_launchService.Current.IsGameRunning;
+
+    private void Control_OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        BottomVersionText.Text = "NyaLauncher版本号:" + NyaLauncherInfo.MainVersion +"."+ NyaLauncherInfo.SubVersion +"."+ NyaLauncherInfo.FixVersion + NyaLauncherInfo.Suffix;
+    }
 }
 

@@ -1,7 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:NyaLauncher.Avalonia.Pages"
-             x:Class="NyaLauncher.Avalonia.Pages.LaunchPage">
+             x:Class="NyaLauncher.Avalonia.Pages.LaunchPage"
+             Loaded="Control_OnLoaded">
   <Grid RowDefinitions="Auto,*,Auto" Margin="40,40,40,32">
 
     <!-- 标题区 -->
@@ -187,7 +188,8 @@
 
     <!-- 底部信息 -->
     <TextBlock Grid.Row="2"
-               Text="NyaLauncher v0.1.0-gp3 · 使用 Avalonia 构建"
+               Text="版本号:"
+               x:Name="BottomVersionText"
                FontSize="12"
                Foreground="#5A5A70"
                HorizontalAlignment="Center"

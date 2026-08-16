@@ -12,18 +12,15 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
     private readonly System.Action<string> _navigate;
     private readonly MinecraftProfileService _profileService;
     private readonly GameLaunchService _launchService;
-    private readonly Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> _editAppearance;
 
     public BuiltInFeatureAreaProvider(
         System.Action<string> navigate,
         MinecraftProfileService profileService,
-        GameLaunchService launchService,
-        Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> editAppearance)
+        GameLaunchService launchService)
     {
         _navigate = navigate;
         _profileService = profileService;
         _launchService = launchService;
-        _editAppearance = editAppearance;
     }
 
     public IEnumerable<FeatureAreaDefinition> GetFeatureAreas()
@@ -43,7 +40,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             [
                 BuiltInAccountSelectorComponent.Create(_navigate),
                 BuiltInGameInstanceSelectorComponent.Create(),
-                BuiltInSkinCapeComponent.Create(_profileService, _editAppearance),
+                BuiltInSkinCapeComponent.Create(_profileService, _navigate),
                 BuiltInGameLaunchComponent.Create(_launchService)
             ]
         };
