@@ -6,7 +6,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
-    <Version>0.1.0-ppre.1</Version>
+    <Version>0.1.1-ppre.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

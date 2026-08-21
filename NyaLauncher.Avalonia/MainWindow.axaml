@@ -110,7 +110,7 @@
                              Foreground="{StaticResource AccentTextBrush}" />
                 </Border>
               </StackPanel>
-              <TextBlock Text="0.1.0-ppre.1"
+              <TextBlock Text="0.1.1-ppre.1"
                          FontSize="10"
                          Foreground="{StaticResource HintTextBrush}" />
             </StackPanel>
@@ -201,7 +201,7 @@
                    TextTrimming="CharacterEllipsis" />
 
         <TextBlock Grid.Column="2"
-                   Text="v0.1.0-ppre.1"
+                   Text="v0.1.1-ppre.1"
                    FontFamily="Consolas"
                    FontSize="9"
                    Foreground="{StaticResource PlaceholderTextBrush}"
