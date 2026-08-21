@@ -3,13 +3,17 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Animations.Helpers;
+using NyaLauncher.Avalonia.Dialogs;
 using NyaLauncher.Core.Download;
+using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Models;
 
 namespace NyaLauncher.Avalonia.Pages;
@@ -18,6 +22,7 @@ public partial class DownloadPage : UserControl
 {
     private const int PageSize = 50;
     private readonly GameDownloadService _downloadService;
+    private CancellationTokenSource? _searchCts;
 
     private List<MinecraftVersion>? _allVersions;
     private List<ModrinthProject>? _allMods;
@@ -42,6 +47,10 @@ public partial class DownloadPage : UserControl
     private bool _isRefreshing;
     private bool _initialListEffectsQueued;
 
+    /// <summary>当用户点击 Mod 安装按钮时触发，传递 ModrinthProject 给宿主。</summary>
+    public event EventHandler<ModrinthProject>? ModInstallRequested;
+
+    /// <summary>XAML 设计器 / Avalonia 反射需要无参构造；运行时由 MainWindow 使用 internal 构造。</summary>
     public DownloadPage()
         : this(new GameDownloadService())
     {
@@ -54,6 +63,8 @@ public partial class DownloadPage : UserControl
         _downloadService.Changed += OnDownloadChanged;
         LoadingOverlay.IsVisible = true;
         AttachedToVisualTree += OnAttachedToVisualTree;
+        // 使用 AddHandler 确保 DataTemplate 内的 Tapped 事件也能被捕获
+        ModList.AddHandler(TappedEvent, OnModListTapped, handledEventsToo: true);
         _ = LoadAllAsync();
         StartSpinnerAnimation();
     }
@@ -172,6 +183,7 @@ public partial class DownloadPage : UserControl
                 _allVersions = versions;
                 _versionPage = 1;
                 ApplyFilter();
+                PopulateModVersionFilter();
                 RefreshButton.IsEnabled = true;
                 RefreshButton.Content = "⟳ 刷新";
                 SignalLoadComplete();
@@ -239,6 +251,49 @@ public partial class DownloadPage : UserControl
         nextBtn.IsEnabled = page < totalPages;
     }
 
+    /// <summary>
+    /// 从版本过滤 ComboBox 获取选中的 MC 版本。
+    /// "所有版本" 以及非版本号的哨兵值返回 null。
+    /// </summary>
+    private string? ResolveSelectedGameVersion()
+    {
+        var selected = ModVersionFilter?.SelectedItem as string;
+        if (string.IsNullOrWhiteSpace(selected) || selected == "所有版本")
+            return null;
+        return selected;
+    }
+
+    private void PopulateModVersionFilter()
+    {
+        if (ModVersionFilter is null) return;
+
+        ModVersionFilter.Items.Clear();
+        ModVersionFilter.Items.Add("所有版本");
+
+        // 优先用已安装的版本
+        try
+        {
+            var snapshot = GameInstanceStore.Current;
+            if (!string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory))
+            {
+                var installed = MinecraftDirectoryLocator
+                    .GetInstalledVersionIds(snapshot.MinecraftDirectory);
+                foreach (var id in installed)
+                    ModVersionFilter.Items.Add(id);
+            }
+        }
+        catch { }
+
+        // 如果没有已安装版本，用 Mojang 版本清单的最新几个
+        if (ModVersionFilter.Items.Count <= 1 && _allVersions is not null)
+        {
+            foreach (var v in _allVersions.Take(20))
+                ModVersionFilter.Items.Add(v.Id);
+        }
+
+        ModVersionFilter.SelectedIndex = 0;
+    }
+
     private void ApplyFilter()
     {
         if (_allVersions is null) return;
@@ -300,15 +355,24 @@ public partial class DownloadPage : UserControl
 
     private async System.Threading.Tasks.Task<List<ModrinthProject>?> SearchModrinthAsync(
         string searchText, string projectType, string categoryName,
-        TextBlock countText)
+        TextBlock countText, string? gameVersion = null)
     {
-        if (string.IsNullOrWhiteSpace(searchText))
+        if (string.IsNullOrWhiteSpace(searchText) && string.IsNullOrWhiteSpace(gameVersion))
             return null;
+
+        // 取消上一次搜索
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
 
         try
         {
             countText.Text = $"正在搜索{categoryName}…";
-            return await ModrinthSearch.SearchAsync(projectType, searchText);
+            return await ModrinthSearch.SearchAsync(projectType, searchText, gameVersion, 50, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
         }
         catch (Exception ex)
         {
@@ -339,81 +403,140 @@ public partial class DownloadPage : UserControl
 
     private async void OnModSearchChanged(object? sender, TextChangedEventArgs e)
     {
-        var searchText = ModSearchBox?.Text ?? "";
-        if (string.IsNullOrWhiteSpace(searchText))
+        try
         {
-            FilterAndPageModrinth(_allMods, "", ref _modFiltered, ref _modPage,
-                ModList, ModCountText, ModPageText, ModPrevBtn, ModNextBtn, "Mod");
-            return;
-        }
+            var searchText = ModSearchBox?.Text ?? "";
+            var gameVersion = ResolveSelectedGameVersion();
+            if (string.IsNullOrWhiteSpace(searchText) && string.IsNullOrWhiteSpace(gameVersion))
+            {
+                FilterAndPageModrinth(_allMods, "", ref _modFiltered, ref _modPage,
+                    ModList, ModCountText, ModPageText, ModPrevBtn, ModNextBtn, "Mod");
+                return;
+            }
 
-        var results = await SearchModrinthAsync(searchText, "mod", "Mod", ModCountText);
-        if (results is not null)
+            var results = await SearchModrinthAsync(searchText, "mod", "Mod", ModCountText, gameVersion);
+            if (results is not null)
+            {
+                _modFiltered = results;
+                _modPage = 1;
+                ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
+                    ModPageText, ModPrevBtn, ModNextBtn, "Mod");
+            }
+        }
+        catch (Exception ex)
         {
-            _modFiltered = results;
-            _modPage = 1;
-            ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
-                ModPageText, ModPrevBtn, ModNextBtn, "Mod");
+            ModCountText.Text = $"搜索异常: {ex.Message}";
+        }
+    }
+
+    private async void OnModVersionFilterChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        try
+        {
+            var searchText = ModSearchBox?.Text ?? "";
+            var gameVersion = ResolveSelectedGameVersion();
+
+            if (string.IsNullOrWhiteSpace(gameVersion))
+            {
+                // 选择了"所有版本"，回退到完整列表
+                FilterAndPageModrinth(_allMods, searchText, ref _modFiltered, ref _modPage,
+                    ModList, ModCountText, ModPageText, ModPrevBtn, ModNextBtn, "Mod");
+                return;
+            }
+
+            var results = await SearchModrinthAsync(searchText, "mod", "Mod", ModCountText, gameVersion);
+            if (results is not null)
+            {
+                _modFiltered = results;
+                _modPage = 1;
+                ShowModrinthPage(_modFiltered, ref _modPage, ModList, ModCountText,
+                    ModPageText, ModPrevBtn, ModNextBtn, "Mod");
+            }
+        }
+        catch (Exception ex)
+        {
+            ModCountText.Text = $"筛选异常: {ex.Message}";
         }
     }
 
     private async void OnModpackSearchChanged(object? sender, TextChangedEventArgs e)
     {
-        var searchText = ModpackSearchBox?.Text ?? "";
-        if (string.IsNullOrWhiteSpace(searchText))
+        try
         {
-            FilterAndPageModrinth(_allModpacks, "", ref _modpackFiltered, ref _modpackPage,
-                ModpackList, ModpackCountText, ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
-            return;
-        }
+            var searchText = ModpackSearchBox?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                FilterAndPageModrinth(_allModpacks, "", ref _modpackFiltered, ref _modpackPage,
+                    ModpackList, ModpackCountText, ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
+                return;
+            }
 
-        var results = await SearchModrinthAsync(searchText, "modpack", "整合包", ModpackCountText);
-        if (results is not null)
+            var results = await SearchModrinthAsync(searchText, "modpack", "整合包", ModpackCountText);
+            if (results is not null)
+            {
+                _modpackFiltered = results;
+                _modpackPage = 1;
+                ShowModrinthPage(_modpackFiltered, ref _modpackPage, ModpackList, ModpackCountText,
+                    ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
+            }
+        }
+        catch (Exception ex)
         {
-            _modpackFiltered = results;
-            _modpackPage = 1;
-            ShowModrinthPage(_modpackFiltered, ref _modpackPage, ModpackList, ModpackCountText,
-                ModpackPageText, ModpackPrevBtn, ModpackNextBtn, "整合包");
+            ModpackCountText.Text = $"搜索异常: {ex.Message}";
         }
     }
 
     private async void OnShaderSearchChanged(object? sender, TextChangedEventArgs e)
     {
-        var searchText = ShaderSearchBox?.Text ?? "";
-        if (string.IsNullOrWhiteSpace(searchText))
+        try
         {
-            FilterAndPageModrinth(_allShaders, "", ref _shaderFiltered, ref _shaderPage,
-                ShaderList, ShaderCountText, ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
-            return;
-        }
+            var searchText = ShaderSearchBox?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                FilterAndPageModrinth(_allShaders, "", ref _shaderFiltered, ref _shaderPage,
+                    ShaderList, ShaderCountText, ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
+                return;
+            }
 
-        var results = await SearchModrinthAsync(searchText, "shader", "光影包", ShaderCountText);
-        if (results is not null)
+            var results = await SearchModrinthAsync(searchText, "shader", "光影包", ShaderCountText);
+            if (results is not null)
+            {
+                _shaderFiltered = results;
+                _shaderPage = 1;
+                ShowModrinthPage(_shaderFiltered, ref _shaderPage, ShaderList, ShaderCountText,
+                    ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
+            }
+        }
+        catch (Exception ex)
         {
-            _shaderFiltered = results;
-            _shaderPage = 1;
-            ShowModrinthPage(_shaderFiltered, ref _shaderPage, ShaderList, ShaderCountText,
-                ShaderPageText, ShaderPrevBtn, ShaderNextBtn, "光影包");
+            ShaderCountText.Text = $"搜索异常: {ex.Message}";
         }
     }
 
     private async void OnResourcepackSearchChanged(object? sender, TextChangedEventArgs e)
     {
-        var searchText = ResourcepackSearchBox?.Text ?? "";
-        if (string.IsNullOrWhiteSpace(searchText))
+        try
         {
-            FilterAndPageModrinth(_allResourcepacks, "", ref _resourcepackFiltered, ref _resourcepackPage,
-                ResourcepackList, ResourcepackCountText, ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
-            return;
-        }
+            var searchText = ResourcepackSearchBox?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                FilterAndPageModrinth(_allResourcepacks, "", ref _resourcepackFiltered, ref _resourcepackPage,
+                    ResourcepackList, ResourcepackCountText, ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
+                return;
+            }
 
-        var results = await SearchModrinthAsync(searchText, "resourcepack", "材质包", ResourcepackCountText);
-        if (results is not null)
+            var results = await SearchModrinthAsync(searchText, "resourcepack", "材质包", ResourcepackCountText);
+            if (results is not null)
+            {
+                _resourcepackFiltered = results;
+                _resourcepackPage = 1;
+                ShowModrinthPage(_resourcepackFiltered, ref _resourcepackPage, ResourcepackList, ResourcepackCountText,
+                    ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
+            }
+        }
+        catch (Exception ex)
         {
-            _resourcepackFiltered = results;
-            _resourcepackPage = 1;
-            ShowModrinthPage(_resourcepackFiltered, ref _resourcepackPage, ResourcepackList, ResourcepackCountText,
-                ResourcepackPageText, ResourcepackPrevBtn, ResourcepackNextBtn, "材质包");
+            ResourcepackCountText.Text = $"搜索异常: {ex.Message}";
         }
     }
 
@@ -435,6 +558,49 @@ public partial class DownloadPage : UserControl
             _versionPage++;
             ShowVersionPage();
         }
+    }
+
+    private void OnModListTapped(object? sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (e.Source is not Control control) return;
+            var project = FindDataContext<ModrinthProject>(control);
+            if (project is null) return;
+            ModInstallRequested?.Invoke(this, project);
+        }
+        catch (Exception ex)
+        {
+            ModCountText.Text = $"操作失败：{ex.Message}";
+        }
+    }
+
+    private void OnModInstallClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button button) return;
+            var project = button.DataContext as ModrinthProject
+                          ?? FindDataContext<ModrinthProject>(button);
+            if (project is null) return;
+            ModInstallRequested?.Invoke(this, project);
+        }
+        catch (Exception ex)
+        {
+            ModCountText.Text = $"操作失败：{ex.Message}";
+        }
+    }
+
+    private static T? FindDataContext<T>(Control control) where T : class
+    {
+        var current = control;
+        while (current is not null)
+        {
+            if (current.DataContext is T typed)
+                return typed;
+            current = current.Parent as Control;
+        }
+        return null;
     }
 
     private void OnModPrevClick(object? sender, RoutedEventArgs e)

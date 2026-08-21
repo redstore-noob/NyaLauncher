@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
 
 namespace NyaLauncher.Avalonia.Controls;
 
@@ -19,12 +20,12 @@ namespace NyaLauncher.Avalonia.Controls;
 /// </summary>
 public partial class DockWorkspace : UserControl
 {
-    private static readonly IBrush CardBackground = Brush.Parse("#171B2B");
-    private static readonly IBrush HeaderBackground = Brush.Parse("#20263A");
-    private static readonly IBrush CardBorder = Brush.Parse("#30374D");
-    private static readonly IBrush Accent = Brush.Parse("#7C8CFF");
-    private static readonly IBrush Muted = Brush.Parse("#8F98B3");
-    private static readonly IBrush SeamIdle = Brush.Parse("#343C52");
+    private static IBrush CardBackground => ThemeBrushes.CardBackground;
+    private static IBrush HeaderBackground => ThemeBrushes.HeaderBackground;
+    private static IBrush CardBorder => ThemeBrushes.CardBorder;
+    private static IBrush Accent => ThemeBrushes.Accent;
+    private static IBrush Muted => ThemeBrushes.Muted;
+    private static IBrush SeamIdle => ThemeBrushes.SeamIdle;
 
     private const double MinimumAreaWidth = 180;
     private const double MinimumAreaHeight = 150;
@@ -49,6 +50,11 @@ public partial class DockWorkspace : UserControl
             OnPolygonComponentDisposalCompleted);
         WorkspaceRoot.PointerMoved += OnRestoredResizePointerMoved;
         WorkspaceRoot.PointerReleased += OnRestoredResizePointerReleased;
+        StyleAlter.ThemeChanged += () =>
+        {
+            if (IsLoaded)
+                Rebuild();
+        };
         DetachedFromVisualTree += (_, _) =>
         {
             if (_registry is not null && _registrySubscribed)
@@ -480,7 +486,7 @@ public partial class DockWorkspace : UserControl
             Width = 42,
             Height = 42,
             CornerRadius = new CornerRadius(13),
-            Background = Brush.Parse("#303958"),
+            Background = ThemeBrushes.IconBoxBg,
             ClipToBounds = true,
             Child = FeatureIconFactory.Create(definition.Glyph, definition.IconPath)
         };
@@ -497,7 +503,7 @@ public partial class DockWorkspace : UserControl
                     Text = definition.Title,
                     FontSize = 16,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = Brushes.White
+                    Foreground = ThemeBrushes.Accent
                 },
                 new TextBlock
                 {
@@ -516,13 +522,13 @@ public partial class DockWorkspace : UserControl
             Width = 48,
             Height = 34,
             CornerRadius = new CornerRadius(11),
-            Background = Brush.Parse("#2B3248"),
+            Background = ThemeBrushes.DragHandleBg,
             Cursor = new Cursor(StandardCursorType.SizeAll),
             Child = new TextBlock
             {
                 Text = "⠿",
                 FontSize = 21,
-                Foreground = Brush.Parse("#AAB2CC"),
+                Foreground = ThemeBrushes.DragHandleGlyph,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, -3, 0, 0)
@@ -584,7 +590,7 @@ public partial class DockWorkspace : UserControl
                 {
                     Text = "还没有注册功能区",
                     FontSize = 15,
-                    Foreground = Brushes.White
+                    Foreground = ThemeBrushes.Accent
                 },
                 new TextBlock
                 {
@@ -605,7 +611,7 @@ public partial class DockWorkspace : UserControl
         _draggedAreaId = areaId;
         _targetAreaId = null;
         _dropSide = null;
-        handle.Background = Brush.Parse("#445078");
+        handle.Background = ThemeBrushes.DragHandleActive;
         e.Pointer.Capture(handle);
 
         if (_visuals.TryGetValue(areaId, out var visual))
@@ -796,7 +802,7 @@ public partial class DockWorkspace : UserControl
             visual.Card.Opacity = 1;
             visual.Card.BorderBrush = CardBorder;
             visual.Card.BorderThickness = new Thickness(0);
-            visual.Handle.Background = Brush.Parse("#2B3248");
+            visual.Handle.Background = ThemeBrushes.DragHandleBg;
         }
     }
 

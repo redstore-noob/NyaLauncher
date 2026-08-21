@@ -12,18 +12,18 @@
         Height="760"
         MinWidth="980"
         MinHeight="620"
-        Background="#0D101A"
         WindowDecorations="None"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Loaded="Control_OnLoaded">
 
   <Window.Styles>
     <Style Selector="Button.WindowButton">
       <Setter Property="Width" Value="42" />
       <Setter Property="Height" Value="34" />
       <Setter Property="Padding" Value="0" />
-      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Background" Value="{StaticResource TransparentBrush}" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Foreground" Value="#9DA6BF" />
+      <Setter Property="Foreground" Value="{StaticResource SubtextTextBrush}" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="FontSize" Value="15" />
       <Setter Property="Cursor" Value="Hand" />
@@ -31,30 +31,30 @@
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.WindowButton:pointerover">
-      <Setter Property="Background" Value="#2A3042" />
-      <Setter Property="Foreground" Value="#FFFFFF" />
+      <Setter Property="Background" Value="{StaticResource ControlBgBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
     </Style>
     <Style Selector="Button.CloseButton:pointerover">
-      <Setter Property="Background" Value="#D94B64" />
-      <Setter Property="Foreground" Value="#FFFFFF" />
+      <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource WhiteBrush}" />
     </Style>
     <Style Selector="Button.NavigationBackButton">
       <Setter Property="Height" Value="32" />
       <Setter Property="Padding" Value="13,0" />
-      <Setter Property="Background" Value="#20263A" />
-      <Setter Property="BorderBrush" Value="#343C52" />
+      <Setter Property="Background" Value="{StaticResource SurfaceBgBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource StrongBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#C7CDE0" />
+      <Setter Property="Foreground" Value="{StaticResource BodyTextBrush}" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button.AddComponentButton">
       <Setter Property="Height" Value="24" />
       <Setter Property="Padding" Value="10,0" />
-      <Setter Property="Background" Value="#252D47" />
-      <Setter Property="BorderBrush" Value="#3A4563" />
+      <Setter Property="Background" Value="{StaticResource ButtonBgBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource EmphasizedBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#C8CEFF" />
+      <Setter Property="Foreground" Value="{StaticResource LinkTextBrush}" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="FontSize" Value="10" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -65,12 +65,12 @@
   <Grid x:Name="WindowRoot" RowDefinitions="58,*,30">
     <!-- The top bar is deliberately separate from feature areas. -->
     <Border Grid.Row="0"
-            Background="#121624"
-            BorderBrush="#252B3D"
+            Background="{StaticResource BaseBgBrush}"
+            BorderBrush="{StaticResource SubtleBorderBrush}"
             BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="14,0,8,0">
         <Border x:Name="TitleBarIdentity"
-                Background="Transparent"
+                Background="{StaticResource TransparentBrush}"
                 Padding="3,0,22,0"
                 PointerPressed="OnTitleBarPointerPressed">
           <StackPanel Orientation="Horizontal"
@@ -79,16 +79,16 @@
             <Border Width="36"
                     Height="36"
                     CornerRadius="11"
-                    Background="#6C7BFF">
+                    Background="{StaticResource AccentDarkBrush}">
               <Grid>
                 <Border Margin="3"
                         CornerRadius="9"
-                        BorderBrush="#70FFFFFF"
+                        BorderBrush="{StaticResource MediumBorderBrush}"
                         BorderThickness="1" />
                 <TextBlock Text="N"
                            FontSize="18"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{StaticResource WhiteBrush}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center" />
               </Grid>
@@ -99,36 +99,36 @@
                 <TextBlock Text="NyaLauncher"
                            FontSize="15"
                            FontWeight="SemiBold"
-                           Foreground="#F5F6FF" />
-                <Border Background="#2D3450"
+                           Foreground="{StaticResource PrimaryTextBrush}" />
+                <Border Background="{StaticResource BadgeBgBrush}"
                         CornerRadius="7"
                         Padding="7,2"
                         VerticalAlignment="Center">
-                  <TextBlock Text="NEW GUI"
+                  <TextBlock Text="PREVIEW 预览版本"
                              FontSize="8"
                              FontWeight="Bold"
-                             Foreground="#AEB6FF" />
+                             Foreground="{StaticResource AccentTextBrush}" />
                 </Border>
               </StackPanel>
-              <TextBlock Text="可扩展 Minecraft 启动器"
+              <TextBlock Text="0.1.0-preview4"
                          FontSize="10"
-                         Foreground="#77809B" />
+                         Foreground="{StaticResource HintTextBrush}" />
             </StackPanel>
           </StackPanel>
         </Border>
 
         <Border Grid.Column="1"
-                Background="Transparent"
+                Background="{StaticResource TransparentBrush}"
                 PointerPressed="OnTitleBarPointerPressed">
           <StackPanel Orientation="Horizontal"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
                       Spacing="9">
-            <Border Width="7" Height="7" CornerRadius="4" Background="#62D49A" />
+            <Border Width="7" Height="7" CornerRadius="4" Background="{StaticResource SuccessBrush}" />
             <TextBlock x:Name="HeaderStatusText"
                        Text="工作区已就绪"
                        FontSize="11"
-                       Foreground="#8F98B3"
+                       Foreground="{StaticResource SubtextTextBrush}"
                        VerticalAlignment="Center" />
           </StackPanel>
         </Border>
@@ -139,25 +139,25 @@
                     VerticalAlignment="Center">
           <Button Classes="WindowButton" ToolTip.Tip="最小化" Click="OnMinimizeClick">
             <Path Width="12" Height="12" Stretch="None"
-                  Fill="#9DA6BF"
+                  Fill="{StaticResource SubtextTextBrush}"
                   Data="M 0.5,8.8 L 11.5,8.8 L 11.5,10.6 L 0.5,10.6 Z" />
           </Button>
           <Button Classes="WindowButton" ToolTip.Tip="最大化或还原" Click="OnMaximizeClick">
             <Grid Width="12" Height="12">
               <Path x:Name="WorkspaceMaximizeIcon" Classes="WindowGlyph"
                     Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                    Stroke="#9DA6BF"
+                    Stroke="{StaticResource SubtextTextBrush}"
                     Data="M 1.5,1.5 L 10.5,1.5 L 10.5,10.5 L 1.5,10.5 Z" />
               <Path x:Name="WorkspaceRestoreIcon" Classes="WindowGlyph"
                     Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                    Stroke="#9DA6BF"
+                    Stroke="{StaticResource SubtextTextBrush}"
                     Data="M 3.5,1.5 L 10.5,1.5 L 10.5,8.5 M 1.5,3.5 L 8.5,3.5 L 8.5,10.5 L 1.5,10.5 Z"
                     IsVisible="False" />
             </Grid>
           </Button>
           <Button Classes="WindowButton CloseButton" ToolTip.Tip="关闭" Click="OnCloseClick">
             <Path Classes="WindowGlyph" Width="12" Height="12" Stretch="Uniform"
-                  Stroke="#9DA6BF"
+                  Stroke="{StaticResource SubtextTextBrush}"
                   StrokeThickness="1.4" StrokeLineCap="Square"
                   Data="M 2,2 L 10,10 M 10,2 L 2,10" />
           </Button>
@@ -170,30 +170,32 @@
     </Grid>
 
     <Border Grid.Row="2"
-            Background="#101420"
-            BorderBrush="#22283A"
+            Background="{StaticResource BaseBgBrush}"
+            BorderBrush="{StaticResource SubtleBorderBrush}"
             BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0">
         <StackPanel Orientation="Horizontal"
                     Spacing="8"
                     VerticalAlignment="Center">
-          <TextBlock Text="⠿"
-                     FontSize="13"
-                     Foreground="#7C8CFF" />
+          <Image Source="avares://NyaLauncher.Avalonia/Resources/Icons/ic_fluent_broad_activity_feed_24_filled.png"
+                 Width="14" Height="14" VerticalAlignment="Center" />
           <TextBlock Text="组件可拖动到其他功能区；Esc 可随时进入设置"
                      FontSize="10"
-                     Foreground="#77809B" />
+                     Foreground="{StaticResource HintTextBrush}" />
           <Button Classes="AddComponentButton"
-                  Content="▦ 组件库"
+                  Content="组件库"
                   ToolTip.Tip="打开组件库；可添加组件，也可拖回组件库移除"
                   Click="OnComponentLibraryClick" />
+          <Button
+              Content="设定"
+              Click="Button_OnClick"/>
         </StackPanel>
 
         <TextBlock x:Name="StatusText"
                    Grid.Column="1"
                    Text="新界面框架已载入"
                    FontSize="10"
-                   Foreground="#A5AEC7"
+                   Foreground="{StaticResource MutedTextBrush}"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis" />
@@ -202,7 +204,8 @@
                    Text="v0.1.0-gp3"
                    FontFamily="Consolas"
                    FontSize="9"
-                   Foreground="#59627C"
+                   Foreground="{StaticResource PlaceholderTextBrush}"
+                   x:Name="MainWindowVersionText"
                    VerticalAlignment="Center" />
       </Grid>
     </Border>
@@ -212,24 +215,24 @@
     <Grid x:Name="PageSurface"
           Grid.RowSpan="3"
           RowDefinitions="48,*"
-          Background="#0D101A"
+          Background="{StaticResource WindowBgBrush}"
           IsVisible="False"
           ZIndex="300">
       <Border Grid.Row="0"
-              Background="#101420"
-              BorderBrush="#252B3D"
+              Background="{StaticResource BaseBgBrush}"
+              BorderBrush="{StaticResource SubtleBorderBrush}"
               BorderThickness="0,0,0,1">
         <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,0,8,0">
           <Button Classes="NavigationBackButton"
                   Content="←  返回工作区"
                   Click="OnBackToWorkspaceClick" />
           <Border Grid.Column="1"
-                  Background="Transparent"
+                  Background="{StaticResource TransparentBrush}"
                   PointerPressed="OnTitleBarPointerPressed">
             <TextBlock x:Name="CurrentPageTitle"
                        FontSize="13"
                        FontWeight="SemiBold"
-                       Foreground="#E7E9F5"
+                       Foreground="{StaticResource SecondaryTextBrush}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center" />
           </Border>
@@ -239,30 +242,30 @@
                       VerticalAlignment="Center">
             <TextBlock Text="Esc：设置"
                        FontSize="10"
-                       Foreground="#6F7893"
+                       Foreground="{StaticResource DisabledTextBrush}"
                        Margin="0,0,8,0"
                        VerticalAlignment="Center" />
             <Button Classes="WindowButton" ToolTip.Tip="最小化" Click="OnMinimizeClick">
               <Path Width="12" Height="12" Stretch="None"
-                    Fill="#9DA6BF"
+                    Fill="{StaticResource SubtextTextBrush}"
                     Data="M 0.5,8.8 L 11.5,8.8 L 11.5,10.6 L 0.5,10.6 Z" />
             </Button>
             <Button Classes="WindowButton" ToolTip.Tip="最大化或还原" Click="OnMaximizeClick">
               <Grid Width="12" Height="12">
                 <Path x:Name="PageMaximizeIcon" Classes="WindowGlyph"
                       Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                      Stroke="#9DA6BF"
+                      Stroke="{StaticResource SubtextTextBrush}"
                       Data="M 1.5,1.5 L 10.5,1.5 L 10.5,10.5 L 1.5,10.5 Z" />
                 <Path x:Name="PageRestoreIcon" Classes="WindowGlyph"
                       Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                      Stroke="#9DA6BF"
+                      Stroke="{StaticResource SubtextTextBrush}"
                       Data="M 3.5,1.5 L 10.5,1.5 L 10.5,8.5 M 1.5,3.5 L 8.5,3.5 L 8.5,10.5 L 1.5,10.5 Z"
                       IsVisible="False" />
               </Grid>
             </Button>
             <Button Classes="WindowButton CloseButton" ToolTip.Tip="关闭" Click="OnCloseClick">
               <Path Classes="WindowGlyph" Width="12" Height="12" Stretch="Uniform"
-                    Stroke="#9DA6BF"
+                    Stroke="{StaticResource SubtextTextBrush}"
                     StrokeThickness="1.4" StrokeLineCap="Square"
                     Data="M 2,2 L 10,10 M 10,2 L 2,10" />
             </Button>
@@ -282,8 +285,8 @@
             HorizontalAlignment="Right"
             VerticalAlignment="Bottom"
             ZIndex="900"
-            Background="#5968E8"
-            BorderBrush="#9AA5FF"
+            Background="{StaticResource AccentDeepBrush}"
+            BorderBrush="{StaticResource AccentBrightBrush}"
             BorderThickness="2"
             CornerRadius="31"
             Cursor="Hand"
@@ -296,7 +299,7 @@
                    Text="…"
                    FontSize="22"
                    FontWeight="Bold"
-                   Foreground="White"
+                   Foreground="{StaticResource WhiteBrush}"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center" />
         <ProgressBar x:Name="TaskActivityProgress"
@@ -305,36 +308,36 @@
                      Margin="0,0,0,9"
                      VerticalAlignment="Bottom"
                      IsIndeterminate="True"
-                     Foreground="White"
-                     Background="#4050C8" />
+                     Foreground="{StaticResource WhiteBrush}"
+                     Background="{StaticResource AccentDeepDarkBrush}" />
       </Grid>
     </Button>
 
     <!-- Borderless-window resize grips.  They stay above both the workspace
          and navigated pages while remaining visually transparent. -->
     <Border Grid.RowSpan="3" Width="6" HorizontalAlignment="Left" ZIndex="1000"
-            Background="Transparent" Cursor="SizeWestEast"
+            Background="{StaticResource TransparentBrush}" Cursor="SizeWestEast"
             PointerPressed="OnResizeWestPressed" />
     <Border Grid.RowSpan="3" Width="6" HorizontalAlignment="Right" ZIndex="1000"
-            Background="Transparent" Cursor="SizeWestEast"
+            Background="{StaticResource TransparentBrush}" Cursor="SizeWestEast"
             PointerPressed="OnResizeEastPressed" />
     <Border Height="6" VerticalAlignment="Top" ZIndex="1000"
-            Background="Transparent" Cursor="SizeNorthSouth"
+            Background="{StaticResource TransparentBrush}" Cursor="SizeNorthSouth"
             PointerPressed="OnResizeNorthPressed" />
     <Border Grid.Row="2" Height="6" VerticalAlignment="Bottom" ZIndex="1000"
-            Background="Transparent" Cursor="SizeNorthSouth"
+            Background="{StaticResource TransparentBrush}" Cursor="SizeNorthSouth"
             PointerPressed="OnResizeSouthPressed" />
     <Border Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top"
-            ZIndex="1001" Background="Transparent" Cursor="TopLeftCorner"
+            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="TopLeftCorner"
             PointerPressed="OnResizeNorthWestPressed" />
     <Border Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"
-            ZIndex="1001" Background="Transparent" Cursor="TopRightCorner"
+            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="TopRightCorner"
             PointerPressed="OnResizeNorthEastPressed" />
     <Border Grid.Row="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-            ZIndex="1001" Background="Transparent" Cursor="BottomLeftCorner"
+            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="BottomLeftCorner"
             PointerPressed="OnResizeSouthWestPressed" />
     <Border Grid.Row="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-            ZIndex="1001" Background="Transparent" Cursor="BottomRightCorner"
+            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="BottomRightCorner"
             PointerPressed="OnResizeSouthEastPressed" />
   </Grid>
 </Window>

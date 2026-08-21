@@ -9,7 +9,7 @@
       <Setter Property="RenderTransformOrigin" Value="50%,50%" />
     </Style>
     <Style Selector="Border.ItemHover:pointerover">
-      <Setter Property="Background" Value="#32324A" />
+      <Setter Property="Background" Value="{StaticResource HighlightBgBrush}" />
     </Style>
   </UserControl.Styles>
   <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
@@ -17,23 +17,20 @@
     <!-- 标题区 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
       <StackPanel Spacing="8">
-        <TextBlock Text="资源下载"
+        <TextBlock Text="下载大厅"
                    FontSize="28"
                    FontWeight="Bold"
-                   Foreground="#FFFFFF" />
-        <TextBlock Text="快速获取你需要的游戏资源"
-                   FontSize="13"
-                   Foreground="#8B8B9E" />
+                   Foreground="{StaticResource PrimaryTextBrush}" />
         <TextBlock x:Name="DownloadTaskStatusText"
-                   Text="选择版本后开始下载"
+                   Text="当前任务:无"
                    FontSize="11"
-                   Foreground="#7C8CFF" />
+                   Foreground="{StaticResource AccentBrush}" />
       </StackPanel>
       <Button Grid.Column="1"
               x:Name="RefreshButton"
               Content="⟳ 刷新"
-              Background="#2D2D44"
-              Foreground="#CCCCDD"
+              Background="{StaticResource ButtonBgBrush}"
+              Foreground="{StaticResource BodyTextBrush}"
               CornerRadius="8"
               Padding="16,8"
               FontSize="13"
@@ -48,13 +45,13 @@
 
     <!-- TabControl -->
     <Border Grid.Row="1"
-            Background="#1E1E2E"
+            Background="{StaticResource PanelBgBrush}"
             CornerRadius="16"
             Padding="0"
             Margin="0">
       <TabControl x:Name="DownloadTabs"
                   BorderThickness="0"
-                  Background="Transparent">
+                  Background="{StaticResource TransparentBrush}">
 
         <!-- ===== Minecraft 本体 ===== -->
 
@@ -64,23 +61,23 @@
             <StackPanel Spacing="16" Margin="24,20,24,24">
 
               <!-- 搜索栏 + 筛选器 -->
-              <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+              <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                 <Grid ColumnDefinitions="Auto,*,Auto">
-                  <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                  <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
                   <TextBox Grid.Column="1"
                            x:Name="VersionSearchBox"
                            PlaceholderText="搜索版本号..."
-                           Background="Transparent"
+                           Background="{StaticResource TransparentBrush}"
                            BorderThickness="0"
-                           Foreground="#CCCCDD"
+                           Foreground="{StaticResource BodyTextBrush}"
                            FontSize="13"
                            VerticalAlignment="Center"
                            Margin="10,0,0,0"
-                           CaretBrush="#CCCCDD"
+                           CaretBrush="{StaticResource BodyTextBrush}"
                            TextChanged="OnVersionSearchChanged" />
                   <ComboBox Grid.Column="2" x:Name="VersionTypeFilter"
-                            SelectedIndex="0"
-                            Background="#1E1E2E"
+                            SelectedIndex="1"
+                            Background="{StaticResource PanelBgBrush}"
                             BorderThickness="0"
                             CornerRadius="6"
                             Padding="10,4"
@@ -101,27 +98,27 @@
                   <ItemsControl x:Name="VersionList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:MinecraftVersion">
-                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="#3A2570">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource AccentDeepBrush}">
                               <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding DisplayName}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
                               <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="{Binding TypeDisplay}"
-                                           FontSize="12" Foreground="#8B8B9E" />
-                                <TextBlock Text="·" FontSize="12" Foreground="#4A4A60" />
+                                           FontSize="12" Foreground="{StaticResource HintTextBrush}" />
+                                <TextBlock Text="·" FontSize="12" Foreground="{StaticResource DisabledTextBrush}" />
                                 <TextBlock Text="{Binding ReleaseDateDisplay}"
-                                           FontSize="12" Foreground="#8B8B9E" />
+                                           FontSize="12" Foreground="{StaticResource HintTextBrush}" />
                               </StackPanel>
                             </StackPanel>
                             <Button Grid.Column="2"
                                     Content="下载"
                                     Background="{StaticResource SystemAccentColor}"
-                                    Foreground="White"
+                                    Foreground="{StaticResource WhiteBrush}"
                                     CornerRadius="6"
                                     Padding="16,6"
                                     FontSize="12"
@@ -137,20 +134,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="VersionCountText"
-                             FontSize="12" Foreground="#5A5A70"
+                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="VersionPrevBtn" Content="◀ 上一页"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnVersionPrevClick" />
                       <TextBlock x:Name="VersionPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="#8B8B9E"
+                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      <Button x:Name="VersionNextBtn" Grid.Column="2" Content="下一页 ▶"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                      <Button x:Name="VersionNextBtn" Grid.Column="2" Content="下一页"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnVersionNextClick" />
                     </Grid>
@@ -165,35 +162,30 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ModSearchBox"
                                PlaceholderText="搜索 Mod 名称..."
-                               Background="Transparent"
+                               Background="{StaticResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="#CCCCDD"
+                               Foreground="{StaticResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="#CCCCDD"
+                               CaretBrush="{StaticResource BodyTextBrush}"
                                TextChanged="OnModSearchChanged" />
                       <ComboBox Grid.Column="2"
+                                x:Name="ModVersionFilter"
                                 PlaceholderText="所有版本"
-                                Background="#1E1E2E"
+                                Background="{StaticResource PanelBgBrush}"
                                 BorderThickness="0"
                                 CornerRadius="6"
                                 Padding="10,4"
                                 FontSize="12"
-                                Width="100">
-                        <ComboBox.Items>
-                          <ComboBoxItem Content="所有版本" IsSelected="True" />
-                          <ComboBoxItem Content="1.21" />
-                          <ComboBoxItem Content="1.20" />
-                          <ComboBoxItem Content="1.19" />
-                        </ComboBox.Items>
-                      </ComboBox>
+                                Width="120"
+                                SelectionChanged="OnModVersionFilterChanged" />
                     </Grid>
                   </Border>
 
@@ -201,9 +193,9 @@
                   <ItemsControl x:Name="ModList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
-                          <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="#2D2D5A" ClipToBounds="True">
+                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4">
+                          <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -214,17 +206,28 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="#8B8B9E"
+                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
-                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2" Margin="0,0,10,0">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
+                            <Button Grid.Column="3"
+                                    Content="安装"
+                                    Background="{StaticResource SystemAccentColor}"
+                                    Foreground="{StaticResource WhiteBrush}"
+                                    CornerRadius="6"
+                                    Padding="14,6"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    VerticalAlignment="Center"
+                                    Cursor="Hand"
+                                    Click="OnModInstallClick" />
                           </Grid>
                         </Border>
                       </DataTemplate>
@@ -233,19 +236,19 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ModCountText"
-                             FontSize="12" Foreground="#5A5A70"
+                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">                    <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">                    <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ModPrevBtn" Content="◀ 上一页"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModPrevClick" />
                       <TextBlock x:Name="ModPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="#8B8B9E"
+                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      <Button x:Name="ModNextBtn" Grid.Column="2" Content="下一页 ▶"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                      <Button x:Name="ModNextBtn" Grid.Column="2" Content="下一页"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModNextClick" />
                     </Grid>
@@ -260,19 +263,19 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ModpackSearchBox"
                                PlaceholderText="搜索整合包..."
-                               Background="Transparent"
+                               Background="{StaticResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="#CCCCDD"
+                               Foreground="{StaticResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="#CCCCDD"
+                               CaretBrush="{StaticResource BodyTextBrush}"
                                TextChanged="OnModpackSearchChanged" />
                     </Grid>
                   </Border>
@@ -281,9 +284,9 @@
                   <ItemsControl x:Name="ModpackList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="#703025" ClipToBounds="True">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource ErrorDarkBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -294,16 +297,16 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="#8B8B9E"
+                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -313,20 +316,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ModpackCountText"
-                             FontSize="12" Foreground="#5A5A70"
+                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ModpackPrevBtn" Content="◀ 上一页"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModpackPrevClick" />
                       <TextBlock x:Name="ModpackPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="#8B8B9E"
+                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      <Button x:Name="ModpackNextBtn" Grid.Column="2" Content="下一页 ▶"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                      <Button x:Name="ModpackNextBtn" Grid.Column="2" Content="下一页"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModpackNextClick" />
                     </Grid>
@@ -341,19 +344,19 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ShaderSearchBox"
                                PlaceholderText="搜索光影包..."
-                               Background="Transparent"
+                               Background="{StaticResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="#CCCCDD"
+                               Foreground="{StaticResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="#CCCCDD"
+                               CaretBrush="{StaticResource BodyTextBrush}"
                                TextChanged="OnShaderSearchChanged" />
                     </Grid>
                   </Border>
@@ -362,9 +365,9 @@
                   <ItemsControl x:Name="ShaderList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="#3A5A3A" ClipToBounds="True">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource SuccessBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -375,16 +378,16 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="#8B8B9E"
+                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -394,20 +397,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ShaderCountText"
-                             FontSize="12" Foreground="#5A5A70"
+                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ShaderPrevBtn" Content="◀ 上一页"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnShaderPrevClick" />
                       <TextBlock x:Name="ShaderPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="#8B8B9E"
+                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      <Button x:Name="ShaderNextBtn" Grid.Column="2" Content="下一页 ▶"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                      <Button x:Name="ShaderNextBtn" Grid.Column="2" Content="下一页"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnShaderNextClick" />
                     </Grid>
@@ -422,19 +425,19 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="#2A2A3E" CornerRadius="10" Padding="14,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="#6B6B80" VerticalAlignment="Center" />
+                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ResourcepackSearchBox"
                                PlaceholderText="搜索材质包..."
-                               Background="Transparent"
+                               Background="{StaticResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="#CCCCDD"
+                               Foreground="{StaticResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="#CCCCDD"
+                               CaretBrush="{StaticResource BodyTextBrush}"
                                TextChanged="OnResourcepackSearchChanged" />
                     </Grid>
                   </Border>
@@ -443,9 +446,9 @@
                   <ItemsControl x:Name="ResourcepackList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="#2A2A3E" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="#4A3A2A" ClipToBounds="True">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -456,16 +459,16 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="#8B8B9E"
+                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="#CCCCDD" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="#6B6B80" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -475,20 +478,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ResourcepackCountText"
-                             FontSize="12" Foreground="#5A5A70"
+                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="#2A2A3E" CornerRadius="8" Padding="16,10">
+                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ResourcepackPrevBtn" Content="◀ 上一页"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnResourcepackPrevClick" />
                       <TextBlock x:Name="ResourcepackPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="#8B8B9E"
+                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      <Button x:Name="ResourcepackNextBtn" Grid.Column="2" Content="下一页 ▶"
-                              Background="#1E1E2E" Foreground="#CCCCDD"
+                      <Button x:Name="ResourcepackNextBtn" Grid.Column="2" Content="下一页"
+                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnResourcepackNextClick" />
                     </Grid>
@@ -503,16 +506,16 @@
     <!-- 全屏加载遮罩 -->
     <Border x:Name="LoadingOverlay"
             Grid.Row="1"
-            Background="#CC1A1A2E"
+            Background="{StaticResource OverlayBgBrush}"
             CornerRadius="16"
             IsVisible="True">
       <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
         <TextBlock x:Name="LoadingSpinner" Text="⏳" FontSize="48" HorizontalAlignment="Center"
                    RenderTransformOrigin="50%,50%" />
         <TextBlock Text="正在加载资源…" FontSize="18" FontWeight="SemiBold"
-                   Foreground="#CCCCDD" HorizontalAlignment="Center" />
+                   Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Center" />
         <TextBlock x:Name="LoadingDetail" Text="正在连接 Modrinth API…"
-                   FontSize="13" Foreground="#6B6B80" HorizontalAlignment="Center" />
+                   FontSize="13" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Center" />
       </StackPanel>
     </Border>
   </Grid>

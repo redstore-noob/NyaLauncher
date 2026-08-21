@@ -1,75 +1,178 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:NyaLauncher.Avalonia.Pages"
              x:Class="NyaLauncher.Avalonia.Pages.SettingsPage">
+  <UserControl.Styles>
+    <!-- 卡片通用样式 -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource PanelBgBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+    </Style>
+    <!-- 卡片标题 -->
+    <Style Selector="TextBlock.card-title">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+    </Style>
+    <!-- 卡片副标题 -->
+    <Style Selector="TextBlock.card-subtitle">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{StaticResource HintTextBrush}" />
+    </Style>
+    <!-- 设置项标签 -->
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+    </Style>
+    <!-- 提示文字 -->
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{StaticResource HintTextBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- 内嵌卡片（子面板） -->
+    <Style Selector="Border.sub-card">
+      <Setter Property="Background" Value="{StaticResource CardBgBrush}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="18,14" />
+    </Style>
+    <!-- 左侧装饰条 -->
+    <Style Selector="Border.accent-bar">
+      <Setter Property="Width" Value="5" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="CornerRadius" Value="14,0,0,14" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
 
-    <!-- 标题区 -->
-    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,24">
+    <!-- 页标题 -->
+    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,20">
       <TextBlock Text="设置"
                  FontSize="28"
                  FontWeight="Bold"
-                 Foreground="#FFFFFF" />
+                 Foreground="{StaticResource PrimaryTextBrush}" />
       <TextBlock Text="自定义启动器与游戏配置"
                  FontSize="13"
-                 Foreground="#8B8B9E" />
+                 Foreground="{StaticResource HintTextBrush}" />
     </StackPanel>
 
     <!-- 设置内容 -->
-    <ScrollViewer Grid.Row="1">
-      <StackPanel Spacing="16">
+    <ScrollViewer x:Name="SettingsScroller"
+                  Grid.Row="1"
+                  ScrollChanged="OnSettingsScrollChanged">
+      <StackPanel x:Name="CardsStack" Spacing="20">
 
-        <!-- 游戏设置 -->
-        <Border Background="#1E1E2E"
-                CornerRadius="16"
-                Padding="24,20">
-          <StackPanel Spacing="20">
-            <TextBlock Text="游戏设置"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#FFFFFF" />
+        <!-- ==================== 游戏设置 ==================== -->
+        <Border x:Name="CardGame" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{StaticResource AccentBrush}" />
+            <StackPanel Margin="28,22" Spacing="22">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="游戏设置" Classes="card-title" />
+                  <TextBlock Text="实例行为、游戏目录与内存分配" Classes="card-subtitle" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="实例管理 ▸"
+                        Padding="14,7"
+                        CornerRadius="8"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Background="{StaticResource ButtonBgBrush}"
+                        BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                        BorderThickness="1"
+                        Foreground="{StaticResource LinkTextColor}"
+                        Cursor="Hand"
+                        VerticalAlignment="Center"
+                        Click="OnOpenInstanceManagerClick" />
+              </Grid>
 
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="游戏目录"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <Border Grid.Column="1" Background="#2A2A3E" CornerRadius="8" Padding="12,8">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Text="C:\Users\Player\.minecraft"
-                             FontSize="13"
-                             Foreground="#8B8B9E"
-                             VerticalAlignment="Center" />
-                  <Button Grid.Column="1"
-                          Content="浏览"
-                          Background="Transparent"
-                          Foreground="{StaticResource SystemAccentColor}"
-                          FontSize="13"
-                          Padding="8,0"
-                          Cursor="Hand" />
-                </Grid>
+              <Border Classes="sub-card">
+                <StackPanel Spacing="8">
+                  <CheckBox x:Name="VersionSeparate"
+                            Content="版本隔离"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            IsCheckedChanged="OnVersionSeparateChanged" />
+                  <TextBlock Text="开启后新实例默认使用独立内容目录（存档、Mod、资源包、光影等各自隔离）"
+                             Classes="hint" Margin="26,0,0,0" />
+                  <TextBlock x:Name="VersionSeparateHintText"
+                             FontSize="11"
+                             Foreground="{StaticResource AccentTextColor}"
+                             TextWrapping="Wrap"
+                             Margin="26,0,0,0" />
+                </StackPanel>
               </Border>
-            </Grid>
 
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="全局最大内存"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Top"
-                         Margin="0,4,0,0" />
-              <StackPanel Grid.Column="1" Spacing="9">
+              <Border Classes="sub-card">
+                <StackPanel Spacing="4">
+                  <CheckBox x:Name="VerifyFilesCheckBox"
+                            Content="启动前校验文件完整性"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            IsCheckedChanged="OnVerifyFilesChanged" />
+                  <TextBlock Text="每次启动游戏前检查关键文件是否齐全，缺失时自动补全下载"
+                             Classes="hint" Margin="26,0,0,0" />
+                </StackPanel>
+              </Border>
+
+              <StackPanel Spacing="8">
+                <TextBlock Text="游戏目录" Classes="field-label" />
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                  <ComboBox x:Name="GameDirectorySelector"
+                            PlaceholderText="选择 Minecraft 游戏目录"
+                            Background="{StaticResource ControlBgBrush}"
+                            BorderThickness="0"
+                            CornerRadius="8"
+                            Padding="12,6"
+                            HorizontalAlignment="Stretch"
+                            FontSize="13"
+                            SelectionChanged="OnGameDirectorySelectionChanged" />
+                  <Button Grid.Column="1"
+                          Content="＋ 添加"
+                          Padding="14,6"
+                          CornerRadius="8"
+                          FontSize="12"
+                          Background="{StaticResource ButtonBgBrush}"
+                          BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                          BorderThickness="1"
+                          Click="OnAddGameDirectoryClick" />
+                  <Button Grid.Column="2"
+                          Content="移除"
+                          Padding="14,6"
+                          CornerRadius="8"
+                          FontSize="12"
+                          Click="OnRemoveGameDirectoryClick" />
+                </Grid>
+                <TextBlock x:Name="GameDirectoryHintText" Classes="hint" />
+              </StackPanel>
+
+              <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock x:Name="MemoryRangeText"
-                             Text="系统总内存"
-                             FontSize="12"
-                             Foreground="#8B8B9E"
-                             VerticalAlignment="Center" />
-                  <TextBlock x:Name="MaximumMemoryValueText"
-                             Grid.Column="1"
-                             Text="4096 MiB"
-                             FontSize="14"
-                             FontWeight="SemiBold"
-                             Foreground="{StaticResource SystemAccentColor}" />
+                  <TextBlock Text="全局最大内存" Classes="field-label" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <TextBlock x:Name="MemoryRangeText"
+                               Text="系统总内存"
+                               FontSize="11"
+                               Foreground="{StaticResource HintTextBrush}"
+                               VerticalAlignment="Center" />
+                    <Border Background="{StaticResource BadgeBgBrush}"
+                            CornerRadius="6"
+                            Padding="10,3">
+                      <TextBlock x:Name="MaximumMemoryValueText"
+                                 Text="4096 MiB"
+                                 FontSize="13"
+                                 FontWeight="Bold"
+                                 Foreground="{StaticResource AccentTextColor}" />
+                    </Border>
+                  </StackPanel>
                 </Grid>
                 <Slider x:Name="MaximumMemorySlider"
                         Minimum="512"
@@ -79,247 +182,212 @@
                         IsSnapToTickEnabled="True"
                         ValueChanged="OnMaximumMemoryValueChanged" />
                 <CheckBox x:Name="AutomaticMemoryCheckBox"
-                          Content="启动游戏时根据剩余可用内存自动调整"
-                          Foreground="#CCCCDD"
+                          Content="启动时根据可用内存自动调整"
+                          FontSize="12"
+                          Foreground="{StaticResource BodyTextBrush}"
                           IsCheckedChanged="OnAutomaticMemoryChanged" />
-                <TextBlock x:Name="AutomaticMemoryHintText"
-                           Text="关闭自动调整后，上方滑块作为所有实例都不能突破的全局上限。"
-                           FontSize="12"
-                           Foreground="#8B8B9E"
-                           TextWrapping="Wrap" />
+                <TextBlock x:Name="AutomaticMemoryHintText" Classes="hint" />
               </StackPanel>
-            </Grid>
+            </StackPanel>
+          </Grid>
+        </Border>
 
-            <Expander Header="高级选项" IsExpanded="False">
-              <StackPanel Spacing="9" Margin="0,8,0,0">
-                <TextBlock Text="全局 Java 路径" FontSize="12" Foreground="#8B8B9E" />
-                <TextBox x:Name="GlobalJavaExecutableBox"
-                         PlaceholderText="留空时自动检测 Java"
-                         Background="#2A2A3E"
+        <!-- ==================== Java 设置 ==================== -->
+        <Border x:Name="CardJava" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{StaticResource AccentDarkerBrush}" />
+            <StackPanel Margin="28,22" Spacing="22">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="Java 运行环境" Classes="card-title" />
+                  <TextBlock Text="Java 路径管理与启动参数" Classes="card-subtitle" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="自动检索"
+                        Padding="14,7"
+                        CornerRadius="8"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Background="{StaticResource ButtonBgBrush}"
+                        BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                        BorderThickness="1"
+                        Foreground="{StaticResource LinkTextColor}"
+                        Cursor="Hand"
+                        Click="OnAutoDetectJavaClick" />
+              </Grid>
+
+              <!-- Java 路径 -->
+              <StackPanel Spacing="6">
+                <TextBlock Text="Java 路径" Classes="field-label" />
+                <TextBlock Text="留空则自动检测合适的 Java"
+                           Classes="hint" />
+                <TextBox x:Name="JavaPathBox"
+                         PlaceholderText="自动检测"
+                         Background="{StaticResource ControlBgBrush}"
                          BorderThickness="0"
-                         CornerRadius="8" />
-                <Grid ColumnDefinitions="*,12,*">
-                  <StackPanel>
-                    <TextBlock Text="窗口宽度" FontSize="12" Foreground="#8B8B9E" />
-                    <TextBox x:Name="GlobalWindowWidthBox" Text="854" />
-                  </StackPanel>
-                  <StackPanel Grid.Column="2">
-                    <TextBlock Text="窗口高度" FontSize="12" Foreground="#8B8B9E" />
-                    <TextBox x:Name="GlobalWindowHeightBox" Text="480" />
-                  </StackPanel>
-                </Grid>
-                <TextBlock Text="附加 JVM 参数（每行一个）" FontSize="12" Foreground="#8B8B9E" />
-                <TextBox x:Name="GlobalJvmArgumentsBox"
-                         AcceptsReturn="True"
-                         MinHeight="74"
-                         PlaceholderText="例如：-XX:+UseG1GC" />
-                <TextBlock Text="附加游戏参数（每行一个）" FontSize="12" Foreground="#8B8B9E" />
-                <TextBox x:Name="GlobalGameArgumentsBox"
-                         AcceptsReturn="True"
-                         MinHeight="74" />
-                <Button Content="保存全局高级设置"
-                        HorizontalAlignment="Left"
-                        Padding="15,7"
-                        Background="{StaticResource SystemAccentColor}"
-                        Foreground="White"
-                        Click="OnSaveGlobalLaunchSettingsClick" />
-                <TextBlock x:Name="GlobalLaunchSettingsHintText"
-                           Text="实例默认跟随这里的设置。"
-                           FontSize="12"
-                           Foreground="#8B8B9E"
-                           TextWrapping="Wrap" />
+                         CornerRadius="8"
+                         Padding="12,8"
+                         FontSize="13" />
+                <TextBlock x:Name="JavaPathHint" Classes="hint" />
               </StackPanel>
-            </Expander>
-          </StackPanel>
-        </Border>
 
-        <!-- 启动器设置 -->
-        <Border Background="#1E1E2E"
-                CornerRadius="16"
-                Padding="24,20">
-          <StackPanel Spacing="20">
-            <TextBlock Text="启动器设置"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#FFFFFF" />
+              <!-- JVM 启动参数 -->
+              <StackPanel Spacing="6">
+                <TextBlock Text="额外 JVM 参数" Classes="field-label" />
+                <TextBlock Text="每行一个参数，如 -Dfml.ignorePatchDiscrepancies=true"
+                           Classes="hint" />
+                <TextBox x:Name="JvmArgsBox"
+                         PlaceholderText="-XX:+UseG1GC&#x0a;-XX:MaxGCPauseMillis=50"
+                         Background="{StaticResource ControlBgBrush}"
+                         BorderThickness="0"
+                         CornerRadius="8"
+                         Padding="12,8"
+                         FontSize="12"
+                         AcceptsReturn="True"
+                         MinHeight="60"
+                         TextWrapping="Wrap" />
+              </StackPanel>
 
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="主题模式"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <ComboBox Grid.Column="1"
-                        PlaceholderText="深色"
-                        Background="#2A2A3E"
-                        BorderThickness="0"
-                        CornerRadius="8"
-                        Padding="12,6"
-                        HorizontalAlignment="Stretch"
-                        FontSize="13">
-                <ComboBox.Items>
-                  <ComboBoxItem Content="深色" IsSelected="True" />
-                  <ComboBoxItem Content="浅色" />
-                  <ComboBoxItem Content="跟随系统" />
-                </ComboBox.Items>
-              </ComboBox>
-            </Grid>
-
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="语言"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <ComboBox Grid.Column="1"
-                        PlaceholderText="简体中文"
-                        Background="#2A2A3E"
-                        BorderThickness="0"
-                        CornerRadius="8"
-                        Padding="12,6"
-                        HorizontalAlignment="Stretch"
-                        FontSize="13">
-                <ComboBox.Items>
-                  <ComboBoxItem Content="简体中文" IsSelected="True" />
-                  <ComboBoxItem Content="English" />
-                  <ComboBoxItem Content="日本語" />
-                </ComboBox.Items>
-              </ComboBox>
-            </Grid>
-
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="启动时检查更新"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <ToggleSwitch Grid.Column="1"
-                            IsChecked="True"
-                            HorizontalAlignment="Left" />
-            </Grid>
-
-            <Grid ColumnDefinitions="160,*">
-              <TextBlock Text="关闭时最小化到托盘"
-                         FontSize="14"
-                         Foreground="#CCCCDD"
-                         VerticalAlignment="Center" />
-              <ToggleSwitch Grid.Column="1"
-                            IsChecked="False"
-                            HorizontalAlignment="Left" />
-            </Grid>
-          </StackPanel>
-        </Border>
-
-        <!-- 账户管理 -->
-        <Border Background="#1E1E2E"
-                CornerRadius="16"
-                Padding="24,20">
-          <StackPanel Spacing="20">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="账户管理"
-                         FontSize="18"
-                         FontWeight="SemiBold"
-                         Foreground="#FFFFFF"
-                         VerticalAlignment="Center" />
-              <Button Grid.Column="1"
-                      Content="＋ 新建账户"
-                      Background="{StaticResource SystemAccentColor}"
-                      Foreground="White"
+              <!-- 保存按钮 -->
+              <Button Content="保存 Java 设置"
+                      Padding="18,8"
                       CornerRadius="8"
-                      Padding="16,6"
                       FontSize="13"
                       FontWeight="SemiBold"
-                      Cursor="Hand"
-                      Click="OnAddAccountClick" />
-            </Grid>
-
-            <ItemsControl x:Name="AccountList">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="local:LaunchAccount">
-                  <Border Background="#2A2A3E"
-                          CornerRadius="12"
-                          Padding="16,14"
-                          Margin="0,0,0,10">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                      <Border Width="40" Height="40"
-                              CornerRadius="10"
-                              Background="#3A3A50">
-                        <TextBlock Text="{Binding Badge}"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource SystemAccentColor}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                      </Border>
-                      <StackPanel Grid.Column="1"
-                                  VerticalAlignment="Center"
-                                  Spacing="2">
-                        <TextBlock Text="{Binding DisplayName}"
-                                   FontSize="15"
-                                   FontWeight="SemiBold"
-                                   Foreground="#FFFFFF" />
-                        <TextBlock Text="{Binding TypeLabel}"
-                                   FontSize="12"
-                                   Foreground="#8B8B9E" />
-                      </StackPanel>
-                      <Button Grid.Column="2"
-                              Content="设为默认"
-                              Background="#2D2D44"
-                              Foreground="#CCCCDD"
-                              CornerRadius="6"
-                              Padding="12,4"
-                              FontSize="12"
-                              VerticalAlignment="Center"
-                              Cursor="Hand"
-                              Click="OnSetDefaultClick" />
-                      <Button Grid.Column="3"
-                              Content="删除"
-                              Background="Transparent"
-                              Foreground="#E56B6B"
-                              CornerRadius="6"
-                              Padding="12,4"
-                              FontSize="12"
-                              VerticalAlignment="Center"
-                              Cursor="Hand"
-                              Click="OnDeleteAccountClick">
-                        <Button.Styles>
-                          <Style Selector="Button:hover">
-                            <Setter Property="Foreground" Value="#FF8A8A" />
-                          </Style>
-                        </Button.Styles>
-                      </Button>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <TextBlock x:Name="AccountHintText"
-                       FontSize="12"
-                       Foreground="#8B8B9E"
-                       TextWrapping="Wrap" />
-          </StackPanel>
+                      Background="{StaticResource SystemAccentColor}"
+                      Foreground="{StaticResource WhiteBrush}"
+                      HorizontalAlignment="Left"
+                      Click="OnSaveJavaSettingsClick" />
+            </StackPanel>
+          </Grid>
         </Border>
 
-        <!-- 关于 -->
-        <Border Background="#1E1E2E"
-                CornerRadius="16"
-                Padding="24,20">
-          <StackPanel Spacing="12">
-            <TextBlock Text="关于"
-                      FontSize="18"
-                      FontWeight="SemiBold"
-                      Foreground="#FFFFFF" />
-            <TextBlock Text="NyaLauncher v0.1.0-gp3"
-                      FontSize="14"
-                      Foreground="#CCCCDD" />
-            <TextBlock Text="基于 Avalonia UI 框架构建 · 开源 · 跨平台"
+        <!-- ==================== 下载设置 ==================== -->
+        <Border x:Name="CardDownload" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{StaticResource AccentDeepBrush}" />
+            <StackPanel Margin="28,22" Spacing="22">
+              <StackPanel Spacing="2">
+                <TextBlock Text="下载设置" Classes="card-title" />
+                <TextBlock Text="下载源选择与并发下载配置" Classes="card-subtitle" />
+              </StackPanel>
+
+              <StackPanel Spacing="6">
+                <TextBlock Text="下载源" Classes="field-label" />
+                <ComboBox x:Name="DownloadSourceComboBox"
+                          Background="{StaticResource ControlBgBrush}"
+                          BorderThickness="0"
+                          CornerRadius="8"
+                          Padding="12,6"
+                          HorizontalAlignment="Stretch"
+                          FontSize="13"
+                          SelectionChanged="OnDownloadSourceChanged" />
+                <TextBlock x:Name="DownloadSourceHint" Classes="hint" />
+              </StackPanel>
+
+              <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="并行下载线程数" Classes="field-label" />
+                  <Border Grid.Column="1"
+                          Background="{StaticResource BadgeBgBrush}"
+                          CornerRadius="6"
+                          Padding="10,3">
+                    <TextBlock x:Name="ParallelDownloadsText"
+                               Text="8"
+                               FontSize="13"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AccentTextColor}" />
+                  </Border>
+                </Grid>
+                <Slider x:Name="ParallelDownloadsSlider"
+                        Minimum="1"
+                        Maximum="32"
+                        TickFrequency="1"
+                        TickPlacement="BottomRight"
+                        IsSnapToTickEnabled="True"
+                        ValueChanged="OnParallelDownloadsChanged" />
+                <TextBlock Text="同时下载的文件数量，网络较好时可适当增大" Classes="hint" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- ==================== 启动器设置 ==================== -->
+        <Border x:Name="CardLauncher" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{StaticResource MutedTextBrush}" />
+            <StackPanel Margin="28,22" Spacing="22">
+              <StackPanel Spacing="2">
+                <TextBlock Text="启动器设置" Classes="card-title" />
+                <TextBlock Text="主题风格与外观配置" Classes="card-subtitle" />
+              </StackPanel>
+
+              <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" RowSpacing="12">
+                <TextBlock Text="主题风格"
+                           FontSize="14"
+                           Foreground="{StaticResource BodyTextBrush}"
+                           VerticalAlignment="Center" />
+                <ComboBox x:Name="ThemeFamilyComboBox"
+                          Grid.Column="1"
+                          PlaceholderText="初音未来"
+                          Background="{StaticResource ControlBgBrush}"
+                          BorderThickness="0"
+                          CornerRadius="8"
+                          SelectionChanged="OnThemeFamilyChanged"
+                          Padding="12,6"
+                          HorizontalAlignment="Stretch"
+                          FontSize="13" />
+                <TextBlock Text="明暗模式"
+                           Grid.Row="1"
+                           FontSize="14"
+                           Foreground="{StaticResource BodyTextBrush}"
+                           VerticalAlignment="Center" />
+                <ComboBox x:Name="ThemeModeComboBox"
+                          Grid.Row="1"
+                          Grid.Column="1"
+                          PlaceholderText="暗色"
+                          Background="{StaticResource ControlBgBrush}"
+                          BorderThickness="0"
+                          CornerRadius="8"
+                          SelectionChanged="OnThemeModeChanged"
+                          Padding="12,6"
+                          HorizontalAlignment="Stretch"
+                          FontSize="13" />
+              </Grid>
+              <Border Classes="sub-card">
+                <TextBlock Text="选择后可能需要重启才能生效。"
+                           FontSize="11"
+                           Foreground="{StaticResource MutedTextBrush}" />
+              </Border>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- ==================== 账户管理入口 ==================== -->
+        <Border x:Name="CardAccount" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{StaticResource SuccessBrush}" />
+            <Grid Margin="28,22" ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="账户管理" Classes="card-title" />
+                <TextBlock Text="管理正版与离线账号、切换默认账号并编辑玩家外观" Classes="card-subtitle" />
+              </StackPanel>
+              <Button Grid.Column="1"
+                      Content="打开账户管理"
+                      Background="{StaticResource SystemAccentColor}"
+                      Foreground="{StaticResource WhiteBrush}"
+                      CornerRadius="8"
+                      Padding="18,9"
                       FontSize="13"
-                      Foreground="#8B8B9E" />
-          </StackPanel>
+                      FontWeight="SemiBold"
+                      VerticalAlignment="Center"
+                      Cursor="Hand"
+                      Click="OnOpenAccountManageClick" />
+            </Grid>
+          </Grid>
         </Border>
 
       </StackPanel>
     </ScrollViewer>
-
-    <!-- 新建账户 / 设备码 遮罩（共享控件） -->
-    <local:AccountLoginOverlay x:Name="AccountLoginOverlay" Grid.RowSpan="2" />
   </Grid>
 </UserControl>

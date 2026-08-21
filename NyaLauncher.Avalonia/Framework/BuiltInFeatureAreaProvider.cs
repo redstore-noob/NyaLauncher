@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using NyaLauncher.Avalonia.Pages;
 using NyaLauncher.Avalonia.Plugins;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Core.Launch;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -13,20 +14,17 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
     private readonly System.Action<string> _navigate;
     private readonly MinecraftProfileService _profileService;
     private readonly GameLaunchService _launchService;
-    private readonly Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> _editAppearance;
     private readonly PluginManager? _pluginManager;
 
     public BuiltInFeatureAreaProvider(
         System.Action<string> navigate,
         MinecraftProfileService profileService,
         GameLaunchService launchService,
-        Func<PlayerAppearanceRequest, CancellationToken, Task<ComponentActionResult>> editAppearance,
         PluginManager? pluginManager = null)
     {
         _navigate = navigate;
         _profileService = profileService;
         _launchService = launchService;
-        _editAppearance = editAppearance;
         _pluginManager = pluginManager;
     }
 
@@ -47,7 +45,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             [
                 BuiltInAccountSelectorComponent.Create(_navigate),
                 BuiltInGameInstanceSelectorComponent.Create(),
-                BuiltInSkinCapeComponent.Create(_profileService, _editAppearance),
+                BuiltInSkinCapeComponent.Create(_profileService, _navigate),
                 BuiltInGameLaunchComponent.Create(_launchService)
             ]
         };
@@ -85,7 +83,9 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
                 new("settings", "启动器设置", "外观、语言与行为", "⚙",
                     () => _navigate("settings")),
                 new("runtime", "Java 运行环境", "自动查找并管理 Java", "⌘",
-                    () => _navigate("runtime"))
+                    () => _navigate("runtime")),
+                new("plugins", "插件管理", "浏览、安装与配置插件", "◇",
+                    () => _navigate("plugins"))
             ],
             PolygonComponents =
             [
@@ -104,15 +104,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             .WithSize(320, 180)
             .WithShape(PolygonShapeDefinition.RegularPolygon(6, rotationDegrees: 0))
             .WithDragHandle(new ComponentRect(0.45, 0.055, 0.1, 0.1))
-            .WithTheme(new PolygonComponentTheme
-            {
-                Surface = "#20283D",
-                SurfaceHover = "#293552",
-                Border = "#53658F",
-                BorderHover = "#8C9DFF",
-                Accent = "#6C7BFF",
-                ProgressTrack = "#303B56"
-            })
+            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
             .AddAction("run-demo")
             .AddText(
                 "title",

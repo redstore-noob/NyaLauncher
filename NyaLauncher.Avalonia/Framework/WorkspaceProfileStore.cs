@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia.Framework;
 
@@ -30,9 +31,9 @@ public sealed class WorkspaceProfileStore
         WriteIndented = true
     };
 
-    public static string PlatformDefaultDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "NyaLauncher");
+    // 默认存储目录统一引用 Core 侧配置的默认值，避免重复计算
+    public static string PlatformDefaultDirectory { get; } =
+        NyaLauncher.Core.Config.LauncherConfig.DefaultStorageDirectory;
 
     public static string LocationFilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -139,7 +140,7 @@ public sealed class WorkspaceProfileStore
                 $"目标配置目录包含不允许的符号链接或 junction：{entry}");
         }
 
-        if (!PathsEqual(entry, pluginDirectory))
+        if (!PathUtil.PathsEqual(entry, pluginDirectory))
             return true;
         if ((attributes & FileAttributes.Directory) == 0)
             throw new InvalidDataException("目标目录中的 plugins 必须是文件夹。");
@@ -163,7 +164,7 @@ public sealed class WorkspaceProfileStore
 
         var inspection = InspectStorageDirectory(storageDirectory);
         var targetDirectory = inspection.Directory;
-        if (PathsEqual(StorageDirectory, targetDirectory))
+        if (PathUtil.PathsEqual(StorageDirectory, targetDirectory))
         {
             Save(profile);
             return StorageDirectoryChangeTransaction.CreateNoOp(
@@ -580,16 +581,6 @@ public sealed class WorkspaceProfileStore
                 $"{Path.GetFileName(path)} 超过 {maximumBytes} 字节限制。");
     }
 
-    public static bool PathsEqual(string left, string right)
-    {
-        return string.Equals(
-            NormalizeStorageDirectory(left),
-            NormalizeStorageDirectory(right),
-            OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
-    }
-
     private static void SaveToPath(WorkspaceProfile profile, string filePath)
     {
         profile = WorkspaceProfileMigrator.Migrate(profile);
@@ -619,7 +610,7 @@ public sealed class WorkspaceProfileStore
 
     private void SaveConfiguredDirectory(string directory)
     {
-        if (PathsEqual(directory, PlatformDefaultDirectory))
+        if (PathUtil.PathsEqual(directory, PlatformDefaultDirectory))
         {
             if (File.Exists(_locationFilePath))
                 File.Delete(_locationFilePath);

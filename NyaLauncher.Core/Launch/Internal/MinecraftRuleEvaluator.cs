@@ -6,6 +6,21 @@ namespace NyaLauncher.Core.Launch.Internal;
 
 internal static class MinecraftRuleEvaluator
 {
+    /// <summary>
+    /// 创建标准 Minecraft 特性字典（用于库规则评估）。
+    /// 调用方可按需覆盖 <paramref name="hasCustomResolution"/>。
+    /// </summary>
+    public static Dictionary<string, bool> CreateDefaultFeatures(bool hasCustomResolution = false) =>
+        new(StringComparer.Ordinal)
+        {
+            ["has_custom_resolution"] = hasCustomResolution,
+            ["is_demo_user"] = false,
+            ["has_quick_plays_support"] = false,
+            ["is_quick_play_singleplayer"] = false,
+            ["is_quick_play_multiplayer"] = false,
+            ["is_quick_play_realms"] = false
+        };
+
     public static bool IsAllowed(JsonElement item, IReadOnlyDictionary<string, bool> features)
     {
         if (!item.TryGetProperty("rules", out var rules) ||

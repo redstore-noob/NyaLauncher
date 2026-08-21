@@ -1,19 +1,23 @@
 using System;
-using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Dialogs;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Pages;
 using NyaLauncher.Avalonia.Plugins;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Avalonia.Windows;
 using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Download;
+using NyaLauncher.Core.Launch;
+using NyaLauncher.Core.Launch.Auth;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia;
 
@@ -29,6 +33,7 @@ public partial class MainWindow : Window
     private readonly DownloadPage _downloadPage;
     private readonly VersionManagerPage _versionManagerPage;
     private readonly SettingsHubPage _settingsPage;
+    private readonly AccountManagePage _accountManagePage;
     private readonly PluginManagerPage _pluginManagerPage;
     private ComponentLibraryWindow? _componentLibraryWindow;
     private TaskDetailsWindow? _taskDetailsWindow;
@@ -47,14 +52,22 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // [诊断] 在标题栏显示当前主题，确认主题加载是否正确
+        var loadedTheme = Pages.ThemeSettings.LoadTheme();
+        var accent = Application.Current?.Resources.TryGetValue("AccentBrush", out var a) == true ? a : "null";
+        var bg = Application.Current?.Resources.TryGetValue("WindowBgBrush", out var b) == true ? b : "null";
+        Title = $"NyaLauncher [{loadedTheme}] Accent={accent} Bg={bg}";
+
         // 让 config.json 与 workspace.json 存放在同一目录（含自定义存储目录）。
         LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+        try { DownloadSettings.ApplySavedSettings(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"下载设置恢复失败，使用默认值：{ex.Message}"); }
         _pluginManager = new PluginManager(
             _profileStore.StorageDirectory,
             FeatureAreas,
             Workspace.DrainPluginComponentsAsync);
         _pluginRepositoryClient = new PluginRepositoryClient();
-        _gameLaunchService = new GameLaunchService(_pluginManager);
+        _gameLaunchService = new GameLaunchService(_pluginManager.BuildLaunchTransformAsync);
         _gameLaunchService.Changed += OnGameLaunchChanged;
         _gameDownloadService = new GameDownloadService();
         _gameDownloadService.Changed += OnGameDownloadChanged;
@@ -63,7 +76,6 @@ public partial class MainWindow : Window
             NavigateFromAction,
             _minecraftProfileService,
             _gameLaunchService,
-            EditPlayerAppearanceAsync,
             _pluginManager));
         var profile = _profileStore.Load();
         FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
@@ -93,6 +105,13 @@ public partial class MainWindow : Window
             _pluginManager,
             _pluginRepositoryClient);
         _settingsPage.PersonalizationSaved += OnPersonalizationSaved;
+        _settingsPage.AccountManageRequested += OnAccountManageRequested;
+        _settingsPage.InstanceManageRequested += (_, _) =>
+        {
+            _versionManagerPage.Activate();
+            ShowPage(_versionManagerPage, "版本管理");
+        };
+        _accountManagePage = new AccountManagePage();
 
         AddHandler(
             KeyDownEvent,
@@ -168,9 +187,12 @@ public partial class MainWindow : Window
         switch (actionId)
         {
             case "select-instance":
-            case "account":
             case "launch":
                 ShowPage(_launchPage, "启动游戏");
+                break;
+
+            case "account":
+                ShowPage(_accountManagePage, "账户管理");
                 break;
 
             case "instances":
@@ -180,8 +202,8 @@ public partial class MainWindow : Window
                 break;
 
             case "account-login":
-                ShowPage(_launchPage, "账号登录");
-                _launchPage.ShowAccountLogin();
+                // 只打开账户管理页面即可，登录遮罩由页面内的"＋ 添加账户"按钮唤起
+                ShowPage(_accountManagePage, "账户管理");
                 break;
 
             case "downloads":
@@ -219,6 +241,12 @@ public partial class MainWindow : Window
     {
         _settingsPage.SelectSection(section);
         ShowPage(_settingsPage, "设置");
+    }
+
+    /// <summary>设置页中的账户管理入口：切换到新的账户管理页面。</summary>
+    private void OnAccountManageRequested(object? sender, EventArgs e)
+    {
+        ShowPage(_accountManagePage, "账户管理");
     }
 
     private void ShowWorkspace()
@@ -269,8 +297,8 @@ public partial class MainWindow : Window
         if (download.IsActive)
         {
             TaskActivityButton.IsVisible = true;
-            TaskActivityButton.Background = Brush.Parse("#2E8C78");
-            TaskActivityButton.BorderBrush = Brush.Parse("#75D9BE");
+            TaskActivityButton.Background = ThemePolygonHelper.TaskDownloadingBg;
+            TaskActivityButton.BorderBrush = ThemePolygonHelper.TaskDownloadingBorder;
             TaskActivityGlyph.Text = "↓";
             TaskActivityProgress.IsVisible = true;
             TaskActivityProgress.IsIndeterminate = download.TotalBytes <= 0;
@@ -287,8 +315,8 @@ public partial class MainWindow : Window
         if (!launch.ShouldShowIndicator)
             return;
 
-        TaskActivityButton.Background = Brush.Parse("#5968E8");
-        TaskActivityButton.BorderBrush = Brush.Parse("#9AA5FF");
+        TaskActivityButton.Background = ThemePolygonHelper.TaskLaunchingBg;
+        TaskActivityButton.BorderBrush = ThemePolygonHelper.TaskLaunchingBorder;
         TaskActivityProgress.IsVisible = launch.Phase == GameLaunchPhase.Preparing;
         TaskActivityProgress.IsIndeterminate = launch.Phase == GameLaunchPhase.Preparing;
         TaskActivityGlyph.Text = launch.Phase switch
@@ -335,141 +363,6 @@ public partial class MainWindow : Window
         {
             _taskDetailsWindow = null;
             ShowStatus($"任务详情窗口打开失败：{exception.Message}");
-        }
-    }
-
-    private Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
-        EditPlayerAppearanceAsync(
-            PlayerAppearanceRequest request,
-            CancellationToken cancellationToken)
-    {
-        // Polygon runtimes execute actions on a worker thread so a plugin's
-        // synchronous work cannot block Avalonia. This built-in callback owns
-        // file pickers, dialogs and status controls, so cross the UI boundary
-        // explicitly before touching AccountStore or any window state.
-        return Dispatcher.UIThread.CheckAccess()
-            ? EditPlayerAppearanceOnUiThreadAsync(request, cancellationToken)
-            : Dispatcher.UIThread.InvokeAsync(
-                () => EditPlayerAppearanceOnUiThreadAsync(request, cancellationToken));
-    }
-
-    private async Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
-        EditPlayerAppearanceOnUiThreadAsync(
-            PlayerAppearanceRequest request,
-            CancellationToken cancellationToken)
-    {
-        var account = AccountStore.FindByStableKey(request.AccountKey);
-        if (account?.Type != "microsoft" || account.Microsoft is null)
-        {
-            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Failed(
-                "该正版账号已不存在，请重新选择账号。");
-        }
-
-        try
-        {
-            return request.Command switch
-            {
-                PlayerAppearanceCommand.ChangeSkin =>
-                    await ChangeMicrosoftSkinAsync(account, cancellationToken),
-                PlayerAppearanceCommand.ChangeCape =>
-                    await ChangeMicrosoftCapeAsync(account, cancellationToken),
-                _ => NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Failed(
-                    "未知的玩家外观操作。")
-            };
-        }
-        catch (OperationCanceledException)
-        {
-            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
-                "已取消外观操作。");
-        }
-        catch (Exception exception)
-        {
-            ShowStatus($"玩家外观更新失败：{exception.Message}");
-            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Failed(
-                exception.Message);
-        }
-    }
-
-    private async Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
-        ChangeMicrosoftSkinAsync(LaunchAccount account, CancellationToken cancellationToken)
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "选择 Minecraft Java 皮肤",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Minecraft 皮肤 PNG")
-                {
-                    Patterns = ["*.png"],
-                    MimeTypes = ["image/png"]
-                }
-            ]
-        });
-        var path = files.FirstOrDefault()?.TryGetLocalPath();
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
-                "未选择皮肤文件。");
-        }
-
-        ValidateSkinFile(path);
-        var modelDialog = new SkinModelDialog();
-        var model = await modelDialog.ShowDialog<MinecraftSkinModel?>(this);
-        if (model is null)
-        {
-            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
-                "未选择皮肤模型。");
-        }
-
-        ShowStatus($"正在为 {account.DisplayName} 上传皮肤…");
-        await _minecraftProfileService.UploadSkinAsync(
-            account,
-            path,
-            model.Value,
-            cancellationToken);
-        ShowStatus($"已更新 {account.DisplayName} 的正版皮肤");
-        return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
-            "正版皮肤已更新。");
-    }
-
-    private async Task<NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult>
-        ChangeMicrosoftCapeAsync(LaunchAccount account, CancellationToken cancellationToken)
-    {
-        ShowStatus($"正在读取 {account.DisplayName} 的披风列表…");
-        var profile = await _minecraftProfileService.GetProfileAsync(account, cancellationToken);
-        var dialog = new CapeSelectionDialog(profile);
-        var selection = await dialog.ShowDialog<CapeSelectionResult?>(this);
-        if (selection is null)
-        {
-            ShowStatus("已取消披风选择");
-            return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed();
-        }
-
-        await _minecraftProfileService.SetActiveCapeAsync(
-            account,
-            selection.CapeId,
-            cancellationToken);
-        ShowStatus(selection.CapeId is null
-            ? $"已停用 {account.DisplayName} 的披风"
-            : $"已更新 {account.DisplayName} 的正版披风");
-        return NyaLauncher.Plugin.Abstractions.Components.ComponentActionResult.Completed(
-            selection.CapeId is null ? "已停用披风。" : "正版披风已更新。");
-    }
-
-    private static void ValidateSkinFile(string path)
-    {
-        var file = new FileInfo(path);
-        if (!file.Exists || !string.Equals(file.Extension, ".png", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("皮肤文件必须是本地 PNG 图片。");
-        if (file.Length <= 0 || file.Length > 4 * 1024 * 1024)
-            throw new InvalidDataException("皮肤文件为空或超过 4 MiB 限制。");
-
-        using var bitmap = new Bitmap(file.FullName);
-        if (bitmap.PixelSize.Width != 64 || bitmap.PixelSize.Height is not (32 or 64))
-        {
-            throw new InvalidDataException(
-                "Minecraft Java 皮肤尺寸必须为 64×64，或兼容旧版的 64×32。");
         }
     }
 
@@ -565,7 +458,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var directoryChanged = !WorkspaceProfileStore.PathsEqual(
+            var directoryChanged = !PathUtil.PathsEqual(
                 _profileStore.StorageDirectory,
                 result.StorageDirectory);
             StorageDirectoryChangeTransaction? storageChange = null;
@@ -830,5 +723,16 @@ public partial class MainWindow : Window
         WorkspaceRestoreIcon.IsVisible = isMaximized;
         PageMaximizeIcon.IsVisible = !isMaximized;
         PageRestoreIcon.IsVisible = isMaximized;
+    }
+
+    private void Control_OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        MainWindowVersionText.Text = "NyaLauncher测试版,功能不稳定,不建议作为日常使用";
+    }
+
+    private void Button_OnClick(object? sender, RoutedEventArgs e)
+    {
+        ShowSettings(SettingsSection.Launcher);
+        e.Handled = true;
     }
 }

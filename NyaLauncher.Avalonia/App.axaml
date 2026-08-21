@@ -1,14 +1,59 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="NyaLauncher.Avalonia.App"
-             RequestedThemeVariant="Dark">
+             >
 
   <Application.Resources>
-    <Color x:Key="SystemAccentColor">#7C8CFF</Color>
-    <Color x:Key="SystemAccentColorDark1">#6C7BFF</Color>
-    <Color x:Key="SystemAccentColorDark2">#5868EA</Color>
-    <Color x:Key="SystemAccentColorLight1">#98A3FF</Color>
-    <FontFamily x:Key="ContentFontTheme">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
+    <FontFamily x:Key="ContentFontTheme">avares://NyaLauncher.Avalonia/Resources/Fonts#HarmonyOS Sans, avares://NyaLauncher.Avalonia/Resources/Fonts#Noto Color Emoji</FontFamily>
+    <SolidColorBrush x:Key="TransparentBrush">#00000000</SolidColorBrush>
+    <SolidColorBrush x:Key="WhiteBrush">#FFFFFFFF</SolidColorBrush>
+    <SolidColorBrush x:Key="WindowBgBrush">#111522</SolidColorBrush>
+    <SolidColorBrush x:Key="BaseBgBrush">#151A29</SolidColorBrush>
+    <SolidColorBrush x:Key="PanelBgBrush">#1B2132</SolidColorBrush>
+    <SolidColorBrush x:Key="SurfaceBgBrush">#222A3E</SolidColorBrush>
+    <SolidColorBrush x:Key="CardBgBrush">#20283D</SolidColorBrush>
+    <SolidColorBrush x:Key="ControlBgBrush">#171D2C</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBgBrush">#2A334B</SolidColorBrush>
+    <SolidColorBrush x:Key="OverlayBgBrush">#CC0B0E17</SolidColorBrush>
+    <SolidColorBrush x:Key="BadgeBgBrush">#293249</SolidColorBrush>
+    <SolidColorBrush x:Key="HighlightBgBrush">#313B58</SolidColorBrush>
+    <SolidColorBrush x:Key="IconBoxBgBrush">#303A55</SolidColorBrush>
+    <SolidColorBrush x:Key="DockHintBgBrush">#252D43</SolidColorBrush>
+    <SolidColorBrush x:Key="DropPreviewBgBrush">#556C7BFF</SolidColorBrush>
+    <SolidColorBrush x:Key="DropPreviewBorderBrush">#9AA6FF</SolidColorBrush>
+    <SolidColorBrush x:Key="SidebarDropPreviewBgBrush">#444F64B9</SolidColorBrush>
+    <SolidColorBrush x:Key="SidebarDropPreviewBorderBrush">#7F8DDA</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentBrush">#7C8CFF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentBrightBrush">#9AA6FF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentLightBrush">#AEB8FF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentDarkBrush">#6473DF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentDarkerBrush">#4D59B7</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentDeepBrush">#38447A</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentDeepDarkBrush">#29335E</SolidColorBrush>
+    <SolidColorBrush x:Key="SystemAccentColor">#7C8CFF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentTextBrush">#AEB8FF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentTextColor">#AEB8FF</SolidColorBrush>
+    <SolidColorBrush x:Key="LinkTextBrush">#9AA6FF</SolidColorBrush>
+    <SolidColorBrush x:Key="LinkTextColor">#9AA6FF</SolidColorBrush>
+    <SolidColorBrush x:Key="PrimaryTextBrush">#F6F7FF</SolidColorBrush>
+    <SolidColorBrush x:Key="BodyTextBrush">#E1E5F2</SolidColorBrush>
+    <SolidColorBrush x:Key="SecondaryTextBrush">#C1C8DB</SolidColorBrush>
+    <SolidColorBrush x:Key="SubtextTextBrush">#A5AEC7</SolidColorBrush>
+    <SolidColorBrush x:Key="TertiaryTextBrush">#8993AD</SolidColorBrush>
+    <SolidColorBrush x:Key="MutedTextBrush">#7E88A4</SolidColorBrush>
+    <SolidColorBrush x:Key="HintTextBrush">#737D98</SolidColorBrush>
+    <SolidColorBrush x:Key="PlaceholderTextBrush">#626C86</SolidColorBrush>
+    <SolidColorBrush x:Key="DisabledTextBrush">#566079</SolidColorBrush>
+    <SolidColorBrush x:Key="DefaultBorderBrush">#38435F</SolidColorBrush>
+    <SolidColorBrush x:Key="SubtleBorderBrush">#303A53</SolidColorBrush>
+    <SolidColorBrush x:Key="MediumBorderBrush">#465372</SolidColorBrush>
+    <SolidColorBrush x:Key="StrongBorderBrush">#596889</SolidColorBrush>
+    <SolidColorBrush x:Key="EmphasizedBorderBrush">#6878A5</SolidColorBrush>
+    <SolidColorBrush x:Key="SuccessBrush">#75D6A3</SolidColorBrush>
+    <SolidColorBrush x:Key="WarningBrush">#F2C66D</SolidColorBrush>
+    <SolidColorBrush x:Key="ErrorBrush">#FF8E9B</SolidColorBrush>
+    <SolidColorBrush x:Key="ErrorDarkBrush">#8C4652</SolidColorBrush>
+    <SolidColorBrush x:Key="InfoBrush">#79B8FF</SolidColorBrush>
   </Application.Resources>
 
   <Application.Styles>

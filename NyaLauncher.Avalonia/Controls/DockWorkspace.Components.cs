@@ -12,6 +12,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Controls;
@@ -189,14 +190,14 @@ public partial class DockWorkspace
         {
             var action = definition.Actions[index];
             var normalBackground = action.IsPrimary
-                ? Brush.Parse("#6C7BFF")
-                : Brush.Parse("#22283A");
+                ? ThemeBrushes.ComponentPrimaryBg
+                : ThemeBrushes.ComponentBg;
             var normalBorderBrush = action.IsPrimary
-                ? Brush.Parse("#8D98FF")
-                : Brush.Parse("#31394F");
+                ? ThemeBrushes.ComponentPrimaryBorder
+                : ThemeBrushes.ComponentBorder;
             var hoverBackground = action.IsPrimary
-                ? Brush.Parse("#7886FF")
-                : Brush.Parse("#2D354D");
+                ? ThemeBrushes.ComponentPrimaryHoverBg
+                : ThemeBrushes.ComponentHoverBg;
             Button? button = null;
             PolygonComponentView? polygonView = null;
             Control componentSurface;
@@ -243,12 +244,12 @@ public partial class DockWorkspace
                     Width = 38,
                     Height = 38,
                     CornerRadius = new CornerRadius(11),
-                    Background = action.IsPrimary ? Brush.Parse("#29FFFFFF") : Brush.Parse("#2D354D"),
+                    Background = action.IsPrimary ? ThemeBrushes.ComponentPrimaryBg : ThemeBrushes.ComponentHoverBg,
                     Child = new TextBlock
                     {
                         Text = action.Glyph,
                         FontSize = 17,
-                        Foreground = Brushes.White,
+                        Foreground = action.IsPrimary ? Brushes.White : ThemeBrushes.Muted,
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center
                     }
@@ -266,14 +267,14 @@ public partial class DockWorkspace
                             Text = action.Title,
                             FontSize = 13,
                             FontWeight = FontWeight.SemiBold,
-                            Foreground = Brushes.White,
+                            Foreground = action.IsPrimary ? Brushes.White : ThemeBrushes.Accent,
                             TextTrimming = TextTrimming.CharacterEllipsis
                         },
                         new TextBlock
                         {
                             Text = action.Description,
                             FontSize = 11,
-                            Foreground = action.IsPrimary ? Brush.Parse("#E0E4FF") : Muted,
+                            Foreground = action.IsPrimary ? ThemePolygonHelper.TertiaryText : Muted,
                             TextTrimming = TextTrimming.CharacterEllipsis
                         }
                     }
@@ -498,12 +499,12 @@ public partial class DockWorkspace
             Width = 38,
             Height = 38,
             CornerRadius = new CornerRadius(11),
-            Background = action.IsPrimary ? Brush.Parse("#35FFFFFF") : Brush.Parse("#38425F"),
+            Background = action.IsPrimary ? ThemeBrushes.ComponentPrimaryBg : ThemeBrushes.ComponentHoverBg,
             Child = new TextBlock
             {
                 Text = action.Glyph,
                 FontSize = 17,
-                Foreground = Brushes.White,
+                Foreground = action.IsPrimary ? Brushes.White : ThemeBrushes.Muted,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
@@ -520,14 +521,14 @@ public partial class DockWorkspace
                     Text = action.Title,
                     FontSize = 13,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = Brushes.White,
+                    Foreground = action.IsPrimary ? Brushes.White : ThemeBrushes.Accent,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 },
                 new TextBlock
                 {
                     Text = action.Description,
                     FontSize = 11,
-                    Foreground = action.IsPrimary ? Brush.Parse("#E8EBFF") : Muted,
+                    Foreground = action.IsPrimary ? ThemePolygonHelper.TertiaryText : Muted,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 }
             }
@@ -537,7 +538,7 @@ public partial class DockWorkspace
         {
             Text = "›",
             FontSize = 22,
-            Foreground = Brushes.White,
+            Foreground = action.IsPrimary ? Brushes.White : Muted,
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(arrow, 2);
@@ -554,7 +555,7 @@ public partial class DockWorkspace
             Height = action.BaseHeight,
             Padding = new Thickness(14, 13),
             CornerRadius = new CornerRadius(14),
-            Background = action.IsPrimary ? Brush.Parse("#7886FF") : Brush.Parse("#2D354D"),
+            Background = action.IsPrimary ? ThemeBrushes.ComponentPrimaryHoverBg : ThemeBrushes.ComponentHoverBg,
             BorderBrush = Accent,
             BorderThickness = new Thickness(2),
             Child = row
@@ -746,12 +747,12 @@ public partial class DockWorkspace
             Width = 38,
             Height = 38,
             CornerRadius = new CornerRadius(11),
-            Background = Brush.Parse("#45527A"),
+            Background = ThemeBrushes.IconBoxBg,
             Child = new TextBlock
             {
                 Text = action.Glyph,
                 FontSize = 17,
-                Foreground = Brushes.White,
+                Foreground = ThemeBrushes.Muted,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
@@ -769,14 +770,14 @@ public partial class DockWorkspace
                     Text = action.Title,
                     FontSize = 13,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = Brushes.White,
+                    Foreground = ThemeBrushes.Accent,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 },
                 new TextBlock
                 {
                     Text = "释放后放置于此",
                     FontSize = 11,
-                    Foreground = Brush.Parse("#DDE1FF")
+                    Foreground = ThemePolygonHelper.TertiaryText
                 }
             }
         };
@@ -795,7 +796,7 @@ public partial class DockWorkspace
             Width = action.BaseWidth,
             Height = action.BaseHeight,
             CornerRadius = new CornerRadius(14),
-            Background = Brush.Parse("#D9343D62"),
+            Background = ThemePolygonHelper.DragPreviewBg,
             BorderBrush = Accent,
             BorderThickness = new Thickness(2),
             Child = content

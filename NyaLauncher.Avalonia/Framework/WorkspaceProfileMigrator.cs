@@ -17,12 +17,17 @@ internal static class WorkspaceProfileMigrator
     private const int GameLaunchComponentVersion = 5;
     private const int VersionManagerComponentVersion = 6;
     private const int PluginListComponentVersion = 7;
+    // testplug uses v7 for its plugin-list migration. The non-plugin branch can
+    // safely read that sibling format, discard unavailable component IDs through
+    // the registry, and write its own canonical v6 profile on the next save.
+    private const int CompatiblePluginProfileVersion = 7;
 
     public static WorkspaceProfile Migrate(WorkspaceProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        if (profile.Version > WorkspaceProfile.CurrentVersion)
+        var isCompatiblePluginProfile = profile.Version == CompatiblePluginProfileVersion;
+        if (profile.Version > WorkspaceProfile.CurrentVersion && !isCompatiblePluginProfile)
         {
             throw new NotSupportedException(
                 $"工作区配置版本 {profile.Version} 高于当前支持的版本 " +
@@ -30,6 +35,9 @@ internal static class WorkspaceProfileMigrator
         }
 
         NormalizeShape(profile);
+
+        if (isCompatiblePluginProfile)
+            profile.Version = WorkspaceProfile.CurrentVersion;
 
         if (profile.Version < CanonicalAreaIdsVersion)
         {

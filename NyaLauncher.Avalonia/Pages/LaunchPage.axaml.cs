@@ -6,6 +6,8 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Launch;
+using NyaLauncher.Core.Launch.Auth;
+using NyaLauncher.Core;
 
 namespace NyaLauncher.Avalonia.Pages;
 
@@ -15,6 +17,7 @@ public partial class LaunchPage : UserControl
     private bool _synchronizingAccountSelection;
     private bool _synchronizingVersionSelection;
 
+    /// <summary>XAML 设计器 / Avalonia 反射需要无参构造；运行时由 MainWindow 使用 internal 构造。</summary>
     public LaunchPage()
         : this(new GameLaunchService())
     {
@@ -41,7 +44,7 @@ public partial class LaunchPage : UserControl
         MinecraftPathBox.Text =
             LauncherConfig.GameDirectory ??
             System.Environment.GetEnvironmentVariable("NYALAUNCHER_MINECRAFT_DIR") ??
-            MinecraftDirectoryLocator.GetDefaultDirectory();
+            MinecraftDirectoryLocator.EnsureDefaultDirectory();
         _ = RescanInstallationAsync();
     }
 
@@ -238,5 +241,10 @@ public partial class LaunchPage : UserControl
         GameInstanceStore.Current.VersionIds.Count > 0 &&
         !_launchService.Current.IsBusy &&
         !_launchService.Current.IsGameRunning;
+
+    private void Control_OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        BottomVersionText.Text = NyaLauncherInfo.FormatVersionString();
+    }
 }
 

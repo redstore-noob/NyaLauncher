@@ -45,9 +45,8 @@ internal sealed class PolygonComponentInstancePool(
                 return existing.Instance;
             }
 
-            // A hot-published registration may reuse the same area/component
-            // key while supplying a new factory. Never let it inherit an
-            // instance created by the previous plugin load context.
+            // A refreshed registration may reuse the same area/component key
+            // while supplying a new factory. Never reuse its previous instance.
             Release(key);
         }
 
@@ -63,13 +62,13 @@ internal sealed class PolygonComponentInstancePool(
 
         try
         {
-            var pluginInstance = registration.Factory.Create(
+            var componentInstance = registration.Factory.Create(
                 new ComponentInstanceContext(componentId, areaId));
-            if (pluginInstance is null)
+            if (componentInstance is null)
                 return null;
 
             var instance = new PolygonComponentInstanceHost(
-                pluginInstance,
+                componentInstance,
                 registration.Definition);
             _instances[key] = new InstanceEntry(
                 instance,
@@ -147,8 +146,7 @@ internal sealed class PolygonComponentInstancePool(
         }
         catch (Exception)
         {
-            // A completed fault no longer executes plugin code, so lifecycle
-            // shutdown can continue after the observer records the failure.
+            // 已完成的失败任务不会再执行插件代码；观察器仍会记录并清理。
         }
     }
 

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Core.Launch;
@@ -26,6 +29,50 @@ internal sealed partial class PluginManager
     private const int MaxLaunchContributors = 512;
     private const int MaxMergedEntries = 16384;
     private const int MaxMergedCharacters = 16 * 1024 * 1024;
+
+    public Task<MinecraftLaunchTransform> BuildLaunchTransformAsync(
+        GameInstanceSnapshot instance,
+        string versionId,
+        string gameDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        var descriptor = CreateInstanceDescriptor(instance, versionId, gameDirectory);
+        return BuildLaunchTransformAsync(descriptor, cancellationToken);
+    }
+
+    internal static MinecraftInstanceDescriptor CreateInstanceDescriptor(
+        GameInstanceSnapshot instance,
+        string versionId,
+        string gameDirectory)
+    {
+        var minecraftDirectory = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(instance.MinecraftDirectory));
+        var normalizedGameDirectory = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(gameDirectory));
+        var identityPath = OperatingSystem.IsWindows()
+            ? minecraftDirectory.ToUpperInvariant()
+            : minecraftDirectory;
+        var identityText = $"{identityPath}\0{versionId}";
+        var instanceId = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(identityText))).ToLowerInvariant();
+        return new MinecraftInstanceDescriptor
+        {
+            InstanceId = instanceId,
+            DisplayName = versionId,
+            VersionId = versionId,
+            MinecraftDirectory = minecraftDirectory,
+            GameDirectory = normalizedGameDirectory,
+            Metadata = new ReadOnlyDictionary<string, string>(
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["versionDirectory"] = Path.Combine(
+                        minecraftDirectory,
+                        "versions",
+                        versionId),
+                    ["sourcePath"] = instance.SourcePath
+                })
+        };
+    }
 
     /// <summary>
     /// Runs all enabled contributors against per-contributor immutable snapshots.

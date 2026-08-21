@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using NyaLauncher.Avalonia.Themes;
 
 namespace NyaLauncher.Avalonia.Framework;
 
@@ -36,7 +37,7 @@ public static class FeatureIconFactory
             Text = string.IsNullOrWhiteSpace(glyph) ? "◇" : glyph,
             FontSize = fontSize,
             FontWeight = FontWeight.Bold,
-            Foreground = Brush.Parse("#C8CEFF"),
+            Foreground = ThemePolygonHelper.AccentGlyph,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };

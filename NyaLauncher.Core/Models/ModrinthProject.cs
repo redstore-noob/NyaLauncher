@@ -32,7 +32,7 @@ public class ModrinthProject
     public string ProjectType { get; set; } = string.Empty;
 
     [JsonPropertyName("downloads")]
-    public int Downloads { get; set; }
+    public long Downloads { get; set; }
 
     [JsonPropertyName("follows")]
     public int Follows { get; set; }

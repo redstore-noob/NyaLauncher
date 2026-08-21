@@ -78,15 +78,8 @@ internal sealed class MinecraftArgumentBuilder
             ["resolution_height"] = options.WindowHeight.ToString()
         };
 
-        var features = new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["has_custom_resolution"] = options.WindowWidth > 0 && options.WindowHeight > 0,
-            ["is_demo_user"] = false,
-            ["has_quick_plays_support"] = false,
-            ["is_quick_play_singleplayer"] = false,
-            ["is_quick_play_multiplayer"] = false,
-            ["is_quick_play_realms"] = false
-        };
+        var features = MinecraftRuleEvaluator.CreateDefaultFeatures(
+            options.WindowWidth > 0 && options.WindowHeight > 0);
 
         var result = new List<string>();
         result.AddRange(prependJvmArguments);
@@ -94,6 +87,16 @@ internal sealed class MinecraftArgumentBuilder
             $"-Xms{options.MinimumMemoryMb}M",
             $"-Xmx{options.MaximumMemoryMb}M"
         ]);
+
+        // 通用 JVM 性能优化参数
+        result.Add("-XX:+UnlockExperimentalVMOptions");
+        result.Add("-XX:+UseG1GC");
+        result.Add("-XX:G1NewSizePercent=20");
+        result.Add("-XX:G1ReservePercent=20");
+        result.Add("-XX:MaxGCPauseMillis=50");
+        result.Add("-XX:G1HeapRegionSize=32M");
+        result.Add("-XX:+AlwaysPreTouch");
+
         result.AddRange(options.AdditionalJvmArguments);
 
         if (profile.JvmArguments.Count > 0)

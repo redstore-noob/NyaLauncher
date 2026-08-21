@@ -5,6 +5,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 
 namespace NyaLauncher.Avalonia.Controls;
 
@@ -26,6 +27,23 @@ internal static class ComponentImageLoader
 
     private static readonly ConcurrentDictionary<string, Task<byte[]>> RemoteCache =
         new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 把裁剪区域钳制在位图范围内：起点不小于 0、不超过右下角，
+    /// 宽高不小于 1 且不超过位图剩余空间。Minecraft 皮肤组件与
+    /// <see cref="AsyncImage"/> 的头像显示都复用这一实现。
+    /// </summary>
+    internal static PixelRect ClampCropRect(PixelRect crop, PixelSize pixelSize)
+    {
+        if (pixelSize.Width <= 0 || pixelSize.Height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(pixelSize));
+
+        var x = Math.Clamp(crop.X, 0, pixelSize.Width - 1);
+        var y = Math.Clamp(crop.Y, 0, pixelSize.Height - 1);
+        var width = Math.Clamp(crop.Width, 1, pixelSize.Width - x);
+        var height = Math.Clamp(crop.Height, 1, pixelSize.Height - y);
+        return new PixelRect(x, y, width, height);
+    }
 
     internal static string SnapshotSource(string? source)
     {

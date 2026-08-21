@@ -9,7 +9,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using NyaLauncher.Avalonia.Pages;
 using NyaLauncher.Core.Launch.Auth;
 
 namespace NyaLauncher.Avalonia.Framework;

@@ -334,14 +334,14 @@ public sealed class PolygonComponentView : UserControl
         var label = new TextBlock
         {
             FontSize = 10,
-            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#A5AEC7"),
+            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#96B8A6"),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var valueText = new TextBlock
         {
             FontSize = 10,
             FontWeight = FontWeight.SemiBold,
-            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F6F7FF"),
+            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F0F7F4"),
             HorizontalAlignment = HorizontalAlignment.Right
         };
         Grid.SetColumn(valueText, 1);
@@ -356,8 +356,8 @@ public sealed class PolygonComponentView : UserControl
             Minimum = definition.Minimum,
             Maximum = definition.Maximum,
             Height = 7,
-            Foreground = ParseBrush(_definition.Theme.Accent, "#6C7BFF"),
-            Background = ParseBrush(_definition.Theme.ProgressTrack, "#30384F")
+            Foreground = ParseBrush(_definition.Theme.Accent, "#3EC9A0"),
+            Background = ParseBrush(_definition.Theme.ProgressTrack, "#273830")
         };
         var panel = new Grid
         {
@@ -411,9 +411,9 @@ public sealed class PolygonComponentView : UserControl
                 : VerticalAlignment.Center,
             Padding = new Thickness(8, 5),
             FontSize = 11,
-            Background = ParseBrush(_definition.Theme.ProgressTrack, "#30384F"),
-            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F6F7FF"),
-            BorderBrush = ParseBrush(_definition.Theme.Border, "#3A4563"),
+            Background = ParseBrush(_definition.Theme.ProgressTrack, "#273830"),
+            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F0F7F4"),
+            BorderBrush = ParseBrush(_definition.Theme.Border, "#344A40"),
             CornerRadius = new CornerRadius(7)
         };
         SetAutomationName(input, definition);
@@ -478,7 +478,7 @@ public sealed class PolygonComponentView : UserControl
             Content = definition.Label,
             IsChecked = definition.IsChecked,
             FontSize = 11,
-            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F6F7FF"),
+            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F0F7F4"),
             VerticalContentAlignment = VerticalAlignment.Center
         };
         SetAutomationName(toggle, definition);
@@ -534,7 +534,7 @@ public sealed class PolygonComponentView : UserControl
         {
             Text = definition.Label,
             FontSize = 10,
-            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#A5AEC7"),
+            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#96B8A6"),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var valueText = new TextBlock
@@ -542,7 +542,7 @@ public sealed class PolygonComponentView : UserControl
             Text = FormatSliderLabel(definition.Value),
             FontSize = 10,
             FontWeight = FontWeight.SemiBold,
-            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F6F7FF"),
+            Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F0F7F4"),
             HorizontalAlignment = HorizontalAlignment.Right
         };
         Grid.SetColumn(valueText, 1);
@@ -667,7 +667,7 @@ public sealed class PolygonComponentView : UserControl
             Text = definition.FallbackText,
             FontSize = 18,
             FontWeight = FontWeight.Bold,
-            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#A5AEC7"),
+            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#96B8A6"),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -819,14 +819,8 @@ public sealed class PolygonComponentView : UserControl
         int y,
         int width,
         int height,
-        PixelSize pixelSize)
-    {
-        var clampedX = Math.Clamp(x, 0, pixelSize.Width - 1);
-        var clampedY = Math.Clamp(y, 0, pixelSize.Height - 1);
-        var clampedWidth = Math.Clamp(width, 1, pixelSize.Width - clampedX);
-        var clampedHeight = Math.Clamp(height, 1, pixelSize.Height - clampedY);
-        return new PixelRect(clampedX, clampedY, clampedWidth, clampedHeight);
-    }
+        PixelSize pixelSize) =>
+        ComponentImageLoader.ClampCropRect(new PixelRect(x, y, width, height), pixelSize);
 
     private ElementVisual CreateButtonElement(ButtonElementDefinition definition)
     {
@@ -842,11 +836,11 @@ public sealed class PolygonComponentView : UserControl
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Background = definition.IsPrimary
-                ? ParseBrush(_definition.Theme.Accent, "#6C7BFF")
-                : ParseBrush(_definition.Theme.ProgressTrack, "#30384F"),
+                ? ParseBrush(_definition.Theme.Accent, "#3EC9A0")
+                : ParseBrush(_definition.Theme.ProgressTrack, "#273830"),
             Foreground = definition.IsPrimary
                 ? ParseBrush(_definition.Theme.AccentForeground, "#FFFFFF")
-                : ParseBrush(_definition.Theme.TextPrimary, "#F6F7FF"),
+                : ParseBrush(_definition.Theme.TextPrimary, "#F0F7F4"),
             BorderThickness = new Thickness(0),
             Cursor = new Cursor(StandardCursorType.Hand)
         };
@@ -888,7 +882,7 @@ public sealed class PolygonComponentView : UserControl
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Background = Brushes.Transparent,
-            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#A5AEC7"),
+            Foreground = ParseBrush(_definition.Theme.TextSecondary, "#96B8A6"),
             BorderThickness = new Thickness(0),
             Cursor = new Cursor(StandardCursorType.Hand),
             ContextMenu = menu
@@ -951,7 +945,7 @@ public sealed class PolygonComponentView : UserControl
         {
             Text = item.Glyph,
             FontSize = 15,
-            Foreground = ParseBrush(_definition.Theme.Accent, "#6C7BFF"),
+            Foreground = ParseBrush(_definition.Theme.Accent, "#3EC9A0"),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -971,19 +965,20 @@ public sealed class PolygonComponentView : UserControl
         };
         if (item.IsSelected)
         {
+            // 选中标记：✓ 显示在强调色徽章上，前景色跟随主题
             iconLayer.Children.Add(new Border
             {
                 Width = 13,
                 Height = 13,
                 CornerRadius = new CornerRadius(7),
-                Background = ParseBrush(_definition.Theme.Accent, "#6C7BFF"),
+                Background = ParseBrush(_definition.Theme.Accent, "#3EC9A0"),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Child = new TextBlock
                 {
                     Text = "✓",
                     FontSize = 8,
-                    Foreground = Brushes.White,
+                    Foreground = ParseBrush(_definition.Theme.AccentForeground, "#FFFFFF"),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 }
@@ -995,7 +990,7 @@ public sealed class PolygonComponentView : UserControl
             Height = 32,
             Margin = new Thickness(0, 0, 8, 0),
             CornerRadius = new CornerRadius(6),
-            Background = ParseBrush("#222A3D", "#222A3D"),
+            Background = ThemeBrush("ControlBgBrush", "#1E2E27"),
             ClipToBounds = true,
             Child = iconLayer
         };
@@ -1010,7 +1005,7 @@ public sealed class PolygonComponentView : UserControl
                     Text = item.Text,
                     FontSize = 12,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F6F7FF")
+                    Foreground = ParseBrush(_definition.Theme.TextPrimary, "#F0F7F4")
                 }
             }
         };
@@ -1020,7 +1015,7 @@ public sealed class PolygonComponentView : UserControl
             {
                 Text = item.SecondaryText,
                 FontSize = 10,
-                Foreground = ParseBrush(_definition.Theme.TextSecondary, "#A5AEC7")
+                Foreground = ParseBrush(_definition.Theme.TextSecondary, "#96B8A6")
             });
         }
 
@@ -1038,7 +1033,7 @@ public sealed class PolygonComponentView : UserControl
     {
         return new Border
         {
-            Background = ParseBrush("#332A3042", "#332A3042"),
+            Background = ThemeBrush("DragHandleBgBrush", "#332A3042"),
             CornerRadius = new CornerRadius(7),
             Cursor = new Cursor(StandardCursorType.SizeAll),
             IsVisible = false,
@@ -1048,7 +1043,7 @@ public sealed class PolygonComponentView : UserControl
                 Text = "⠿",
                 FontSize = 14,
                 FontWeight = FontWeight.Bold,
-                Foreground = ParseBrush(_definition.Theme.TextSecondary, "#A5AEC7"),
+                Foreground = ParseBrush(_definition.Theme.TextSecondary, "#96B8A6"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             }
@@ -1195,12 +1190,27 @@ public sealed class PolygonComponentView : UserControl
     private void ApplyVisualState()
     {
         var hover = _visualState == PolygonComponentVisualState.Hovered;
-        _surface.Fill = ParseBrush(
-            hover ? _definition.Theme.SurfaceHover : _definition.Theme.Surface,
-            hover ? "#2D354D" : "#22283A");
-        _surface.Stroke = ParseBrush(
-            hover ? _definition.Theme.BorderHover : _definition.Theme.Border,
-            hover ? "#7C8CFF" : "#3A4563");
+        if (!string.IsNullOrWhiteSpace(hover ? _definition.Theme.SurfaceHover : _definition.Theme.Surface))
+        {
+            _surface.Fill = ParseBrush(
+                hover ? _definition.Theme.SurfaceHover : _definition.Theme.Surface,
+                "#1B2822");
+        }
+        else
+        {
+            _surface.Fill = hover ? ThemeBrush("HighlightBgBrush", "#243830") : ThemeBrush("ComponentBgBrush", "#1B2822");
+        }
+
+        if (!string.IsNullOrWhiteSpace(hover ? _definition.Theme.BorderHover : _definition.Theme.Border))
+        {
+            _surface.Stroke = ParseBrush(
+                hover ? _definition.Theme.BorderHover : _definition.Theme.Border,
+                "#344A40");
+        }
+        else
+        {
+            _surface.Stroke = hover ? ThemeBrush("AccentBrush", "#3EC9A0") : ThemeBrush("ComponentBorderBrush", "#344A40");
+        }
         _surface.StrokeThickness = hover
             ? Math.Max(2, _definition.Theme.BorderThickness)
             : _definition.Theme.BorderThickness;
@@ -1215,8 +1225,8 @@ public sealed class PolygonComponentView : UserControl
     private void ApplyTextRole(TextBlock block, ComponentTextRole role)
     {
         block.Foreground = role == ComponentTextRole.Caption
-            ? ParseBrush(_definition.Theme.TextSecondary, "#A5AEC7")
-            : ParseBrush(_definition.Theme.TextPrimary, "#F6F7FF");
+            ? ParseBrush(_definition.Theme.TextSecondary, "#96B8A6")
+            : ParseBrush(_definition.Theme.TextPrimary, "#F0F7F4");
         block.FontWeight = role switch
         {
             ComponentTextRole.Title => FontWeight.Bold,
@@ -1235,6 +1245,9 @@ public sealed class PolygonComponentView : UserControl
                 : definition.AutomationName);
     }
 
+    /// <summary>
+    /// 解析画笔：优先使用组件主题值，fallback 为硬编码兜底色。
+    /// </summary>
     private static IBrush ParseBrush(string? value, string fallback)
     {
         try
@@ -1245,6 +1258,18 @@ public sealed class PolygonComponentView : UserControl
         {
             return Brush.Parse(fallback);
         }
+    }
+
+    /// <summary>
+    /// 从 Application.Current.Resources 读取主题画笔，不存在时返回 fallback。
+    /// 用于不经过 _definition.Theme 的直接资源读取场景。
+    /// </summary>
+    private static IBrush ThemeBrush(string resourceKey, string fallback)
+    {
+        var app = Application.Current;
+        if (app?.Resources.TryGetValue(resourceKey, out var res) == true && res is IBrush brush)
+            return brush;
+        return Brush.Parse(fallback);
     }
 
     private static double ParseSliderValue(

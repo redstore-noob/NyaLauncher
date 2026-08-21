@@ -30,7 +30,7 @@ public sealed class MinecraftVersionInstaller
 {
     public const int StageCount = 7;
     private const int BufferSize = 128 * 1024;
-    private const int MaximumParallelDownloads = 8;
+    private static int MaximumParallelDownloads => DownloadSettings.ParallelDownloads;
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(120);
     private static readonly long ProgressIntervalStopwatchTicks =
         (long)(Stopwatch.Frequency * ProgressInterval.TotalSeconds);
@@ -57,9 +57,26 @@ public sealed class MinecraftVersionInstaller
         Report(progress, 1, "获取版本元数据", $"正在读取 Minecraft {versionId} 的版本描述", 0, 0, 0, 0, 0);
         var metadataBytes = await DownloadBytesAsync(metadataUrl, cancellationToken)
             .ConfigureAwait(false);
-        using var metadata = JsonDocument.Parse(metadataBytes);
+
+        await InstallFromMetadataBytesAsync(versionId, root, metadataBytes, progress, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 从已有的元数据字节流完成安装（供 ModLoaderInstaller 传入从 JAR 提取的版本 JSON）。
+    /// </summary>
+    internal async Task InstallFromMetadataBytesAsync(
+        string versionId,
+        string root,
+        byte[] metadataBytes,
+        IProgress<MinecraftInstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(Path.Combine(root, "versions"));
 
         Report(progress, 2, "分析下载清单", "正在整理客户端、依赖库与资源索引", 0, 0, 0, 0, 0);
+        using var metadata = JsonDocument.Parse(metadataBytes);
         var versionDirectory = Path.Combine(root, "versions", versionId);
         Directory.CreateDirectory(versionDirectory);
         var clientFiles = CreateClientPlan(metadata.RootElement, versionId, versionDirectory);
@@ -69,10 +86,10 @@ public sealed class MinecraftVersionInstaller
         var completedBytes = 0L;
         var networkBytes = 0L;
         var completedFiles = 0;
-        var totalBytes = clientFiles.Concat(libraryFiles)
-            .Append(assetIndexFile)
-            .Sum(file => Math.Max(0, file.Size));
-        var totalFiles = clientFiles.Count + libraryFiles.Count + 1;
+        var totalBytes = clientFiles.Concat(libraryFiles).Sum(file => Math.Max(0, file.Size))
+            + (assetIndexFile is not null ? Math.Max(0, assetIndexFile.Size) : 0);
+        var totalFiles = clientFiles.Count + libraryFiles.Count
+            + (assetIndexFile is not null ? 1 : 0);
         var stopwatch = Stopwatch.StartNew();
 
         await DownloadStageAsync(
@@ -109,25 +126,30 @@ public sealed class MinecraftVersionInstaller
                 cancellationToken)
             .ConfigureAwait(false);
 
-        await DownloadStageAsync(
-                5,
-                "下载资源索引",
-                [assetIndexFile],
-                progress,
-                () => Volatile.Read(ref completedBytes),
-                value => Interlocked.Add(ref completedBytes, value),
-                () => Volatile.Read(ref networkBytes),
-                value => Interlocked.Add(ref networkBytes, value),
-                () => Volatile.Read(ref completedFiles),
-                () => Interlocked.Increment(ref completedFiles),
-                () => Volatile.Read(ref totalBytes),
-                () => Volatile.Read(ref totalFiles),
-                stopwatch,
-                cancellationToken)
-            .ConfigureAwait(false);
+        if (assetIndexFile is not null)
+        {
+            await DownloadStageAsync(
+                    5,
+                    "下载资源索引",
+                    [assetIndexFile],
+                    progress,
+                    () => Volatile.Read(ref completedBytes),
+                    value => Interlocked.Add(ref completedBytes, value),
+                    () => Volatile.Read(ref networkBytes),
+                    value => Interlocked.Add(ref networkBytes, value),
+                    () => Volatile.Read(ref completedFiles),
+                    () => Interlocked.Increment(ref completedFiles),
+                    () => Volatile.Read(ref totalBytes),
+                    () => Volatile.Read(ref totalFiles),
+                    stopwatch,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
 
-        var assetFiles = await CreateAssetPlanAsync(assetIndexFile.TargetPath, root, cancellationToken)
-            .ConfigureAwait(false);
+        var assetFiles = assetIndexFile is not null
+            ? await CreateAssetPlanAsync(assetIndexFile.TargetPath, root, cancellationToken)
+                  .ConfigureAwait(false)
+            : [];
         Interlocked.Add(ref totalBytes, assetFiles.Sum(file => Math.Max(0, file.Size)));
         Interlocked.Add(ref totalFiles, assetFiles.Count);
         await DownloadStageAsync(
@@ -181,7 +203,8 @@ public sealed class MinecraftVersionInstaller
         if (!root.TryGetProperty("downloads", out var downloads) ||
             !downloads.TryGetProperty("client", out var client))
         {
-            throw new InvalidDataException("版本元数据缺少客户端下载信息。");
+            // Mod Loader 版本 JSON 不含 client 下载信息（通过 inheritsFrom 继承原版），正常跳过。
+            return [];
         }
 
         return
@@ -202,15 +225,7 @@ public sealed class MinecraftVersionInstaller
         }
 
         var result = new Dictionary<string, DownloadFile>(StringComparer.OrdinalIgnoreCase);
-        var features = new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["has_custom_resolution"] = true,
-            ["is_demo_user"] = false,
-            ["has_quick_plays_support"] = false,
-            ["is_quick_play_singleplayer"] = false,
-            ["is_quick_play_multiplayer"] = false,
-            ["is_quick_play_realms"] = false
-        };
+        var features = MinecraftRuleEvaluator.CreateDefaultFeatures(hasCustomResolution: true);
         foreach (var library in libraries.EnumerateArray())
         {
             if (!MinecraftRuleEvaluator.IsAllowed(library, features))
@@ -251,12 +266,13 @@ public sealed class MinecraftVersionInstaller
 
             if (!library.TryGetProperty("name", out var nameElement))
                 continue;
-            var relativePath = CreateMavenPath(nameElement.GetString());
+            var libraryName = nameElement.GetString();
+            var relativePath = CreateMavenPath(libraryName);
             if (relativePath is null)
                 continue;
             var baseUrl = library.TryGetProperty("url", out var urlElement)
                 ? urlElement.GetString()
-                : "https://libraries.minecraft.net/";
+                : InferMavenRepository(libraryName);
             if (string.IsNullOrWhiteSpace(baseUrl))
                 baseUrl = "https://libraries.minecraft.net/";
             var url = $"{baseUrl.TrimEnd('/')}/{relativePath.Replace('\\', '/')}";
@@ -269,10 +285,10 @@ public sealed class MinecraftVersionInstaller
         return result.Values.ToArray();
     }
 
-    private static DownloadFile CreateAssetIndexPlan(JsonElement root, string minecraftDirectory)
+    private static DownloadFile? CreateAssetIndexPlan(JsonElement root, string minecraftDirectory)
     {
         if (!root.TryGetProperty("assetIndex", out var assetIndex))
-            throw new InvalidDataException("版本元数据缺少资源索引。");
+            return null; // Mod Loader 版本 JSON 不含资源索引（通过 inheritsFrom 继承）。
         var id = assetIndex.TryGetProperty("id", out var idElement)
             ? idElement.GetString()
             : root.TryGetProperty("assets", out var assetsElement)
@@ -436,52 +452,73 @@ public sealed class MinecraftVersionInstaller
         if (!string.IsNullOrWhiteSpace(directory))
             Directory.CreateDirectory(directory);
         var temporaryPath = $"{file.TargetPath}.nya-download";
-        try
+
+        var resolvedUrl = DownloadSourceProvider.Resolve(file.Url);
+        var fallbackUrl = DownloadSourceProvider.ResolveFallback(file.Url);
+        var urls = fallbackUrl is not null && !string.Equals(resolvedUrl, fallbackUrl, StringComparison.OrdinalIgnoreCase)
+            ? new[] { resolvedUrl, fallbackUrl }
+            : new[] { resolvedUrl };
+
+        Exception? lastException = null;
+        foreach (var url in urls)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, ValidateHttpsUrl(file.Url));
-            using var response = await HttpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken)
-                .ConfigureAwait(false);
-            await using (var destination = new FileStream(
-                             temporaryPath,
-                             FileMode.Create,
-                             FileAccess.Write,
-                             FileShare.None,
-                             BufferSize,
-                             useAsync: true))
+            try
             {
-                var buffer = new byte[BufferSize];
-                while (true)
+                try
                 {
-                    var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-                    if (read == 0)
-                        break;
-                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                    using var request = new HttpRequestMessage(HttpMethod.Get, ValidateHttpsUrl(url));
+                    using var response = await HttpClient.SendAsync(
+                            request,
+                            HttpCompletionOption.ResponseHeadersRead,
+                            cancellationToken)
                         .ConfigureAwait(false);
-                    addCompletedBytes(read);
-                    reportProgress();
+                    response.EnsureSuccessStatusCode();
+                    await using var source = await response.Content.ReadAsStreamAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    await using (var destination = new FileStream(
+                                     temporaryPath,
+                                     FileMode.Create,
+                                     FileAccess.Write,
+                                     FileShare.None,
+                                     BufferSize,
+                                     useAsync: true))
+                    {
+                        var buffer = new byte[BufferSize];
+                        while (true)
+                        {
+                            var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                            if (read == 0)
+                                break;
+                            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                                .ConfigureAwait(false);
+                            addCompletedBytes(read);
+                            reportProgress();
+                        }
+                    }
+
+                    if (!await MatchesSha1Async(temporaryPath, file.Sha1, cancellationToken)
+                            .ConfigureAwait(false))
+                    {
+                        throw new InvalidDataException($"下载文件校验失败：{file.DisplayName}");
+                    }
+
+                    File.Move(temporaryPath, file.TargetPath, overwrite: true);
+                    return 0;
+                }
+                catch
+                {
+                    TryDeleteFile(temporaryPath);
+                    throw;
                 }
             }
-
-            if (!await MatchesSha1Async(temporaryPath, file.Sha1, cancellationToken)
-                    .ConfigureAwait(false))
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new InvalidDataException($"下载文件校验失败：{file.DisplayName}");
+                lastException = ex;
+                continue;
             }
+        }
 
-            File.Move(temporaryPath, file.TargetPath, overwrite: true);
-            return 0;
-        }
-        catch
-        {
-            TryDeleteFile(temporaryPath);
-            throw;
-        }
+        throw lastException ?? new InvalidOperationException($"下载失败：{file.DisplayName}");
     }
 
     private static async Task<bool> IsExistingFileValidAsync(
@@ -521,10 +558,23 @@ public sealed class MinecraftVersionInstaller
         string url,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, ValidateHttpsUrl(url));
-        using var response = await HttpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        var resolvedUrl = DownloadSourceProvider.Resolve(url);
+        var fallbackUrl = DownloadSourceProvider.ResolveFallback(url);
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, ValidateHttpsUrl(resolvedUrl));
+            using var response = await HttpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested && fallbackUrl is not null)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, ValidateHttpsUrl(fallbackUrl));
+            using var response = await HttpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static async Task WriteAllBytesAtomicallyAsync(
@@ -597,6 +647,38 @@ public sealed class MinecraftVersionInstaller
             parts[1],
             parts[2],
             $"{parts[1]}-{parts[2]}{classifier}.jar");
+    }
+
+    /// <summary>
+    /// 根据 Maven 坐标的 group ID 推断最可能的仓库地址。
+    /// 仅在库条目没有显式 url 且没有 downloads.artifact 时使用。
+    /// </summary>
+    private static string InferMavenRepository(string? coordinate)
+    {
+        if (string.IsNullOrWhiteSpace(coordinate))
+            return "https://libraries.minecraft.net/";
+
+        // NeoForge 系列
+        if (coordinate.StartsWith("net.neoforged", StringComparison.OrdinalIgnoreCase))
+            return "https://maven.neoforged.net/releases/";
+
+        // Forge 系列
+        if (coordinate.StartsWith("net.minecraftforge", StringComparison.OrdinalIgnoreCase))
+            return "https://maven.minecraftforge.net/";
+
+        // Fabric 系列
+        if (coordinate.StartsWith("net.fabricmc", StringComparison.OrdinalIgnoreCase))
+            return "https://maven.fabricmc.net/";
+
+        // Quilt 系列
+        if (coordinate.StartsWith("org.quiltmc", StringComparison.OrdinalIgnoreCase))
+            return "https://maven.quiltmc.org/";
+
+        // MixinExtras (NeoForge 变体)
+        if (coordinate.StartsWith("io.github.llamalad7", StringComparison.OrdinalIgnoreCase))
+            return "https://maven.neoforged.net/releases/";
+
+        return "https://libraries.minecraft.net/";
     }
 
     private static string ResolveRelativePath(string root, string relativePath)

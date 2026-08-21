@@ -1,13 +1,13 @@
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Launch;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia.Framework;
 
@@ -61,7 +61,7 @@ internal static class OfflineSkinCatalog
     {
         cancellationToken.ThrowIfCancellationRequested();
         var choice = Get(id);
-        // Snapshot the shared configuration before dispatch. ConfigFileManage
+        // Snapshot the shared configuration before dispatch. ConfigFileManager
         // owns a mutable JsonDocument and account persistence also uses it on
         // the UI thread, so background work must not read it concurrently.
         var context = CaptureContext();
@@ -127,9 +127,8 @@ internal static class OfflineSkinCatalog
             gameDirectory = null;
         }
 
-        var conventionalDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            ".minecraft");
+        // 默认 .minecraft 目录统一走 Core 的跨平台实现，避免重复硬编码
+        var conventionalDirectory = MinecraftDirectoryLocator.GetDefaultDirectory();
         var key = $"{NormalizePath(storageDirectory)}\0{NormalizePath(gameDirectory)}\0{NormalizePath(conventionalDirectory)}";
         return new CatalogContext(
             key,
@@ -280,7 +279,7 @@ internal static class OfflineSkinCatalog
         var roots = new List<string>();
         if (!string.IsNullOrWhiteSpace(context.GameDirectory))
             roots.Add(context.GameDirectory);
-        if (!roots.Any(root => PathsEqual(root, context.ConventionalDirectory)))
+        if (!roots.Any(root => PathUtil.PathsEqual(root, context.ConventionalDirectory)))
             roots.Add(context.ConventionalDirectory);
 
         var files = new List<(string Path, DateTime LastWriteTimeUtc)>();
@@ -338,23 +337,6 @@ internal static class OfflineSkinCatalog
         catch
         {
             return path.Trim();
-        }
-    }
-
-    private static bool PathsEqual(string left, string right)
-    {
-        try
-        {
-            return string.Equals(
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-                OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
         }
     }
 
@@ -420,53 +402,8 @@ internal static class OfflineSkinCatalog
         pixels[index + 3] = (byte)color;
     }
 
-    private static byte[] EncodePng(int width, int height, byte[] rgba)
-    {
-        using var raw = new MemoryStream();
-        for (var y = 0; y < height; y++)
-        {
-            raw.WriteByte(0);
-            raw.Write(rgba, y * width * 4, width * 4);
-        }
-
-        raw.Position = 0;
-        using var compressed = new MemoryStream();
-        using (var zlib = new ZLibStream(compressed, CompressionLevel.SmallestSize, leaveOpen: true))
-            raw.CopyTo(zlib);
-
-        using var output = new MemoryStream();
-        output.Write([137, 80, 78, 71, 13, 10, 26, 10]);
-        var header = new byte[13];
-        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(0, 4), width);
-        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4, 4), height);
-        header[8] = 8;
-        header[9] = 6;
-        WriteChunk(output, "IHDR", header);
-        WriteChunk(output, "IDAT", compressed.ToArray());
-        WriteChunk(output, "IEND", []);
-        return output.ToArray();
-    }
-
-    private static void WriteChunk(Stream output, string type, byte[] data)
-    {
-        Span<byte> value = stackalloc byte[4];
-        BinaryPrimitives.WriteInt32BigEndian(value, data.Length);
-        output.Write(value);
-        var typeBytes = Encoding.ASCII.GetBytes(type);
-        output.Write(typeBytes);
-        output.Write(data);
-
-        var crc = 0xFFFFFFFFu;
-        foreach (var item in typeBytes.Concat(data))
-        {
-            crc ^= item;
-            for (var bit = 0; bit < 8; bit++)
-                crc = (crc >> 1) ^ (0xEDB88320u & (uint)-(int)(crc & 1));
-        }
-
-        BinaryPrimitives.WriteUInt32BigEndian(value, ~crc);
-        output.Write(value);
-    }
+    private static byte[] EncodePng(int width, int height, byte[] rgba) =>
+        NyaLauncher.Core.Tools.PngEncoder.Encode(width, height, rgba);
 
     private sealed record CatalogContext(
         string Key,

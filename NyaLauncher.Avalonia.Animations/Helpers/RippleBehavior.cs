@@ -45,24 +45,29 @@ public static class RippleBehavior
         Canvas.SetTop(ripple, origin.Value.Y);
         layer.Children.Add(ripple);
 
-        const int frames = 15;
-        for (int i = 1; i <= frames; i++)
+        try
         {
-            var t = i / (double)frames;
-            var eased = 1 - Math.Pow(1 - t, 3);
-            var r = eased * maxRadius;
-            var d = r * 2;
+            const int frames = 15;
+            for (int i = 1; i <= frames; i++)
+            {
+                var t = i / (double)frames;
+                var eased = 1 - Math.Pow(1 - t, 3);
+                var r = eased * maxRadius;
+                var d = r * 2;
 
-            ripple.Width = d;
-            ripple.Height = d;
-            ripple.CornerRadius = new CornerRadius(r);
-            ripple.Opacity = 0.45 * (1 - eased);
-            Canvas.SetLeft(ripple, origin.Value.X - r);
-            Canvas.SetTop(ripple, origin.Value.Y - r);
+                ripple.Width = d;
+                ripple.Height = d;
+                ripple.CornerRadius = new CornerRadius(r);
+                ripple.Opacity = 0.45 * (1 - eased);
+                Canvas.SetLeft(ripple, origin.Value.X - r);
+                Canvas.SetTop(ripple, origin.Value.Y - r);
 
-            await Task.Delay(16);
+                await Task.Delay(16);
+            }
         }
-
-        layer.Children.Remove(ripple);
+        finally
+        {
+            layer.Children.Remove(ripple);
+        }
     }
 }

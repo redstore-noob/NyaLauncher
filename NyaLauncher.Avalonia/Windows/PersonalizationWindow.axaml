@@ -1,0 +1,175 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Windows.PersonalizationWindow"
+             Background="{StaticResource WindowBgBrush}">
+
+  <UserControl.Styles>
+    <Style Selector="Button.Primary">
+      <Setter Property="Background" Value="{StaticResource AccentDarkBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource WhiteBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource AccentLightBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="22,10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.Secondary">
+      <Setter Property="Background" Value="{StaticResource HighlightBgBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource BodyTextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource StrongBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="18,10" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0"
+            Padding="26,22"
+            Background="{StaticResource CardBgBrush}"
+            BorderBrush="{StaticResource DefaultBorderBrush}"
+            BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto"
+            RowDefinitions="Auto,Auto,Auto">
+        <StackPanel Spacing="7">
+          <TextBlock Text="个性化工作区"
+                     FontSize="24"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource PrimaryTextBrush}" />
+          <TextBlock Text="自由编辑功能区名称、简介和图标；组件请通过工作区底栏的组件库或直接拖动管理。布局与大小会自动保存。"
+                     FontSize="12"
+                     Foreground="{StaticResource SubtextTextBrush}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="10"
+                    VerticalAlignment="Center">
+          <Button Classes="Secondary"
+                  Content="＋ 新建功能区"
+                  Click="OnCreateAreaClick" />
+          <Border Background="{StaticResource ButtonBgBrush}"
+                  CornerRadius="12"
+                  Padding="13,8"
+                  VerticalAlignment="Center">
+            <TextBlock Text="保存后应用"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource AccentTextBrush}" />
+          </Border>
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Grid.ColumnSpan="2"
+                Margin="0,18,0,0"
+                Padding="14,11"
+                Background="{StaticResource PanelBgBrush}"
+                BorderBrush="{StaticResource MediumBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                ColumnSpacing="10">
+            <TextBlock Text="配置目录"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource LinkTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock x:Name="StorageDirectoryText"
+                       Grid.Column="1"
+                       FontFamily="Consolas"
+                       FontSize="10"
+                       Foreground="{StaticResource SubtextTextBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="2"
+                    Classes="Secondary"
+                    Content="选择目录…"
+                    Click="OnBrowseStorageDirectoryClick" />
+            <Button Grid.Column="3"
+                    Classes="Secondary"
+                    Content="平台默认"
+                    Click="OnUseDefaultStorageDirectoryClick" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
+                Grid.ColumnSpan="2"
+                Margin="0,10,0,0"
+                Padding="14,11"
+                Background="{StaticResource PanelBgBrush}"
+                BorderBrush="{StaticResource MediumBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+          <Grid ColumnDefinitions="Auto,*,Auto"
+                ColumnSpacing="14">
+            <StackPanel Spacing="3"
+                        Width="170"
+                        VerticalAlignment="Center">
+              <TextBlock Text="全局组件尺寸"
+                         FontSize="11"
+                         FontWeight="SemiBold"
+                         Foreground="{StaticResource LinkTextBrush}" />
+              <TextBlock Text="同时缩放组件外框、文字和点击区域"
+                         FontSize="9"
+                         Foreground="{StaticResource HintTextBrush}" />
+            </StackPanel>
+            <Slider x:Name="ComponentScaleSlider"
+                    Grid.Column="1"
+                    Minimum="0.65"
+                    Maximum="1.6"
+                    Value="1"
+                    TickFrequency="0.05"
+                    IsSnapToTickEnabled="True"
+                    VerticalAlignment="Center"
+                    ValueChanged="OnComponentScaleChanged" />
+            <TextBlock x:Name="ComponentScaleText"
+                       Grid.Column="2"
+                       Width="52"
+                       Text="100%"
+                       FontFamily="Consolas"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource AccentTextBrush}"
+                       TextAlignment="Right"
+                       VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="1"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel x:Name="AreaEditors"
+                  Margin="24"
+                  Spacing="16" />
+    </ScrollViewer>
+
+    <Border Grid.Row="2"
+            Background="{StaticResource BaseBgBrush}"
+            BorderBrush="{StaticResource DefaultBorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="22,16">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+        <Button Classes="Secondary"
+                Content="恢复默认"
+                Click="OnResetClick" />
+        <TextBlock Grid.Column="1"
+                   Text="保存后立即刷新主界面"
+                   FontSize="11"
+                   Foreground="{StaticResource DisabledTextBrush}"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Right"
+                   Margin="0,0,10,0" />
+        <Button Grid.Column="2"
+                Classes="Secondary"
+                Content="取消"
+                Click="OnCancelClick" />
+        <Button Grid.Column="3"
+                Classes="Primary"
+                Content="保存配置"
+                Click="OnSaveClick" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

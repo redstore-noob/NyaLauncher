@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Core.Launch;
 
@@ -80,7 +81,7 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
 
         var discoveredVersions = new List<int>();
         var compatibleCandidates = new List<(string Path, int MajorVersion, int Index)>();
-        var visitedPaths = new HashSet<string>(GetPathComparer());
+        var visitedPaths = new HashSet<string>(PathUtil.PathComparer);
         for (var index = 0; index < candidates.Count; index++)
         {
             var candidate = candidates[index];
@@ -228,10 +229,4 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
             return null;
         }
     }
-
-    /// <summary>
-    /// 返回适合当前平台的路径比较器：Windows 忽略大小写，其他系统区分大小写。
-    /// </summary>
-    private static StringComparer GetPathComparer() =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 }

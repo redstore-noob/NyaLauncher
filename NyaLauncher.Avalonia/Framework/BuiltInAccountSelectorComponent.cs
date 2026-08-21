@@ -4,7 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Core.Launch.Auth;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -27,15 +28,7 @@ internal static class BuiltInAccountSelectorComponent
             .WithSizeLimits(220, 64, 360, 92)
             .WithShape(PolygonShapeDefinition.Rectangle())
             .WithDragHandle(new ComponentRect(0.025, 0.24, 0.075, 0.52))
-            .WithTheme(new PolygonComponentTheme
-            {
-                Surface = "#20263A",
-                SurfaceHover = "#29314A",
-                Border = "#3A4563",
-                BorderHover = "#7C8CFF",
-                Accent = "#7C8CFF",
-                ProgressTrack = "#30384F"
-            })
+            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
             .AddAction(AddAccountActionId)
             .AddAction(SelectAccountActionId)
             .AddText(
@@ -64,9 +57,9 @@ internal static class BuiltInAccountSelectorComponent
                     new ComponentMenuItem
                     {
                         Id = "add-account",
-                        Text = "添加账号",
-                        SecondaryText = "正版登录或离线登录",
-                        Glyph = "＋",
+                        Text = "账号管理",
+                        SecondaryText = "点击此处进入账号管理界面。",
+                        Glyph = "⚙️",
                         ActionId = AddAccountActionId,
                         SeparatorAfter = true
                     }
