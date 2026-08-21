@@ -1,0 +1,263 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Design.PreviewWith>
+        <Border Padding="20">
+            <StackPanel Spacing="10">
+                <TextBlock Text="DeepSeek Purple Dark Theme" FontSize="24" FontWeight="Bold"/>
+                <Button Content="Primary Button" />
+                <TextBox Watermark="Enter text..."/>
+                <CheckBox Content="CheckBox"/>
+                <RadioButton Content="RadioButton"/>
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+
+    <Styles.Resources>
+        <!-- ===== Base Colors ===== -->
+        <Color x:Key="TransparentColor">#00000000</Color>
+        <Color x:Key="WhiteColor">#FFFFFF</Color>
+        
+        <!-- ===== Background Colors (Purple Theme) ===== -->
+        <Color x:Key="WindowBgColor">#0F0D1A</Color>
+        <Color x:Key="BaseBgColor">#151322</Color>
+        <Color x:Key="CardBgColor">#1A1730</Color>
+        <Color x:Key="PanelBgColor">#201D35</Color>
+        <Color x:Key="SurfaceBgColor">#262340</Color>
+        <Color x:Key="HighlightBgColor">#2C2845</Color>
+        <Color x:Key="ButtonBgColor">#322E50</Color>
+        <Color x:Key="ControlBgColor">#38345A</Color>
+        <Color x:Key="BadgeBgColor">#3E3A60</Color>
+        
+        <!-- ===== Border Colors ===== -->
+        <Color x:Key="SubtleBorderColor">#2A2645</Color>
+        <Color x:Key="DefaultBorderColor">#302C50</Color>
+        <Color x:Key="MediumBorderColor">#3C3860</Color>
+        <Color x:Key="StrongBorderColor">#484470</Color>
+        <Color x:Key="EmphasizedBorderColor">#545080</Color>
+        
+        <!-- ===== Text Colors ===== -->
+        <Color x:Key="PrimaryTextColor">#F0EDF8</Color>
+        <Color x:Key="SecondaryTextColor">#E0DCF0</Color>
+        <Color x:Key="TertiaryTextColor">#D0CCE5</Color>
+        <Color x:Key="LinkTextColor">#C8BEFF</Color>
+        <Color x:Key="BodyTextColor">#B8B0D8</Color>
+        <Color x:Key="AccentTextColor">#A89EC8</Color>
+        <Color x:Key="MutedTextColor">#9890B8</Color>
+        <Color x:Key="SubtextTextColor">#8880A8</Color>
+        <Color x:Key="HintTextColor">#787098</Color>
+        <Color x:Key="DisabledTextColor">#686088</Color>
+        <Color x:Key="PlaceholderTextColor">#585078</Color>
+        
+        <!-- ===== Accent Colors ===== -->
+        <Color x:Key="AccentColor">#7C3AED</Color>
+        <Color x:Key="AccentDarkColor">#6D28D9</Color>
+        <Color x:Key="AccentDarkerColor">#5B21B6</Color>
+        <Color x:Key="AccentLightColor">#8B5CF6</Color>
+        <Color x:Key="AccentBrightColor">#A78BFA</Color>
+        <Color x:Key="AccentDeepColor">#6D28D9</Color>
+        <Color x:Key="AccentDeepDarkColor">#5B21B6</Color>
+        
+        <!-- ===== Semantic Colors ===== -->
+        <Color x:Key="SuccessColor">#62D49A</Color>
+        <Color x:Key="ErrorColor">#D94B64</Color>
+        <Color x:Key="ErrorDarkColor">#B64A5A</Color>
+        <Color x:Key="WarningColor">#D85B78</Color>
+        <Color x:Key="InfoColor">#FF9BB0</Color>
+        
+        <!-- ===== Theme Specific Colors ===== -->
+        <Color x:Key="DeepPurple">#7C3AED</Color>
+        <Color x:Key="DeepPurpleLight">#8B5CF6</Color>
+        <Color x:Key="DeepPurpleDark">#6D28D9</Color>
+        <Color x:Key="DeepPurpleAccent">#A78BFA</Color>
+        
+        <!-- ===== Overlay Colors ===== -->
+        <Color x:Key="DropPreviewBgColor">#385B21FF</Color>
+        <Color x:Key="DropPreviewBorderColor">#A78BFA</Color>
+        <Color x:Key="DockHintBgColor">#E61E1635</Color>
+        <Color x:Key="SidebarDropPreviewBgColor">#407C3AFF</Color>
+        <Color x:Key="SidebarDropPreviewBorderColor">#C4B5FD</Color>
+        <Color x:Key="OverlayBgColor">#C0000000</Color>
+        <Color x:Key="DialogBgColor">#2D2444</Color>
+        <Color x:Key="DialogAltBgColor">#1E1630</Color>
+        
+        <!-- ===== Workspace Colors ===== -->
+        <Color x:Key="CardBgColor2">#1A1730</Color>
+        <Color x:Key="HeaderBgColor">#201D35</Color>
+        <Color x:Key="CardBorderColor">#302C50</Color>
+        <Color x:Key="SeamIdleColor">#3C3860</Color>
+        <Color x:Key="DragHandleBgColor">#2E2A48</Color>
+        <Color x:Key="DragHandleActiveColor">#4A3F7A</Color>
+        <Color x:Key="DragHandleGlyphColor">#B8B0D8</Color>
+        <Color x:Key="IconBoxBgColor">#38345A</Color>
+        <Color x:Key="ComponentBgColor">#262340</Color>
+        <Color x:Key="ComponentBorderColor">#3C3860</Color>
+        <Color x:Key="ComponentHoverBgColor">#322E50</Color>
+        <Color x:Key="ComponentPrimaryBgColor">#7C3AED</Color>
+        <Color x:Key="ComponentPrimaryBorderColor">#A78BFA</Color>
+        <Color x:Key="ComponentPrimaryHoverBgColor">#8B5CF6</Color>
+        <Color x:Key="SidebarBorderColor">#484470</Color>
+
+        <!-- ===== Brushes ===== -->
+        <SolidColorBrush x:Key="TransparentBrush" Color="{StaticResource TransparentColor}"/>
+        <SolidColorBrush x:Key="WhiteBrush" Color="{StaticResource WhiteColor}"/>
+        
+        <SolidColorBrush x:Key="WindowBgBrush" Color="{StaticResource WindowBgColor}"/>
+        <SolidColorBrush x:Key="BaseBgBrush" Color="{StaticResource BaseBgColor}"/>
+        <SolidColorBrush x:Key="CardBgBrush" Color="{StaticResource CardBgColor}"/>
+        <SolidColorBrush x:Key="PanelBgBrush" Color="{StaticResource PanelBgColor}"/>
+        <SolidColorBrush x:Key="SurfaceBgBrush" Color="{StaticResource SurfaceBgColor}"/>
+        <SolidColorBrush x:Key="HighlightBgBrush" Color="{StaticResource HighlightBgColor}"/>
+        <SolidColorBrush x:Key="ButtonBgBrush" Color="{StaticResource ButtonBgColor}"/>
+        <SolidColorBrush x:Key="ControlBgBrush" Color="{StaticResource ControlBgColor}"/>
+        <SolidColorBrush x:Key="BadgeBgBrush" Color="{StaticResource BadgeBgColor}"/>
+        
+        <SolidColorBrush x:Key="SubtleBorderBrush" Color="{StaticResource SubtleBorderColor}"/>
+        <SolidColorBrush x:Key="DefaultBorderBrush" Color="{StaticResource DefaultBorderColor}"/>
+        <SolidColorBrush x:Key="MediumBorderBrush" Color="{StaticResource MediumBorderColor}"/>
+        <SolidColorBrush x:Key="StrongBorderBrush" Color="{StaticResource StrongBorderColor}"/>
+        <SolidColorBrush x:Key="EmphasizedBorderBrush" Color="{StaticResource EmphasizedBorderColor}"/>
+        
+        <SolidColorBrush x:Key="PrimaryTextBrush" Color="{StaticResource PrimaryTextColor}"/>
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="{StaticResource SecondaryTextColor}"/>
+        <SolidColorBrush x:Key="TertiaryTextBrush" Color="{StaticResource TertiaryTextColor}"/>
+        <SolidColorBrush x:Key="LinkTextBrush" Color="{StaticResource LinkTextColor}"/>
+        <SolidColorBrush x:Key="BodyTextBrush" Color="{StaticResource BodyTextColor}"/>
+        <SolidColorBrush x:Key="AccentTextBrush" Color="{StaticResource AccentTextColor}"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}"/>
+        <SolidColorBrush x:Key="SubtextTextBrush" Color="{StaticResource SubtextTextColor}"/>
+        <SolidColorBrush x:Key="HintTextBrush" Color="{StaticResource HintTextColor}"/>
+        <SolidColorBrush x:Key="DisabledTextBrush" Color="{StaticResource DisabledTextColor}"/>
+        <SolidColorBrush x:Key="PlaceholderTextBrush" Color="{StaticResource PlaceholderTextColor}"/>
+        
+        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+        <SolidColorBrush x:Key="AccentDarkBrush" Color="{StaticResource AccentDarkColor}"/>
+        <SolidColorBrush x:Key="AccentDarkerBrush" Color="{StaticResource AccentDarkerColor}"/>
+        <SolidColorBrush x:Key="AccentLightBrush" Color="{StaticResource AccentLightColor}"/>
+        <SolidColorBrush x:Key="AccentBrightBrush" Color="{StaticResource AccentBrightColor}"/>
+        <SolidColorBrush x:Key="AccentDeepBrush" Color="{StaticResource AccentDeepColor}"/>
+        <SolidColorBrush x:Key="AccentDeepDarkBrush" Color="{StaticResource AccentDeepDarkColor}"/>
+        
+        <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
+        <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}"/>
+        <SolidColorBrush x:Key="ErrorDarkBrush" Color="{StaticResource ErrorDarkColor}"/>
+        <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+        <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoColor}"/>
+        
+        <SolidColorBrush x:Key="DeepPurpleBrush" Color="{StaticResource DeepPurple}"/>
+        <SolidColorBrush x:Key="DeepPurpleLightBrush" Color="{StaticResource DeepPurpleLight}"/>
+        <SolidColorBrush x:Key="DeepPurpleDarkBrush" Color="{StaticResource DeepPurpleDark}"/>
+        <SolidColorBrush x:Key="DeepPurpleAccentBrush" Color="{StaticResource DeepPurpleAccent}"/>
+        
+        <SolidColorBrush x:Key="DropPreviewBgBrush" Color="{StaticResource DropPreviewBgColor}"/>
+        <SolidColorBrush x:Key="DropPreviewBorderBrush" Color="{StaticResource DropPreviewBorderColor}"/>
+        <SolidColorBrush x:Key="DockHintBgBrush" Color="{StaticResource DockHintBgColor}"/>
+        <SolidColorBrush x:Key="SidebarDropPreviewBgBrush" Color="{StaticResource SidebarDropPreviewBgColor}"/>
+        <SolidColorBrush x:Key="SidebarDropPreviewBorderBrush" Color="{StaticResource SidebarDropPreviewBorderColor}"/>
+        <SolidColorBrush x:Key="OverlayBgBrush" Color="{StaticResource OverlayBgColor}"/>
+        <SolidColorBrush x:Key="DialogBgBrush" Color="{StaticResource DialogBgColor}"/>
+        <SolidColorBrush x:Key="DialogAltBgBrush" Color="{StaticResource DialogAltBgColor}"/>
+        
+        <SolidColorBrush x:Key="CardBg2Brush" Color="{StaticResource CardBgColor2}"/>
+        <SolidColorBrush x:Key="HeaderBgBrush" Color="{StaticResource HeaderBgColor}"/>
+        <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorderColor}"/>
+        <SolidColorBrush x:Key="SeamIdleBrush" Color="{StaticResource SeamIdleColor}"/>
+        <SolidColorBrush x:Key="DragHandleBgBrush" Color="{StaticResource DragHandleBgColor}"/>
+        <SolidColorBrush x:Key="DragHandleActiveBrush" Color="{StaticResource DragHandleActiveColor}"/>
+        <SolidColorBrush x:Key="DragHandleGlyphBrush" Color="{StaticResource DragHandleGlyphColor}"/>
+        <SolidColorBrush x:Key="IconBoxBgBrush" Color="{StaticResource IconBoxBgColor}"/>
+        <SolidColorBrush x:Key="ComponentBgBrush" Color="{StaticResource ComponentBgColor}"/>
+        <SolidColorBrush x:Key="ComponentBorderBrush" Color="{StaticResource ComponentBorderColor}"/>
+        <SolidColorBrush x:Key="ComponentHoverBgBrush" Color="{StaticResource ComponentHoverBgColor}"/>
+        <SolidColorBrush x:Key="ComponentPrimaryBgBrush" Color="{StaticResource ComponentPrimaryBgColor}"/>
+        <SolidColorBrush x:Key="ComponentPrimaryBorderBrush" Color="{StaticResource ComponentPrimaryBorderColor}"/>
+        <SolidColorBrush x:Key="ComponentPrimaryHoverBgBrush" Color="{StaticResource ComponentPrimaryHoverBgColor}"/>
+        <SolidColorBrush x:Key="SidebarBorderBrush" Color="{StaticResource SidebarBorderColor}"/>
+
+        <!-- ===== System Colors Override ===== -->
+        <Color x:Key="SystemAccentColor">#7C3AED</Color>
+        <Color x:Key="SystemAccentColorDark1">#6D28D9</Color>
+        <Color x:Key="SystemAccentColorDark2">#5B21B6</Color>
+        <Color x:Key="SystemAccentColorLight1">#8B5CF6</Color>
+    </Styles.Resources>
+
+    <!-- Base Style for all controls -->
+    <Style Selector="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource BodyTextBrush}"/>
+    </Style>
+
+    <!-- Button Styles -->
+    <Style Selector="Button">
+        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style Selector="Button:pointerover">
+        <Setter Property="Background" Value="{StaticResource AccentLightBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentLightBrush}"/>
+    </Style>
+
+    <Style Selector="Button:pressed">
+        <Setter Property="Background" Value="{StaticResource AccentDarkBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentDarkBrush}"/>
+    </Style>
+
+    <Style Selector="Button:disabled">
+        <Setter Property="Opacity" Value="0.5"/>
+    </Style>
+
+    <!-- TextBox Style -->
+    <Style Selector="TextBox">
+        <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MediumBorderBrush}"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="8,6"/>
+    </Style>
+
+    <Style Selector="TextBox:focus">
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+    </Style>
+
+    <!-- CheckBox Style -->
+    <Style Selector="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource BodyTextBrush}"/>
+    </Style>
+
+    <!-- RadioButton Style -->
+    <Style Selector="RadioButton">
+        <Setter Property="Foreground" Value="{StaticResource BodyTextBrush}"/>
+    </Style>
+
+    <!-- Window Style -->
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{StaticResource WindowBgBrush}"/>
+    </Style>
+
+    <!-- Card-like panel -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{StaticResource PanelBgBrush}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="Margin" Value="8"/>
+    </Style>
+
+    <!-- Accent Button Variant -->
+    <Style Selector="Button.accent">
+        <Setter Property="Background" Value="{StaticResource DeepPurpleAccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DeepPurpleAccentBrush}"/>
+    </Style>
+
+    <Style Selector="Button.accent:pointerover">
+        <Setter Property="Background" Value="#B89AFF"/>
+        <Setter Property="BorderBrush" Value="#B89AFF"/>
+    </Style>
+
+    <Style Selector="Button.accent:pressed">
+        <Setter Property="Background" Value="#9674F0"/>
+        <Setter Property="BorderBrush" Value="#9674F0"/>
+    </Style>
+</Styles>

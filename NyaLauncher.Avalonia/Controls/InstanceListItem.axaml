@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NyaLauncher.Avalonia.Controls"
+             x:Class="NyaLauncher.Avalonia.Controls.InstanceListItem"
+             x:CompileBindings="False">
+    <Grid ColumnDefinitions="38,9,*" Margin="5,6">
+        <Grid.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="重命名版本" Click="OnRenameClick" />
+                <Separator />
+                <MenuItem Header="删除实例" Foreground="Red" Click="OnDeleteClick" />
+            </ContextMenu>
+        </Grid.ContextMenu>
+        <Border Width="38" Height="38" CornerRadius="7" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+      <Grid>
+        <TextBlock Text="{Binding IconGlyph, FallbackValue=▦}"
+                   FontSize="19"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center" />
+        <local:AsyncImage SourceUrl="{Binding IconPath}"
+                          Width="38"
+                          Height="38"
+                          Stretch="Uniform" />
+      </Grid>
+    </Border>
+    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+      <TextBlock Text="{Binding Name}"
+                 FontSize="13"
+                 FontWeight="SemiBold"
+                 Foreground="{StaticResource PrimaryTextBrush}"
+                 TextTrimming="CharacterEllipsis" />
+      <TextBlock Text="{Binding DirectoryMode}"
+                 FontSize="10"
+                 Foreground="{StaticResource SubtextTextBrush}"
+                 TextTrimming="CharacterEllipsis" />
+    </StackPanel>
+  </Grid>
+</UserControl>

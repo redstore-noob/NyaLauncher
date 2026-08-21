@@ -1,0 +1,132 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+        x:Class="NyaLauncher.Avalonia.Dialogs.ModDetailDialog"
+        Title="下载 Mod"
+        Width="580"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{StaticResource BaseBgBrush}"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto,Auto" Margin="28">
+
+    <!-- 标题区：Mod 信息 -->
+    <Grid ColumnDefinitions="52,*,Auto" ColumnSpacing="14">
+      <Border Width="52" Height="52" CornerRadius="10"
+              Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+        <Grid>
+          <Image Source="avares://NyaLauncher.Avalonia/Resources/Icons/ic_fluent_app_store_24_filled.png"
+                 Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <controls:AsyncImage x:Name="ModIcon" Width="52" Height="52" Stretch="Uniform" />
+        </Grid>
+      </Border>
+      <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+        <TextBlock x:Name="ModTitle" FontSize="16" FontWeight="Bold"
+                   Foreground="{StaticResource PrimaryTextBrush}"
+                   TextTrimming="CharacterEllipsis" />
+        <TextBlock x:Name="ModDescription" FontSize="11"
+                   Foreground="{StaticResource HintTextBrush}"
+                   TextTrimming="CharacterEllipsis" MaxLines="2" />
+      </StackPanel>
+      <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+        <TextBlock x:Name="ModDownloads" FontSize="11"
+                   Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right" />
+        <TextBlock x:Name="ModFollows" FontSize="11"
+                   Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
+      </StackPanel>
+    </Grid>
+
+    <!-- 选择区 -->
+    <StackPanel Grid.Row="1" Spacing="14" Margin="0,18,0,0">
+
+      <!-- MC 版本 -->
+      <StackPanel Spacing="4">
+        <TextBlock Text="Minecraft 版本" FontSize="13" FontWeight="SemiBold"
+                   Foreground="{StaticResource SecondaryTextBrush}" />
+        <ComboBox x:Name="GameVersionBox"
+                  PlaceholderText="选择 Minecraft 版本"
+                  Background="{StaticResource ControlBgBrush}"
+                  BorderThickness="0" CornerRadius="8" Padding="12,6"
+                  HorizontalAlignment="Stretch" FontSize="13"
+                  SelectionChanged="OnGameVersionChanged" />
+      </StackPanel>
+
+      <!-- Fabric API 选项 -->
+      <Border x:Name="FabricApiPanel" IsVisible="False"
+              Background="{StaticResource CardBgBrush}" CornerRadius="10"
+              Padding="16,12">
+        <StackPanel Spacing="4">
+          <CheckBox x:Name="FabricApiCheckBox"
+                    Content="同时安装 Fabric API"
+                    FontSize="13" FontWeight="SemiBold"
+                    Foreground="{StaticResource SecondaryTextBrush}"
+                    IsChecked="True" />
+          <TextBlock Text="Fabric API 是大多数 Fabric Mod 的前置依赖。"
+                     FontSize="11" Foreground="{StaticResource HintTextBrush}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Mod 版本列表 -->
+      <StackPanel Spacing="4">
+        <TextBlock Text="Mod 版本" FontSize="13" FontWeight="SemiBold"
+                   Foreground="{StaticResource SecondaryTextBrush}" />
+        <Border Background="{StaticResource CardBgBrush}" CornerRadius="10"
+                MaxHeight="220">
+          <ListBox x:Name="ModVersionList"
+                   Background="{StaticResource TransparentBrush}"
+                   BorderThickness="0"
+                   SelectionChanged="OnModVersionSelected" />
+        </Border>
+        <TextBlock x:Name="ModVersionHint" FontSize="11"
+                   Foreground="{StaticResource HintTextBrush}" />
+      </StackPanel>
+
+      <!-- 选中版本详情 -->
+      <Border x:Name="SelectedVersionPanel" IsVisible="False"
+              Background="{StaticResource CardBgBrush}" CornerRadius="10"
+              Padding="16,12">
+        <StackPanel Spacing="6">
+          <TextBlock x:Name="SelectedVersionInfo" FontSize="13"
+                     Foreground="{StaticResource BodyTextBrush}"
+                     TextWrapping="Wrap" />
+          <TextBlock x:Name="ChangelogText" FontSize="11"
+                     Foreground="{StaticResource HintTextBrush}"
+                     TextWrapping="Wrap" MaxLines="4" />
+        </StackPanel>
+      </Border>
+
+      <!-- 前置依赖提示 -->
+      <Border x:Name="DependencyPanel" IsVisible="False"
+              Background="{StaticResource CardBgBrush}" CornerRadius="10"
+              Padding="16,12">
+        <StackPanel Spacing="6">
+          <TextBlock Text="⚠ 此 Mod 有前置依赖" FontSize="13" FontWeight="SemiBold"
+                     Foreground="{StaticResource WarningBrush}" />
+          <TextBlock x:Name="DependencyList" FontSize="12"
+                     Foreground="{StaticResource BodyTextBrush}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <!-- 状态 -->
+      <TextBlock x:Name="StatusText" FontSize="12"
+                 Foreground="{StaticResource ErrorBrush}"
+                 TextWrapping="Wrap" IsVisible="False" />
+    </StackPanel>
+
+    <!-- 底部按钮 -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,18,0,0">
+      <Button Grid.Column="1" Content="取消" Padding="18,8"
+              CornerRadius="8" FontSize="13"
+              Click="OnCancelClick" />
+      <Button Grid.Column="2" x:Name="DownloadButton"
+              Content="下载" Padding="24,8"
+              CornerRadius="8" FontSize="13" FontWeight="SemiBold"
+              Background="{StaticResource SystemAccentColor}"
+              Foreground="{StaticResource WhiteBrush}"
+              IsEnabled="False"
+              Click="OnDownloadClick" />
+    </Grid>
+  </Grid>
+</Window>
