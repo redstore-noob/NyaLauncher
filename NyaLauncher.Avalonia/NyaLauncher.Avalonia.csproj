@@ -1,24 +1,51 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Version>0.1.0-preview4</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.1" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
-    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport"
+                      Version="2.2.3"
+                      Condition="'$(Configuration)' == 'Debug'">
+      <PrivateAssets>All</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Resources\Fonts\**" />
+    <AvaloniaResource Include="Resources\Icons\**" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NyaLauncher.Core\NyaLauncher.Core.csproj" />
     <ProjectReference Include="..\NyaLauncher.Avalonia.Animations\NyaLauncher.Avalonia.Animations.csproj" />
+    <ProjectReference Include="..\NyaLauncher.Plugin.Abstractions\NyaLauncher.Plugin.Abstractions.csproj" />
   </ItemGroup>
+
+  <!-- Native NuGet PDBs are for framework debugging and exceed the launcher
+       binaries by hundreds of megabytes. They are never required at runtime. -->
+  <Target Name="RemoveNativePackageSymbols" AfterTargets="CopyFilesToOutputDirectory">
+    <ItemGroup>
+      <NativePackageSymbols Include="$(OutDir)**\libSkiaSharp.pdb;$(OutDir)**\libHarfBuzzSharp.pdb" />
+    </ItemGroup>
+    <Delete Files="@(NativePackageSymbols)" />
+  </Target>
+
+  <Target Name="RemovePublishedNativePackageSymbols" AfterTargets="Publish">
+    <ItemGroup>
+      <PublishedNativePackageSymbols Include="$(PublishDir)**\libSkiaSharp.pdb;$(PublishDir)**\libHarfBuzzSharp.pdb" />
+    </ItemGroup>
+    <Delete Files="@(PublishedNativePackageSymbols)" />
+  </Target>
 </Project>

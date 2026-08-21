@@ -4,8 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace NyaLauncher.Core.Launch
-{
+namespace NyaLauncher.Core.Launch;
     /// <summary>
     /// 离线启动所需的外部配置。版本文件、依赖库和资源应已存在于游戏目录。
     /// </summary>
@@ -212,5 +211,3 @@ namespace NyaLauncher.Core.Launch
     string VersionId,
     string Username,
     int? RequiredJavaMajorVersion);
-
-}

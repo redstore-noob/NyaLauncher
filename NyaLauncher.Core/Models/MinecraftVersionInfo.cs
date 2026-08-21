@@ -8,18 +8,22 @@ namespace NyaLauncher.Core.Models;
 public class VersionManifest
 {
     [JsonPropertyName("latest")]
+    [JsonRequired]
     public LatestVersions Latest { get; set; } = new();
 
     [JsonPropertyName("versions")]
+    [JsonRequired]
     public List<MinecraftVersion> Versions { get; set; } = [];
 }
 
 public class LatestVersions
 {
     [JsonPropertyName("release")]
+    [JsonRequired]
     public string Release { get; set; } = string.Empty;
 
     [JsonPropertyName("snapshot")]
+    [JsonRequired]
     public string Snapshot { get; set; } = string.Empty;
 }
 

@@ -44,6 +44,7 @@ Desktop.ini
 *.csproj.FileListAbsolute.txt
 
 # Local runtime / app data
+.nya-data/
 *.runtimeconfig.json
 *.deps.json
 *.exe
