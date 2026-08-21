@@ -1,0 +1,138 @@
+name: Release Packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  APP_NAME: NyaLauncher
+  ASSEMBLY: NyaLauncher.Avalonia
+  PROJECT: NyaLauncher.Avalonia/NyaLauncher.Avalonia.csproj
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish single-file exe
+        run: |
+          dotnet publish ${{ env.PROJECT }} -c Release -r win-x64 --self-contained `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInFileContainer=true `
+            -p:DebugType=None -p:DebugSymbols=false
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: NyaLauncher.Avalonia/bin/Release/net10.0/win-x64/publish/${{ env.ASSEMBLY }}.exe
+
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish
+        run: |
+          dotnet publish ${{ env.PROJECT }} -c Release -r osx-${{ matrix.arch }} --self-contained `
+            -p:UseAppHost=true `
+            -p:DebugType=None -p:DebugSymbols=false
+
+      - name: Build .app bundle
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $app = "${{ env.APP_NAME }}.app"
+          New-Item -ItemType Directory -Force -Path "$app/Contents/MacOS","$app/Contents/Resources" | Out-Null
+          Copy-Item -Recurse -Force "${{ env.ASSEMBLY }}/bin/Release/net10.0/osx-${{ matrix.arch }}/publish/*" "$app/Contents/MacOS/"
+          $plist = @"
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>${{ env.APP_NAME }}</string>
+            <key>CFBundleDisplayName</key><string>${{ env.APP_NAME }}</string>
+            <key>CFBundleIdentifier</key><string>com.nyalauncher.app</string>
+            <key>CFBundleVersion</key><string>$version</string>
+            <key>CFBundleShortVersionString</key><string>$version</string>
+            <key>CFBundleExecutable</key><string>${{ env.ASSEMBLY }}</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSMinimumSystemVersion</key><string>10.15</string>
+          </dict></plist>
+          "@
+          Set-Content -Path "$app/Contents/Info.plist" -Value $plist -NoNewline
+
+      - name: Create dmg
+        run: |
+          hdiutil create -volname "${{ env.APP_NAME }}" -srcfolder "${{ env.APP_NAME }}.app" -ov -format UDZO "${{ env.APP_NAME }}-${{ matrix.arch }}.dmg"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APP_NAME }}-${{ matrix.arch }}.dmg
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish
+        run: |
+          dotnet publish ${{ env.PROJECT }} -c Release -r linux-x64 --self-contained `
+            -p:UseAppHost=true `
+            -p:DebugType=None -p:DebugSymbols=false
+
+      - name: Install fpm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev rubygems build-essential
+          sudo gem install --no-document fpm
+
+      - name: Stage package layout
+        run: |
+          mkdir -p stage/opt/nya-launcher stage/usr/bin
+          cp -r ${{ env.ASSEMBLY }}/bin/Release/net10.0/linux-x64/publish/* stage/opt/nya-launcher/
+          cat > stage/usr/bin/nya-launcher <<'EOF'
+          #!/bin/bash
+          exec /opt/nya-launcher/${{ env.ASSEMBLY }} "$@"
+          EOF
+          chmod +x stage/usr/bin/nya-launcher
+
+      - name: Build deb / rpm / pacman
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          version="${VERSION#v}"
+          opts=(-s dir -n nya-launcher -v "$version" -m "NyaLauncher <noreply@nyalauncher.local>"
+                --description "NyaLauncher" --url "https://github.com/${{ github.repository }}"
+                --license "MIT" --force -C stage)
+          fpm "${opts[@]}" -t deb --architecture amd64
+          fpm "${opts[@]}" -t rpm --architecture x86_64
+          fpm "${opts[@]}" -t pacman --architecture x86_64
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.deb
+            *.rpm
+            *.pkg.tar.zst

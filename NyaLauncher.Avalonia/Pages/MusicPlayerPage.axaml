@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Pages.MusicPlayerPage"
+             Background="{StaticResource WindowBgBrush}">
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- 顶部栏 -->
+    <Border Grid.Row="0"
+            Background="{StaticResource BaseBgBrush}"
+            BorderBrush="{StaticResource SubtleBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="24,14">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="12">
+        <TextBlock Text="音乐播放器"
+                   FontSize="20" FontWeight="Bold"
+                   Foreground="{StaticResource PrimaryTextBrush}"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1"
+                   x:Name="TrackCountText"
+                   Text="未选择文件夹"
+                   FontSize="12"
+                   Foreground="{StaticResource HintTextBrush}"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="2"
+                x:Name="FolderButton"
+                Content="选择文件夹"
+                Padding="14,6" CornerRadius="8" FontSize="12"
+                Background="{StaticResource ButtonBgBrush}"
+                BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                BorderThickness="1"
+                Click="OnSelectFolderClick" />
+        <Button Grid.Column="3"
+                x:Name="RefreshButton"
+                Content="刷新"
+                Padding="14,6" CornerRadius="8" FontSize="12"
+                Click="OnRefreshClick" />
+        <ComboBox Grid.Column="4"
+                  x:Name="SortComboBox"
+                  Background="{StaticResource ControlBgBrush}"
+                  BorderThickness="0" CornerRadius="8"
+                  Padding="10,4" FontSize="12" Width="130"
+                  SelectionChanged="OnSortChanged" />
+      </Grid>
+    </Border>
+
+    <!-- 搜索 + 列表 -->
+    <Grid Grid.Row="1" Margin="24,16,24,0">
+      <Grid RowDefinitions="Auto,*">
+        <!-- 搜索栏 -->
+        <Border Background="{StaticResource ControlBgBrush}"
+                CornerRadius="10" Padding="14,10" Margin="0,0,0,12">
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock Text="🔍" FontSize="14"
+                       Foreground="{StaticResource DisabledTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBox Grid.Column="1"
+                     x:Name="SearchBox"
+                     PlaceholderText="搜索歌曲..."
+                     Background="{StaticResource TransparentBrush}"
+                     BorderThickness="0"
+                     Foreground="{StaticResource BodyTextBrush}"
+                     FontSize="13"
+                     VerticalAlignment="Center"
+                     Margin="10,0,0,0"
+                     CaretBrush="{StaticResource BodyTextBrush}"
+                     TextChanged="OnSearchChanged" />
+          </Grid>
+        </Border>
+
+        <!-- 播放列表 -->
+        <Border Grid.Row="1"
+                Background="{StaticResource PanelBgBrush}"
+                CornerRadius="12" ClipToBounds="True">
+          <ListBox x:Name="TrackList"
+                   Background="{StaticResource TransparentBrush}"
+                   BorderThickness="0"
+                   SelectionChanged="OnTrackSelected" />
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- 底部播放控制栏 -->
+    <Border Grid.Row="2"
+            Background="{StaticResource BaseBgBrush}"
+            BorderBrush="{StaticResource SubtleBorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="24,16">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
+        <!-- 播放控制按钮 -->
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button x:Name="PrevButton" Content="⏮"
+                  Width="36" Height="36" CornerRadius="18"
+                  Background="{StaticResource ButtonBgBrush}"
+                  BorderThickness="0" FontSize="14"
+                  Click="OnPrevClick" />
+          <Button x:Name="PlayPauseButton" Content="▶"
+                  Width="44" Height="44" CornerRadius="22"
+                  Background="{StaticResource SystemAccentColor}"
+                  Foreground="{StaticResource WhiteBrush}"
+                  BorderThickness="0" FontSize="18" FontWeight="Bold"
+                  Click="OnPlayPauseClick" />
+          <Button x:Name="NextButton" Content="⏭"
+                  Width="36" Height="36" CornerRadius="18"
+                  Background="{StaticResource ButtonBgBrush}"
+                  BorderThickness="0" FontSize="14"
+                  Click="OnNextClick" />
+          <Button x:Name="StopButton" Content="⏹"
+                  Width="36" Height="36" CornerRadius="18"
+                  Background="{StaticResource ButtonBgBrush}"
+                  BorderThickness="0" FontSize="14"
+                  Click="OnStopClick" />
+        </StackPanel>
+
+        <!-- 当前曲目信息 -->
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+          <TextBlock x:Name="NowPlayingTitle"
+                     Text="未在播放"
+                     FontSize="14" FontWeight="SemiBold"
+                     Foreground="{StaticResource PrimaryTextBrush}"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock x:Name="NowPlayingInfo"
+                     Text=""
+                     FontSize="11"
+                     Foreground="{StaticResource HintTextBrush}" />
+        </StackPanel>
+
+        <!-- 音量 -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="🔊" FontSize="14" VerticalAlignment="Center" />
+          <Slider x:Name="VolumeSlider"
+                  Minimum="0" Maximum="100" Value="80"
+                  Width="100"
+                  ValueChanged="OnVolumeChanged" />
+          <TextBlock x:Name="VolumeText"
+                     Text="80%"
+                     FontSize="11" Foreground="{StaticResource MutedTextBrush}"
+                     VerticalAlignment="Center" MinWidth="35" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

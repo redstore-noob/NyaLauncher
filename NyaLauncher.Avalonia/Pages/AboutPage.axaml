@@ -1,0 +1,132 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Pages.AboutPage"
+             Loaded="Control_OnLoaded">
+  <ScrollViewer>
+    <StackPanel Spacing="16" Margin="32,28">
+
+      <!-- 标题 -->
+      <StackPanel Spacing="8" Margin="0,0,0,8">
+        <TextBlock Text="关于"
+                   FontSize="28"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource PrimaryTextBrush}" />
+        <TextBlock Text="NyaLauncher 开发团队、第三方组件与项目信息"
+                   FontSize="13"
+                   Foreground="{StaticResource HintTextBrush}" />
+      </StackPanel>
+
+      <!-- 开发者名单 -->
+      <Border Background="{StaticResource PanelBgBrush}"
+              CornerRadius="16"
+              Padding="24,20">
+        <StackPanel Spacing="12">
+          <TextBlock Text="开发者名单"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     Foreground="{StaticResource PrimaryTextBrush}" />
+          <TextBlock FontSize="13"
+                     Foreground="{StaticResource BodyTextBrush}"
+                     TextWrapping="Wrap">
+            <Run Text="redstore_noob" FontWeight="SemiBold" /><LineBreak />
+            <Run Text="TouristH" FontWeight="SemiBold" /><LineBreak />
+            <Run Text="ReGlaze" FontWeight="SemiBold" />
+          </TextBlock>
+        </StackPanel>
+      </Border>
+
+      <!-- 引用的库与资源 -->
+      <Border Background="{StaticResource PanelBgBrush}"
+              CornerRadius="16"
+              Padding="24,20">
+        <StackPanel Spacing="12">
+          <TextBlock Text="引用的库与资源"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     Foreground="{StaticResource PrimaryTextBrush}" />
+          <Grid ColumnDefinitions="160,*"
+                RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                ColumnSpacing="8"
+                RowSpacing="6">
+            <TextBlock Text="Avalonia UI"
+                       Grid.Row="0" FontSize="13"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="0" Grid.Column="1" FontSize="13"
+                       Foreground="{StaticResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              12.1.1 · 跨平台 UI 框架（MIT License）
+              https://github.com/AvaloniaUI/Avalonia
+            </TextBlock>
+
+            <TextBlock Text="CommunityToolkit"
+                       Grid.Row="1" FontSize="13"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13"
+                       Foreground="{StaticResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              Mvvm 8.4.2 · MVVM 组件库（MIT License）
+              
+            </TextBlock>
+
+            <TextBlock Text="HarmonyOS Sans"
+                       Grid.Row="2" FontSize="13"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13"
+                       Foreground="{StaticResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              Regular · 界面正文字体（Huawei License）
+              https://developer.huawei.com/consumer/cn/design/resource-V1/
+            </TextBlock>
+
+            <TextBlock Text="Noto Color Emoji"
+                       Grid.Row="3" FontSize="13"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13"
+                       Foreground="{StaticResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              表情符号字体（Apache-2.0 License）
+              https://github.com/googlefonts/noto-emoji
+            </TextBlock>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- 项目信息 -->
+      <Border Background="{StaticResource PanelBgBrush}"
+              CornerRadius="16"
+              Padding="24,20">
+        <StackPanel Spacing="12">
+          <TextBlock Text="项目信息"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     Foreground="{StaticResource PrimaryTextBrush}" />
+          <TextBlock Text="NyaLauncher"
+                     FontSize="14"
+                     x:Name="LauncherText"
+                     Foreground="{StaticResource BodyTextBrush}" />
+          <TextBlock FontSize="14"
+                     x:Name="LatestDate"
+                     Foreground="{StaticResource BodyTextBrush}">
+            最后补丁日期:
+          </TextBlock>
+          <TextBlock FontSize="14"
+                     Foreground="{StaticResource BodyTextBrush}"
+                     TextWrapping="Wrap">
+            除闭源模块外，该软件基于 Apache License 2.0 分发。
+          </TextBlock>
+          <TextBlock Text="https://github.com/redstore-noob/NyaLauncher"
+                     FontSize="13"
+                     x:Name="VersionText"
+                     Foreground="{StaticResource HintTextBrush}" />
+          <HyperlinkButton NavigateUri="https://github.com/redstore-noob/NyaLauncher"
+                           Content="为我们的项目点上 Star✨" />
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

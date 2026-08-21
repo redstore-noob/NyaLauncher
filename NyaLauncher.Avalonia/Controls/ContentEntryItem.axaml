@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NyaLauncher.Avalonia.Controls"
+             x:Class="NyaLauncher.Avalonia.Controls.ContentEntryItem"
+             x:CompileBindings="False">
+  <Border Background="{StaticResource SurfaceBgBrush}"
+          BorderBrush="{StaticResource MediumBorderBrush}"
+          BorderThickness="1"
+          CornerRadius="9"
+          Padding="11"
+          Margin="0,0,0,7">
+      <Border.ContextMenu>
+          <ContextMenu>
+              <MenuItem x:Name="ToggleDisableMenuItem" Header="禁用该mod" Click="OnToggleDisableClick"></MenuItem>
+              <MenuItem x:Name="DeleteMenuItem" Header="删除该mod" Click="OnDeleteClick"></MenuItem>
+          </ContextMenu>
+      </Border.ContextMenu>
+      <Grid ColumnDefinitions="48,12,*">
+      <Border Width="48" Height="48" CornerRadius="8" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+        <Grid>
+          <TextBlock Text="{Binding FallbackGlyph}"
+                     FontSize="22"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+          <local:AsyncImage SourceUrl="{Binding IconPath}"
+                            Width="48"
+                            Height="48"
+                            Stretch="Uniform" />
+        </Grid>
+      </Border>
+      <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Name}"
+                   FontSize="13"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource PrimaryTextBrush}"
+                   TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding MetadataLine}"
+                   FontSize="10"
+                   Foreground="{StaticResource MutedTextBrush}"
+                   TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Description}"
+                   FontSize="10"
+                   Foreground="{StaticResource DisabledTextBrush}"
+                   TextTrimming="CharacterEllipsis"
+                   MaxLines="2" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>
