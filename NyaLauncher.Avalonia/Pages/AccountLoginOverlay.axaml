@@ -1,0 +1,164 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Pages.AccountLoginOverlay">
+  <Panel x:Name="OverlayRoot"
+         IsVisible="False"
+         Background="{StaticResource OverlayBgBrush}">
+    <Border Background="{StaticResource PanelBgBrush}"
+            CornerRadius="16"
+            Padding="28,24"
+            Width="380"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center">
+      <StackPanel Spacing="16">
+
+        <!-- 主视图：类型选择 + 离线输入 -->
+        <StackPanel x:Name="MainView" Spacing="16">
+          <TextBlock Text="新建账户"
+                     FontSize="20"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource PrimaryTextBrush}"
+                     HorizontalAlignment="Center" />
+
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+            <Button Content="正版账号"
+                    Height="52"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Background="{StaticResource ButtonBgBrush}"
+                    Foreground="{StaticResource PrimaryTextBrush}"
+                    CornerRadius="10"
+                    Click="OnAddMicrosoftClick"
+                    Cursor="Hand">
+              <Button.Styles>
+                <Style Selector="Button:hover">
+                  <Setter Property="Background" Value="{StaticResource HighlightBgBrush}" />
+                </Style>
+              </Button.Styles>
+            </Button>
+            <Button Grid.Column="1"
+                    Content="离线账号"
+                    Height="52"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Background="{StaticResource ButtonBgBrush}"
+                    Foreground="{StaticResource PrimaryTextBrush}"
+                    CornerRadius="10"
+                    Click="OnAddOfflineClick"
+                    Cursor="Hand">
+              <Button.Styles>
+                <Style Selector="Button:hover">
+                  <Setter Property="Background" Value="{StaticResource HighlightBgBrush}" />
+                </Style>
+              </Button.Styles>
+            </Button>
+          </Grid>
+
+          <!-- 离线账号输入区 -->
+          <StackPanel x:Name="OfflineAddPanel"
+                      IsVisible="False"
+                      Spacing="10">
+            <Border Background="{StaticResource ControlBgBrush}"
+                    CornerRadius="8"
+                    Padding="12,4">
+              <TextBox x:Name="NewOfflineNameBox"
+                       Text="Player_01"
+                       MaxLength="16"
+                       Background="{StaticResource TransparentBrush}"
+                       BorderThickness="0"
+                       FontSize="14"
+                       PlaceholderText="输入离线用户名" />
+            </Border>
+            <Button Content="确认添加"
+                    Height="38"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Background="{StaticResource SystemAccentColor}"
+                    Foreground="{StaticResource WhiteBrush}"
+                    CornerRadius="8"
+                    Click="OnConfirmOfflineClick"
+                    Cursor="Hand" />
+          </StackPanel>
+
+          <TextBlock x:Name="HintText"
+                     FontSize="11"
+                     Foreground="{StaticResource HintTextBrush}"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+
+          <Button Content="取消"
+                  Height="34"
+                  FontSize="12"
+                  Background="{StaticResource TransparentBrush}"
+                  Foreground="{StaticResource HintTextBrush}"
+                  CornerRadius="8"
+                  Click="OnCancelClick"
+                  Cursor="Hand">
+            <Button.Styles>
+              <Style Selector="Button:hover">
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+              </Style>
+            </Button.Styles>
+          </Button>
+        </StackPanel>
+
+        <!-- 设备码视图 -->
+        <StackPanel x:Name="DeviceCodeView"
+                    IsVisible="False"
+                    Spacing="14">
+          <TextBlock Text="微软账号登录"
+                     FontSize="20"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource PrimaryTextBrush}"
+                     HorizontalAlignment="Center" />
+          <TextBlock x:Name="DeviceCodeHintText"
+                     Text="请在浏览器中打开以下地址，然后输入验证码"
+                     FontSize="12"
+                     Foreground="{StaticResource HintTextBrush}"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+          <Border Background="{StaticResource ButtonBgBrush}"
+                  CornerRadius="10"
+                  Padding="28,12"
+                  HorizontalAlignment="Center">
+            <TextBlock x:Name="DeviceCodeText"
+                       FontSize="30"
+                       FontWeight="Bold"
+                       LetterSpacing="8"
+                       Foreground="{StaticResource SystemAccentColor}" />
+          </Border>
+          <TextBlock x:Name="DeviceCodeUrlText"
+                     FontSize="12"
+                     Foreground="{StaticResource DisabledTextBrush}"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+          <TextBlock x:Name="DeviceCodeStatusText"
+                     FontSize="11"
+                     Foreground="{StaticResource HintTextBrush}"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+          <StackPanel Orientation="Horizontal"
+                      HorizontalAlignment="Center"
+                      Spacing="10">
+            <Button Content="打开浏览器"
+                    Padding="14,7"
+                    CornerRadius="8"
+                    Click="OnOpenBrowserClick"
+                    Cursor="Hand" />
+            <Button Content="返回"
+                    Padding="14,7"
+                    CornerRadius="8"
+                    Click="OnBackToMainClick"
+                    Cursor="Hand" />
+            <Button Content="取消登录"
+                    Padding="14,7"
+                    CornerRadius="8"
+                    Click="OnCancelDeviceCodeClick"
+                    Cursor="Hand" />
+          </StackPanel>
+        </StackPanel>
+
+      </StackPanel>
+    </Border>
+  </Panel>
+</UserControl>

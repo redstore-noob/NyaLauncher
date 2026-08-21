@@ -1,32 +1,34 @@
-using System.Net.Http.Json;
 using NyaLauncher.Core.Models;
 
 namespace NyaLauncher.Core.Download;
 
 /// <summary>
-/// 获取 Minecraft 版本清单的服务
+/// 获取 Minecraft 版本清单的服务。通过 <see cref="DownloadSourceProvider"/> 自动选择下载源。
 /// </summary>
 public static class ManifestGet
 {
-    private static readonly HttpClient HttpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(15)
-    };
-    
     /// <summary>
-    /// 获取Minecraft版本清单方法(Remake)
+    /// 获取 Minecraft 版本清单（使用当前活跃下载源，失败自动回退）。
     /// </summary>
-    /// <param name="url">自定义获取Minecraft版本的地址,默认情况不填时为mojang官方源</param>
-    /// <returns>获取的Minecraft版本列表，按发布时间降序排列</returns>
-    public static async Task<List<MinecraftVersion>> GetVersionsAsync(string url="https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
+    public static async Task<List<MinecraftVersion>> GetVersionsAsync()
     {
-        var manifest = await HttpClient.GetFromJsonAsync<VersionManifest>(url);
+        var json = await DownloadSourceProvider.GetStringAsync(
+                DownloadSources.Official.LauncherMeta)
+            .ConfigureAwait(false);
 
-        if (manifest?.Versions is null || manifest.Versions.Count == 0)
+        var manifest = System.Text.Json.JsonSerializer.Deserialize<VersionManifest>(json);
+        if (manifest is null)
+            throw new System.Text.Json.JsonException("版本清单响应为空。");
+        if (manifest.Latest is null)
+            throw new System.Text.Json.JsonException("版本清单缺少 latest 节点。");
+        if (manifest.Versions is null)
+            throw new System.Text.Json.JsonException("版本清单缺少 versions 节点。");
+
+        var versions = manifest.Versions.OfType<MinecraftVersion>().ToList();
+        if (versions.Count == 0)
             return [];
 
-        // 标记最新版本
-        foreach (var version in manifest.Versions)
+        foreach (var version in versions)
         {
             if (version.Id == manifest.Latest.Release)
                 version.IsLatestRelease = true;
@@ -34,16 +36,6 @@ public static class ManifestGet
                 version.IsLatestSnapshot = true;
         }
 
-        // 按发布时间降序排列
-        return [.. manifest.Versions.OrderByDescending(v => v.ReleaseTime)];
-    }
-    /// <summary>
-    /// 获取指定类型的版本列表
-    /// <param name="url">自定义获取Minecraft版本的地址，默认为mojang官方源</param>
-    /// </summary>
-    public static async Task<List<MinecraftVersion>> GetVersionsByTypeAsync(string type, string url="https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
-    {
-        var versions = await GetVersionsAsync(url);
-        return [.. versions.Where(v => v.Type == type)];
+        return [.. versions.OrderByDescending(version => version.ReleaseTime)];
     }
 }

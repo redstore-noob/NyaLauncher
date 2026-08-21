@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Controls.DockWorkspace">
+  <Grid x:Name="WorkspaceRoot">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="0" />
+      <ColumnDefinition Width="*" />
+      <ColumnDefinition Width="0" />
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="0" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="0" />
+    </Grid.RowDefinitions>
+
+    <Grid x:Name="MainWorkspaceCell"
+          Grid.Row="1"
+          Grid.Column="1">
+      <Grid x:Name="AreaGrid" />
+
+      <Canvas x:Name="DropPreviewLayer"
+              IsHitTestVisible="False">
+        <Border x:Name="DropPreview"
+                IsVisible="False"
+                CornerRadius="14"
+                Background="{StaticResource DropPreviewBgBrush}"
+                BorderBrush="{StaticResource DropPreviewBorderBrush}"
+                BorderThickness="2" />
+      </Canvas>
+
+      <Border x:Name="DockHint"
+              IsVisible="False"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Bottom"
+              Margin="0,0,0,14"
+              Padding="16,9"
+              CornerRadius="18"
+              Background="{StaticResource DockHintBgBrush}"
+              BorderBrush="{StaticResource AccentDarkBrush}"
+              BorderThickness="1">
+        <TextBlock x:Name="DockHintText"
+                   Text="移动到目标区域的上、下、左、右侧"
+                   FontSize="12"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource PrimaryTextBrush}" />
+      </Border>
+    </Grid>
+
+    <Border x:Name="SidebarDropPreview"
+            Grid.RowSpan="3"
+            Grid.ColumnSpan="3"
+            IsVisible="False"
+            IsHitTestVisible="False"
+            Background="{StaticResource SidebarDropPreviewBgBrush}"
+            BorderBrush="{StaticResource SidebarDropPreviewBorderBrush}"
+            BorderThickness="2"
+            ZIndex="200" />
+  </Grid>
+</UserControl>

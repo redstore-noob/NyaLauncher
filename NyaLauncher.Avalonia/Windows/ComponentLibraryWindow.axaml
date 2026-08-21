@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NyaLauncher.Avalonia.Windows.ComponentLibraryWindow"
+        Title="组件库 · NyaLauncher"
+        Width="430"
+        Height="580"
+        MinWidth="360"
+        MinHeight="420"
+        Background="{StaticResource WindowBgBrush}"
+        WindowStartupLocation="CenterOwner">
+  <Grid x:Name="LibraryRoot" RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0"
+            Padding="22,20,22,16"
+            Background="{StaticResource CardBgBrush}"
+            BorderBrush="{StaticResource DefaultBorderBrush}"
+            BorderThickness="0,0,0,1">
+      <StackPanel Spacing="6">
+        <TextBlock Text="组件库"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource PrimaryTextBrush}" />
+        <TextBlock Text="拖到功能区可添加；从功能区拖回本窗口可移除"
+                   FontSize="12"
+                   Foreground="{StaticResource SubtextTextBrush}" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel x:Name="ComponentList"
+                  Margin="16"
+                  Spacing="10" />
+    </ScrollViewer>
+
+    <Border Grid.Row="2"
+            Padding="18,12"
+            Background="{StaticResource BaseBgBrush}"
+            BorderBrush="{StaticResource DefaultBorderBrush}"
+            BorderThickness="0,1,0,0">
+      <TextBlock Text="组件库保持打开时可连续添加；重复拖入同一区域不会重复创建。"
+                 FontSize="10"
+                 Foreground="{StaticResource HintTextBrush}"
+                 TextWrapping="Wrap" />
+    </Border>
+
+    <Border x:Name="RemoveDropHint"
+            Grid.RowSpan="3"
+            IsVisible="False"
+            IsHitTestVisible="False"
+            Margin="8"
+            Background="{StaticResource OverlayBgBrush}"
+            BorderBrush="{StaticResource WarningBrush}"
+            BorderThickness="3"
+            CornerRadius="14"
+            ZIndex="100">
+      <StackPanel HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Spacing="8">
+        <TextBlock Text="×"
+                   FontSize="38"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource InfoBrush}"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="松手后从原功能区移除组件"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource WhiteBrush}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

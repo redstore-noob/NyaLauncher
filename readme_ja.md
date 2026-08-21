@@ -1,136 +1,121 @@
 # 🐱 NyaLauncher
 
-> エレガンスと自由のために作られた、モダンでクロスプラットフォームな軽量Minecraftランチャー。
+> 自由のために生まれた、モダンでクロスプラットフォームな軽量 Minecraft ランチャー。
 <br>
-![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
-![.NET](https://img.shields.io/badge/.NET-10-purple.svg)
-![Avalonia](https://img.shields.io/badge/Avalonia-12.0-green.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![.NET](img/badges/dotnet.svg)
+![Avalonia](img/badges/avalonia.svg)
+![Platform](img/badges/platform.svg)
+![License](img/badges/license.svg)
 
 ---
 
 ## ✨ 概要
 
-**NyaLauncher** は **Avalonia UI 12.0** と **.NET 10** を用いて構築されたクロスプラットフォームの Minecraft ランチャーです。  
-軽量で高速なだけでなく、**プライバシー保護** と **プラグイン拡張性** に重点を置き、ゲームを楽しみながら完全なコントロールを提供します。
-
----
-
-## 🎯 主な特徴
-
-- 🚀 **クロスプラットフォーム対応** — Windows、macOS、Linux をサポートし、ほぼ同一の見た目を提供。  
-- 🔌 **強力なプラグインシステム** — サードパーティプラグインの動的読み込みに対応し、機能を自由に拡張可能。  
-- 🛡️ **プライバシーファースト** — テレメトリや第三者トラッキングなし。レジストリ等からのトークン漏洩を抑える独自のトークン暗号化技術を使用。  
-- ⚡ **軽量かつ高効率** — .NET 10 のネイティブ AOT をベースに不要な機能を追加せずに必要に応じてカスタマイズ可能。  
-- 🎨 **モダンなUI** — Avalonia ベースの滑らかなデザインとカスタマイズ対応。  
-- ✊ **完全オリジナル** — 他のランチャーのコードを流用せず、模倣もしない方針。
-
----
-
-## 実装済み機能と未実装機能
-<table>
-  <tr>
-	<th>機能</th>
-	<th>状態</th>
-  </tr>
-  <tr>
-	<td>🚀 クロスプラットフォーム対応</td>
-	<td><span>✅ 実装済み</span></td>
-  </tr>
-  <tr>
-	<td>⚡️ スムーズなアニメーション</td>
-	<td><span>✅ 実装済み</span></td>
-  </tr>
-  <tr>
-	<td>🎮 オフラインアカウント起動</td>
-	<td><span>✅ 実装済み</span></td>
-  </tr>
-  <tr>
-	<td>🔌 プラグインシステム</td>
-	<td><span>🚧 開発中</span></td>
-  </tr>
-  <tr>
-	<td>🛡️ プライバシー保護</td>
-	<td><span>🚧 開発中</span></td>
-  </tr>
-  <tr>
-	<td>🎭 カスタムテーマ</td>
-	<td><span>🚧 開発中</span></td>
-  </tr>
-  <tr>
-	<td>🧩 Mod 管理</td>
-	<td><span>🚧 開発中</span></td>
-  </tr>
-  <tr>
-	<td>🎮 マルチプレイ......?</td>
-	<td><span>🤔 将来的に検討、オプションとなる可能性あり</span></td>
-  </tr>
-</table>
-
----
-
-## 🎮 オフライン起動
-
-- Minecraft のルートディレクトリや `versions/<version>` の独立インスタンスディレクトリをスキャン可能。  
-- オンラインのアカウントトークンに依存せず、オフラインユーザー名の検証と決定的な UUID 生成をサポート。  
-- バージョン継承、モダンおよび旧式の起動引数、OS ルール、classpath の構築に対応。  
-- ネイティブファイルを安全に展開し、ゲーム終了後に一時ファイルをクリーンアップ。  
-- バージョン JSON の最低 Java 要件に基づき、Minecraft ランタイム、`NYALAUNCHER_JAVA`、`JAVA_HOME`、または `PATH` から要件に最も近い互換性のある JRE/JDK を選択。明示的な設定があればより高いメジャーバージョンの利用を許可。  
-- classpath の結合は通常ライブラリ、`natives-*`、`unsafe` といった Maven classifier を区別し、同名の LWJGL 依存が上書きされるのを防止。  
-- 起動ページにはディレクトリスキャン、バージョン選択、オフラインユーザー名、実行状態と終了コードの表示がある。
-
-> オフラインアカウントは正規認証が必要なサーバーには参加できません。起動前に対象バージョン、依存ライブラリ、リソースファイルが揃っていることを確認してください。
+**NyaLauncher** は **Avalonia UI 12.1.1** と **.NET 10** を用いて構築されたクロスプラットフォームの Minecraft ランチャーです。<br>
+軽量で高速なだけでなく、**プライバシー保護** と **画面のカスタマイズ性** を重視し、ゲームを楽しみながら完全なコントロールを提供します。<br>
+NyaLauncher は自由ソフトウェアです。必要に応じて保持するライブラリファイルを除き、すべてのコードは [Apache License 2.0](LICENSE) に従います。<br>
+ランチャーはユーザーの知らないテレメトリを一切行わず、ユーザーのプライバシーを侵害せず、機能を制限することもありません。
 
 ---
 
 ## 📦 技術スタック
 
-| コンポーネント    | 技術                          |
-|------------------|-------------------------------|
-| UI フレームワーク | Avalonia UI 12.0              |
-| ランタイム        | .NET 10                       |
+| コンポーネント            | 技術                          |
+|---------------------------|-------------------------------|
+| UI フレームワーク         | Avalonia UI 12.1.1            |
+| ランタイム                | .NET 10                       |
+| コンポーネント拡張契約    | .NET 10、Avalonia 依存なし    |
 
 ---
 
 ## 🔧 プロジェクト構成
 
-| プロジェクト                         | 役割                                            |
-|-------------------------------------|-------------------------------------------------|
-| NyaLauncher.Core                    | NyaLauncher のコア起動機能                       |
-| NyaLauncher.Avalonia                | Avalonia ベースのフロントエンド                   |
-| NyaLauncher.Avalonia.Animations     | NyaLauncher 用の UI アニメーションライブラリ     |
-| NyaLauncher.MinecraftTokenCrypto    | （一部の理由により公開されていません）Minecraft のアカウントトークン暗号化アルゴリズム |
+| プロジェクト                        | 役割                                                                       |
+|-------------------------------------|----------------------------------------------------------------------------|
+| NyaLauncher.Core                    | 🐱 NyaLauncher のコア起動機能セット                                         |
+| NyaLauncher.Avalonia                | Avalonia 技術で構築された NyaLauncher のフロントエンド UI                   |
+| NyaLauncher.Avalonia.Animations     | NyaLauncher のフロントエンド UI 用アニメーションライブラリ                 |
+| NyaLauncher.Plugin.Abstractions     | UI フレームワーク非依存のコンポーネント契約、形状、要素、ランタイム状態、検証 |
+| NyaLauncher.MinecraftTokenCrypto    | （**アルゴリズムを公開するのが適切ではないため、クローズドソースです**）Minecraft 正規アカウントのログイントークンの暗号化アルゴリズム／保存 |
+
+---
+
+## 🔃 更新計画
+
+### 📝 バージョン命名規則
+| 段階          | 説明                                                                                    |
+|---------------|-----------------------------------------------------------------------------------------|
+| beta          | ランチャー作成段階、完全に使用不可                                                      |
+| preview       | テスト段階、部分的に使用可能だが日常利用は非推奨（現在 0.1.0preview-3 の段階）           |
+| release       | 正式版、完全に使用可能な状態                                                            |
+| gp（特殊）    | newgui ブランチでの特定バージョン番号、main ブランチの preview に対応                    |
+
+### 実装予定の機能
+- プラグイン機能（下流ブランチ testplug で検証済み）
+- カスタムテーマ（次の preview 版で公開予定）
+- 多言語サポート（実装時期未定）
+- AI 支援による翻訳・誤りチェック（未定）
+- オンラインマルチプレイ（???）
 
 ---
 
 ## 🛠️ クイックスタート
 
-### 必要環境
+### 🪟🍎🐧 必要環境
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) 以上  
-- Windows 10+, macOS Ventura+, Linux Kernel 5.0+  
-- 各プラットフォーム向けデスクトップランタイム
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) 以上
+- Windows 10+、macOS Ventura+、Linux Kernel 5.0+
+- デスクトップランタイム（Windows/macOS/Linux）
+> HarmonyOS への移植は未定です。
 
-### クローンとビルド
+### 🔧 クローンとビルド
 
-```
-git clone https://github.com/your-username/NyaLauncher.git
+```bash
+git clone https://github.com/redstore-noob/NyaLauncher.git
 cd NyaLauncher
 dotnet restore
 dotnet build -c Release
 ```
 
-> 注意: 本プロジェクトはまだ開発途上です。実行時やビルド時に問題が発生する可能性があります。
-
 ---
 
-## 更新履歴
-
+## 📈 更新ログ
 最近の変更
-- バージョン継承時の classpath 依存インデックスの上書き問題を修正。  
-- Java バージョン要件を最小バージョン制約に変更し、より高いメジャーバージョンでの起動をサポート。Minecraft 1.21.4 は Java 21 および Java 25 での動作を確認済み。
 
-v0.1.0pre1
-- GUI を独立ライブラリ（NyaLauncher.Avalonia.Animations）へ分割。  
-- 発生していた一部のカクつきを改善。  
-![v0.1.0pre1 main screen](img/v0.1.0pre1.png)
+v0.1.0-preview3
+- newgui 機能を完成させ、main ブランチにマージしました
+- 多数のコンポーネントを追加
+- Core モジュールを小規模にリファクタリング（進捗: 25/100%）
+- Minecraft 関連のダウンロード機能を追加
+- ランチャー／ゲーム実行時に生成されるランタイムファイルを保存する Log 機能を追加
+- フロントエンドのハードコードされたスタイルの問題を修正し、その他の問題を少し最適化
+- プラグインシステムはテスト中で、最初の利用可能な API がまもなく公開されます
+- バックエンドの重複コード／デッドコードを削除
+- animations モジュールの一部のコードを削除し、まもなくリファクタリング予定
+- 各更新バージョンの命名規則を変更
+- Herobrine を削除しました
+![v0.1.0-preview3 メイン画面のスクリーンショット](img/v0.1.0preview-3-mainwindow.png)
+![v0.1.0-preview3 ゲーム管理画面のスクリーンショット](img/v0.1.0preview-3-game.png)
+![v0.1.0-preview3 アカウント管理画面のスクリーンショット](img/v0.1.0preview-3-account.png)
+
+v0.1.0-gp2（newgui ブランチ）
+
+> `v0.1.0-gp2` は v0.1.0 newgui の 2 回目の UI イテレーションを示すだけで、Core のバージョンには書き込まれません。<br>このバージョンは main ブランチとは関係ありません。
+
+- GUI を再構築（newgui ブランチ上）。ホームページが変更可能なコンポーネントブロックになり、カスタマイズの自由度が向上（まだ不完全。旧 GUI は main ブランチに保存）
+- オフライン起動と正規（オンライン）起動機能を追加
+- readme.md のバグを修正（?）
+- マルチアカウント管理を追加
+- 設定保存機能を追加。一度設定すればようやく保持されるようになりました 😭
+- Java 検索を最適化し、以前の「Java は起動できるが使用できない」問題を修正
+- Herobrine を削除しました
+![v0.1.0-gp2 メイン画面のスクリーンショット](img/v0.1.0pre2-mainwindow.png)
+![v0.1.0-gp2 起動画面のスクリーンショット](img/v0.1.0pre2.png)
+![v0.1.0-gp2 設定のスクリーンショット](img/v0.1.0pre2-settings.png)
+![v0.1.0-gp2 カスタマイズ画面のスクリーンショット](img/v0.1.0pre2-settings2.png)
+
+v0.1.0-pre1
+- ユーザーインターフェース内の GUI を独立ライブラリ（NyaLauncher.Avalonia.Animations）に分割
+- 発生していた一部のカクつき問題を改善
+- Herobrine を削除しました
+![v0.1.0-pre1 メイン画面のスクリーンショット](img/v0.1.0pre1.png)

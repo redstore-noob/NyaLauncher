@@ -16,15 +16,20 @@ namespace NyaLauncher.Avalonia.Animations.Helpers;
 
 public static class AnimationHelper
 {
+    private static ScaleTransform EnsureScaleTransform(Control target)
+    {
+        if (target.RenderTransform is ScaleTransform st)
+            return st;
+
+        st = new ScaleTransform(1, 1);
+        target.RenderTransform = st;
+        target.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+        return st;
+    }
+
     public static async Task BounceAsync(Control target, double scaleUp = 1.12, int durationMs = 350)
     {
-        if (target.RenderTransform is not ScaleTransform st)
-        {
-            st = new ScaleTransform(1, 1);
-            target.RenderTransform = st;
-            target.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
-        }
-
+        var st = EnsureScaleTransform(target);
         await AnimateScaleAsync(st, 1.0, scaleUp, durationMs / 3, EasingType.CubicOut);
         await AnimateScaleAsync(st, scaleUp, 0.96, durationMs / 3, EasingType.CubicIn);
         await AnimateScaleAsync(st, 0.96, 1.0, durationMs / 3, EasingType.CubicOut);
@@ -32,38 +37,20 @@ public static class AnimationHelper
 
     public static async Task PressAsync(Control target, int durationMs = 120)
     {
-        if (target.RenderTransform is not ScaleTransform st)
-        {
-            st = new ScaleTransform(1, 1);
-            target.RenderTransform = st;
-            target.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
-        }
-
+        var st = EnsureScaleTransform(target);
         await AnimateScaleAsync(st, 1.0, 0.92, durationMs, EasingType.CubicIn);
     }
 
     public static async Task ReleaseAsync(Control target, int durationMs = 300)
     {
-        if (target.RenderTransform is not ScaleTransform st)
-        {
-            st = new ScaleTransform(1, 1);
-            target.RenderTransform = st;
-            target.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
-        }
-
+        var st = EnsureScaleTransform(target);
         await AnimateScaleAsync(st, 0.92, 1.05, durationMs / 2, EasingType.CubicOut);
         await AnimateScaleAsync(st, 1.05, 1.0, durationMs / 2, EasingType.CubicOut);
     }
 
     public static async Task HoverInAsync(Control target, int durationMs = 200, double hoverScale = 1.05)
     {
-        if (target.RenderTransform is not ScaleTransform st)
-        {
-            st = new ScaleTransform(1, 1);
-            target.RenderTransform = st;
-            target.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
-        }
-
+        var st = EnsureScaleTransform(target);
         await AnimateScaleAsync(st, st.ScaleX, hoverScale, durationMs, EasingType.CubicOut, target);
     }
 

@@ -11,7 +11,7 @@ namespace NyaLauncher.Core.Launch.Auth;
 /// OAuth 设备码 → Microsoft access token → XBL 3.0 → XSTS → Minecraft 登录 → 档案获取。
 /// 同时支持使用 refresh_token 进行无感刷新。
 /// </summary>
-public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
+public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, IDisposable
 {
     /// <summary>
     /// 默认使用的 Azure 公共客户端 ID。
@@ -42,6 +42,7 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
         new("https://api.minecraftservices.com/minecraft/profile");
 
     private readonly HttpClient _httpClient;
+    private readonly bool _ownsHttpClient;
     private readonly string _clientId;
 
     /// <summary>
@@ -60,6 +61,7 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
         _clientId = !string.IsNullOrWhiteSpace(clientId)
             ? clientId
             : ClientIdOverride ?? DefaultClientId;
+        _ownsHttpClient = httpClient is null;
         _httpClient = httpClient ?? CreateDefaultHttpClient();
     }
 
@@ -68,6 +70,12 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator
         var client = new HttpClient();
         client.DefaultRequestHeaders.UserAgent.ParseAdd("NyaLauncher/1.0");
         return client;
+    }
+
+    public void Dispose()
+    {
+        if (_ownsHttpClient)
+            _httpClient.Dispose();
     }
 
     public async Task<MicrosoftAccount> AuthenticateAsync(
