@@ -13,7 +13,8 @@ internal sealed partial class PluginManager
         RepositoryPlugin plugin,
         RepositoryRelease release,
         IProgress<RepositoryDownloadProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? confirmedDowngradeFromVersion = null)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(repositoryClient);
@@ -42,15 +43,25 @@ internal sealed partial class PluginManager
                 return PluginOperationResult.Failed(
                     $"上次插件安装事务尚未安全恢复，当前不能继续安装：{_repositoryRecoveryError}");
             }
+
+            var matchingReleases = plugin.Releases
+                .Where(candidate => string.Equals(
+                    candidate.Version,
+                    release.Version,
+                    StringComparison.Ordinal))
+                .Take(2)
+                .ToArray();
+            if (matchingReleases.Length != 1)
+                return PluginOperationResult.Failed("该插件版本不属于此仓库条目或版本记录不唯一。");
+
+            // Treat the version as the caller's selection key, but trust only
+            // the canonical release stored on the validated repository entry.
+            // This prevents a cloned DTO from changing yank, compatibility,
+            // URL, size, or review-bound artifact metadata after selection.
+            release = matchingReleases[0];
             if (release.Yanked ||
-                !string.Equals(release.Channel, "stable", StringComparison.Ordinal) ||
-                !PluginRepositoryClient.IsCompatible(release) ||
-                !plugin.Releases.Any(candidate =>
-                    string.Equals(candidate.Version, release.Version, StringComparison.Ordinal) &&
-                    string.Equals(
-                        candidate.Download.Sha256,
-                        release.Download.Sha256,
-                        StringComparison.Ordinal)))
+                release.Channel is not ("stable" or "preview") ||
+                !PluginRepositoryClient.IsCompatible(release))
             {
                 return PluginOperationResult.Failed("该插件版本已撤回、与当前启动器不兼容或不属于此条目。");
             }
@@ -85,6 +96,7 @@ internal sealed partial class PluginManager
                     "插件仍在运行或等待重启清理。请先禁用插件；若页面提示需要重启，请重启后再更新。");
             }
 
+            var downgraded = false;
             if (existing?.Manifest is { } existingManifest)
             {
                 if (string.Equals(
@@ -99,8 +111,17 @@ internal sealed partial class PluginManager
                     SemanticVersion.TryParse(release.Version, out var repositoryVersion) &&
                     currentVersion.CompareTo(repositoryVersion) > 0)
                 {
-                    return PluginOperationResult.Failed(
-                        $"本地版本 {existingManifest.Version} 高于仓库版本 {release.Version}，不会自动降级。");
+                    if (!string.Equals(
+                            confirmedDowngradeFromVersion,
+                            existingManifest.Version,
+                            StringComparison.Ordinal))
+                    {
+                        return PluginOperationResult.Failed(
+                            $"本地版本 {existingManifest.Version} 高于仓库版本 {release.Version}，" +
+                            "需要针对当前已安装版本明确确认后才能降级。");
+                    }
+
+                    downgraded = true;
                 }
             }
 
@@ -174,7 +195,9 @@ internal sealed partial class PluginManager
             }
             return PluginOperationResult.Completed(
                 result.Updated
-                    ? $"插件 {plugin.Name} 已更新到 {release.Version}，当前保持禁用。"
+                    ? downgraded
+                        ? $"插件 {plugin.Name} 已降级到 {release.Version}，当前保持禁用。"
+                        : $"插件 {plugin.Name} 已更新到 {release.Version}，当前保持禁用。"
                     : $"插件 {plugin.Name} {release.Version} 已安装，启用前请检查能力授权。");
         }
         catch (OperationCanceledException)

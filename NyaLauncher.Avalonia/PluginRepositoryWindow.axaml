@@ -251,8 +251,17 @@
                   <TextBlock x:Name="RepositoryDetailsLicense" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
                 </Grid>
                 <Grid ColumnDefinitions="130,*">
-                  <TextBlock Text="可用版本" Foreground="#8F99B3" />
-                  <TextBlock x:Name="RepositoryDetailsVersion" Grid.Column="1" Foreground="#E7EAF7" />
+                  <TextBlock Text="历史版本" Foreground="#8F99B3" VerticalAlignment="Top" Margin="0,7,0,0" />
+                  <StackPanel Grid.Column="1" Spacing="5">
+                    <ComboBox x:Name="RepositoryVersionComboBox"
+                              MinWidth="280"
+                              HorizontalAlignment="Stretch"
+                              SelectionChanged="OnRepositoryVersionSelectionChanged" />
+                    <TextBlock x:Name="RepositoryDetailsVersionHint"
+                               FontSize="9"
+                               Foreground="#8F99B3"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
                 </Grid>
                 <Grid ColumnDefinitions="130,*">
                   <TextBlock Text="仓库审核" Foreground="#8F99B3" />
