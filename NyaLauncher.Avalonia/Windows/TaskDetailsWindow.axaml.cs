@@ -3,9 +3,11 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
-using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Core.Download;
+using NyaLauncher.Core.Launch;
 
-namespace NyaLauncher.Avalonia;
+namespace NyaLauncher.Avalonia.Windows;
 
 internal partial class TaskDetailsWindow : Window
 {
@@ -189,10 +191,10 @@ internal partial class TaskDetailsWindow : Window
         _selectedView = view;
         DownloadView.IsVisible = view == TaskDetailView.Download;
         LaunchView.IsVisible = view == TaskDetailView.Launch;
-        DownloadViewButton.Background = global::Avalonia.Media.Brush.Parse(
-            view == TaskDetailView.Download ? "#252D47" : "#1A2031");
-        LaunchViewButton.Background = global::Avalonia.Media.Brush.Parse(
-            view == TaskDetailView.Launch ? "#252D47" : "#1A2031");
+        DownloadViewButton.Background = view == TaskDetailView.Download
+            ? ThemeBrushes.ButtonBg : ThemeBrushes.SurfaceBg;
+        LaunchViewButton.Background = view == TaskDetailView.Launch
+            ? ThemeBrushes.ButtonBg : ThemeBrushes.SurfaceBg;
         RefreshView();
     }
 

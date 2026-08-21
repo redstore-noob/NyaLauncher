@@ -9,10 +9,15 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Content;
 using NyaLauncher.Core.Launch;
+using NyaLauncher.Core.Tools;
+using NyaLauncher.Avalonia.Controls;
 
 namespace NyaLauncher.Avalonia.Pages;
 
@@ -36,6 +41,7 @@ public partial class VersionManagerPage : UserControl
         InitializeComponent();
         GameInstanceStore.Changed += OnInstancesChanged;
         GameVersionProfileStore.Changed += OnProfilesChanged;
+        ModsList.AddHandler(ContentEntryItem.ModFileChangedEvent, OnModFileChanged);
         ReloadFolders();
     }
 
@@ -44,7 +50,7 @@ public partial class VersionManagerPage : UserControl
         ReloadFolders();
         var path = LauncherConfig.GameDirectory ??
                    Environment.GetEnvironmentVariable("NYALAUNCHER_MINECRAFT_DIR") ??
-                   MinecraftDirectoryLocator.GetDefaultDirectory();
+                   MinecraftDirectoryLocator.EnsureDefaultDirectory();
         _ = GameInstanceStore.RefreshAsync(path);
     }
 
@@ -280,6 +286,20 @@ public partial class VersionManagerPage : UserControl
         DetailsView.IsVisible = false;
     }
 
+    private async void OnModFileChanged(object? sender, RoutedEventArgs e)
+    {
+        var snapshot = GameInstanceStore.Current;
+        var versionId = snapshot.SelectedVersionId;
+        if (snapshot.IsLoading ||
+            snapshot.ErrorMessage is not null ||
+            string.IsNullOrWhiteSpace(versionId) ||
+            string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory))
+        {
+            return;
+        }
+        await LoadDetailsAsync(snapshot, versionId);
+    }
+
     private async void OnSaveSettingsClick(object? sender, RoutedEventArgs e)
     {
         var snapshot = GameInstanceStore.Current;
@@ -315,7 +335,7 @@ public partial class VersionManagerPage : UserControl
                     snapshot.MinecraftDirectory,
                     versionId,
                     requestedVersionId);
-                var sourcePath = PathsEqual(snapshot.SourcePath, oldVersionDirectory)
+                var sourcePath = PathUtil.PathsEqual(snapshot.SourcePath, oldVersionDirectory)
                     ? Path.Combine(snapshot.MinecraftDirectory, "versions", versionId)
                     : snapshot.SourcePath;
                 await GameInstanceStore.RefreshAsync(sourcePath);
@@ -409,6 +429,161 @@ public partial class VersionManagerPage : UserControl
         {
             StatusText.Text = $"打开文件夹失败：{exception.Message}";
         }
+    }
+
+    // ------------------------------------------------------------------
+    // 右键菜单公共接口（由 InstanceListItem 调用）
+    // ------------------------------------------------------------------
+
+    /// <summary>选中指定版本并将焦点移到名称输入框（触发重命名）。</summary>
+    public void RequestRename(string versionId)
+    {
+        GameInstanceStore.Select(versionId);
+        _ = LoadDetailsAsync(GameInstanceStore.Current, versionId);
+        VersionNameBox.Focus();
+        StatusText.Text = "修改上方名称后点击保存即可重命名。";
+    }
+
+    /// <summary>删除指定版本（含确认对话框）。自动清理孤立的依赖版本。</summary>
+    public async void RequestDelete(string versionId)
+    {
+        var snapshot = GameInstanceStore.Current;
+        if (string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory)) return;
+
+        // 外部实例不允许删除
+        if (GameInstanceLayoutResolver.TryResolveExternalInstance(
+                snapshot.SourcePath, out var external) &&
+            string.Equals(external.InstanceId, versionId, StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "外部启动器实例请通过原启动器删除。";
+            return;
+        }
+
+        var versionDir = Path.Combine(snapshot.MinecraftDirectory, "versions", versionId);
+        if (!Directory.Exists(versionDir))
+        {
+            StatusText.Text = $"版本目录不存在：{versionDir}";
+            return;
+        }
+
+        // 读取 inheritsFrom，用于后续清理孤立依赖
+        var parentId = ReadInheritsFrom(snapshot.MinecraftDirectory, versionId);
+
+        // 确认对话框
+        var dialog = new Window
+        {
+            Title = "删除实例",
+            Width = 400,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        var stack = new StackPanel { Spacing = 12, Margin = new Thickness(24) };
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"确定删除实例 {versionId}？",
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = parentId is not null
+                ? $"此操作将永久删除该版本及其依赖版本 {parentId} 的所有文件，且无法恢复。"
+                : "此操作将永久删除该版本的所有文件（包括存档、Mod、资源包等），且无法恢复。",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Foreground = Brushes.Gray
+        });
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        var cancelBtn = new Button { Content = "取消", Padding = new Thickness(18, 8) };
+        cancelBtn.Click += (_, _) => dialog.Close(false);
+        var deleteBtn = new Button
+        {
+            Content = "删除",
+            Padding = new Thickness(18, 8),
+            Background = Brushes.Red,
+            Foreground = Brushes.White
+        };
+        deleteBtn.Click += (_, _) => dialog.Close(true);
+        buttons.Children.Add(cancelBtn);
+        buttons.Children.Add(deleteBtn);
+        stack.Children.Add(buttons);
+        dialog.Content = stack;
+
+        var owner = TopLevel.GetTopLevel(this) as Window;
+        if (owner is null) return;
+        var result = await dialog.ShowDialog<bool>(owner);
+        if (!result) return;
+
+        try
+        {
+            Directory.Delete(versionDir, recursive: true);
+
+            // 清理孤立的依赖版本：如果原版只被这一个子版本引用，也一并删除
+            if (parentId is not null)
+            {
+                var parentDir = Path.Combine(snapshot.MinecraftDirectory, "versions", parentId);
+                if (Directory.Exists(parentDir) && IsOrphanedDependency(snapshot.MinecraftDirectory, parentId))
+                {
+                    Directory.Delete(parentDir, recursive: true);
+                    StatusText.Text = $"已删除实例 {versionId} 及孤立依赖 {parentId}。";
+                }
+                else
+                {
+                    StatusText.Text = $"已删除实例 {versionId}。";
+                }
+            }
+            else
+            {
+                StatusText.Text = $"已删除实例 {versionId}。";
+            }
+
+            await GameInstanceStore.RefreshAsync(snapshot.SourcePath);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"删除失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>读取版本 JSON 中的 inheritsFrom 字段。</summary>
+    private static string? ReadInheritsFrom(string minecraftDirectory, string versionId)
+    {
+        try
+        {
+            var jsonPath = Path.Combine(minecraftDirectory, "versions", versionId, $"{versionId}.json");
+            if (!File.Exists(jsonPath)) return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(jsonPath));
+            return doc.RootElement.TryGetProperty("inheritsFrom", out var prop)
+                ? prop.GetString()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 检查指定版本是否为孤立依赖：没有任何其他版本通过 inheritsFrom 引用它。
+    /// </summary>
+    private static bool IsOrphanedDependency(string minecraftDirectory, string candidateId)
+    {
+        var versionsDir = Path.Combine(minecraftDirectory, "versions");
+        if (!Directory.Exists(versionsDir)) return true;
+
+        foreach (var dir in Directory.EnumerateDirectories(versionsDir))
+        {
+            var id = Path.GetFileName(dir);
+            if (string.Equals(id, candidateId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var parentId = ReadInheritsFrom(minecraftDirectory, id ?? string.Empty);
+            if (string.Equals(parentId, candidateId, StringComparison.OrdinalIgnoreCase))
+                return false; // 还有其他版本引用它，不是孤立的
+        }
+        return true;
     }
 
     private static ProcessStartInfo CreateShellStartInfo(string fileName, string argument)
@@ -623,8 +798,8 @@ public partial class VersionManagerPage : UserControl
         var current = GameInstanceStore.Current;
         return !current.IsLoading &&
                current.ErrorMessage is null &&
-               PathsEqual(current.SourcePath, snapshot.SourcePath) &&
-               PathsEqual(current.MinecraftDirectory, snapshot.MinecraftDirectory) &&
+               PathUtil.PathsEqual(current.SourcePath, snapshot.SourcePath) &&
+               PathUtil.PathsEqual(current.MinecraftDirectory, snapshot.MinecraftDirectory) &&
                string.Equals(
                    current.SelectedVersionId,
                    versionId,
@@ -697,8 +872,8 @@ public partial class VersionManagerPage : UserControl
         var current = GameInstanceStore.Current;
         return !current.IsLoading &&
                current.ErrorMessage is null &&
-               PathsEqual(current.SourcePath, snapshot.SourcePath) &&
-               PathsEqual(current.MinecraftDirectory, snapshot.MinecraftDirectory) &&
+               PathUtil.PathsEqual(current.SourcePath, snapshot.SourcePath) &&
+               PathUtil.PathsEqual(current.MinecraftDirectory, snapshot.MinecraftDirectory) &&
                current.VersionIds.SequenceEqual(snapshot.VersionIds, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -706,11 +881,8 @@ public partial class VersionManagerPage : UserControl
     {
         if (string.IsNullOrWhiteSpace(target))
             return null;
-        return paths.FirstOrDefault(path => PathsEqual(path, target));
+        return paths.FirstOrDefault(path => PathUtil.PathsEqual(path, target));
     }
-
-    private static bool PathsEqual(string left, string right) =>
-        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 
     private static bool TryReadInt(TextBox textBox, out int value) =>
         int.TryParse(textBox.Text?.Trim(), out value);
@@ -718,11 +890,11 @@ public partial class VersionManagerPage : UserControl
     private static string[] ReadLines(string? text) =>
         (text ?? string.Empty)
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    private sealed record VersionListItem(
-        string VersionId,
-        string Name,
-        string DirectoryMode,
-        string? IconPath,
-        string IconGlyph);
 }
+
+public sealed record VersionListItem(
+    string VersionId,
+    string Name,
+    string DirectoryMode,
+    string? IconPath,
+    string IconGlyph);

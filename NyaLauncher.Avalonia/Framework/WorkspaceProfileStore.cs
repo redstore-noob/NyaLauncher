@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia.Framework;
 
@@ -149,7 +150,7 @@ public sealed class WorkspaceProfileStore
 
         var inspection = InspectStorageDirectory(storageDirectory);
         var targetDirectory = inspection.Directory;
-        if (PathsEqual(StorageDirectory, targetDirectory))
+        if (PathUtil.PathsEqual(StorageDirectory, targetDirectory))
         {
             Save(profile);
             return StorageDirectoryChangeTransaction.CreateNoOp(
@@ -495,9 +496,6 @@ public sealed class WorkspaceProfileStore
                 $"{Path.GetFileName(path)} 超过 {maximumBytes} 字节限制。");
     }
 
-    public static bool PathsEqual(string left, string right) =>
-        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
-
     private static void SaveToPath(WorkspaceProfile profile, string filePath)
     {
         profile = WorkspaceProfileMigrator.Migrate(profile);
@@ -527,7 +525,7 @@ public sealed class WorkspaceProfileStore
 
     private void SaveConfiguredDirectory(string directory)
     {
-        if (PathsEqual(directory, PlatformDefaultDirectory))
+        if (PathUtil.PathsEqual(directory, PlatformDefaultDirectory))
         {
             if (File.Exists(_locationFilePath))
                 File.Delete(_locationFilePath);

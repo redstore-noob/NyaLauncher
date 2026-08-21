@@ -1,4 +1,4 @@
-﻿namespace NyaLauncher.Core.Launch;
+namespace NyaLauncher.Core.Launch;
 using Auth;
 using System.Diagnostics;
 using Internal;
@@ -76,15 +76,8 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
             options.VersionId,
             cancellationToken);
 
-        var features = new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["has_custom_resolution"] = options.WindowWidth > 0 && options.WindowHeight > 0,
-            ["is_demo_user"] = false,
-            ["has_quick_plays_support"] = false,
-            ["is_quick_play_singleplayer"] = false,
-            ["is_quick_play_multiplayer"] = false,
-            ["is_quick_play_realms"] = false
-        };
+        var features = MinecraftRuleEvaluator.CreateDefaultFeatures(
+            options.WindowWidth > 0 && options.WindowHeight > 0);
         var (classpath, nativeLibraries) =
             _libraryResolver.Resolve(profile, minecraftDirectory, features);
         var nativeDirectory = _libraryResolver.ExtractNatives(profile.Id, nativeLibraries);
@@ -256,6 +249,46 @@ public static class MinecraftDirectoryLocator
     }
 
     /// <summary>
+    /// Minecraft 标准目录结构中应当存在的子文件夹列表。
+    /// 仅包含目录骨架，不创建任何文件。
+    /// </summary>
+    private static readonly string[] StandardSubDirectories =
+    [
+        "versions",
+        "assets",
+        "libraries",
+        "saves",
+        "resourcepacks",
+        "mods",
+        "config",
+        "crash-reports",
+        "logs",
+        "screenshots",
+        "shaderpacks",
+    ];
+
+    /// <summary>
+    /// 检测默认 Minecraft 目录是否存在；不存在时在平台默认路径下
+    /// 创建符合 Minecraft 目录结构的空文件夹骨架，并将其路径写入启动器配置。
+    /// </summary>
+    /// <returns>保证存在的默认 Minecraft 目录路径。</returns>
+    public static string EnsureDefaultDirectory()
+    {
+        var defaultDir = GetDefaultDirectory();
+
+        if (!Directory.Exists(defaultDir))
+        {
+            Directory.CreateDirectory(defaultDir);
+            foreach (var sub in StandardSubDirectories)
+            {
+                Directory.CreateDirectory(Path.Combine(defaultDir, sub));
+            }
+        }
+
+        return defaultDir;
+    }
+
+    /// <summary>
     /// 接受 Minecraft 根目录，或 versions/&lt;版本号&gt; 形式的独立实例目录。
     /// </summary>
     /// <param name="path">用户输入的路径，可为根目录或某个具体版本的实例目录。</param>
@@ -312,16 +345,39 @@ public static class MinecraftDirectoryLocator
             return [];
         }
 
-        return Directory.EnumerateDirectories(versionsDirectory)
-            // 只取目录名（即版本 ID）
+        // 第一轮：收集所有有效版本 ID
+        var allIds = Directory.EnumerateDirectories(versionsDirectory)
             .Select(Path.GetFileName)
-            // 过滤掉空白名称
             .Where(id => !string.IsNullOrWhiteSpace(id))
-            // 过滤掉缺少同名 .json 的残缺版本
             .Where(id => File.Exists(Path.Combine(versionsDirectory, id!, $"{id}.json")))
-            // 按名称忽略大小写降序排列，让较新的版本名（如 1.21.4）排在前面
-            .OrderByDescending(id => id, StringComparer.OrdinalIgnoreCase)
             .Cast<string>()
+            .ToList();
+
+        // 第二轮：收集所有 inheritsFrom 目标（即被其他版本依赖的原版版本）
+        var dependencyTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in allIds)
+        {
+            try
+            {
+                var jsonPath = Path.Combine(versionsDirectory, id, $"{id}.json");
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(jsonPath));
+                var inheritsFrom = doc.RootElement.TryGetProperty("inheritsFrom", out var prop)
+                    ? prop.GetString()
+                    : null;
+                if (!string.IsNullOrWhiteSpace(inheritsFrom))
+                    dependencyTargets.Add(inheritsFrom);
+            }
+            catch
+            {
+                // 解析失败不影响扫描
+            }
+        }
+
+        // 第三轮：过滤掉仅作为依赖存在的原版版本
+        // 保留：有自己内容的版本（NeoForge、Fabric 等）以及不被任何人依赖的独立版本
+        return allIds
+            .Where(id => !dependencyTargets.Contains(id))
+            .OrderByDescending(id => id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 

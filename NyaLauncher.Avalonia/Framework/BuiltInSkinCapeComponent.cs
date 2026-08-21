@@ -4,7 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Core.Launch.Auth;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -37,16 +38,7 @@ internal static class BuiltInSkinCapeComponent
             .WithSizeLimits(72, 72, 160, 160)
             .WithShape(PolygonShapeDefinition.Rectangle())
             .WithDragHandle(new ComponentRect(0.04, 0.04, 0.24, 0.24))
-            .WithTheme(new PolygonComponentTheme
-            {
-                Surface = "#1B2132",
-                SurfaceHover = "#252E45",
-                Border = "#53658F",
-                BorderHover = "#9AA8FF",
-                Accent = "#8C9DFF",
-                ProgressTrack = "#252C40",
-                BorderThickness = 2
-            })
+            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
             .AddAction(ChangeSkinActionId)
             .AddAction(ChangeCapeActionId)
             .AddAction(SelectOfflineSkinActionId)

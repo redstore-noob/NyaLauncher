@@ -1,56 +1,56 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="NyaLauncher.Avalonia.ConfigurationConflictDialog"
+        x:Class="NyaLauncher.Avalonia.Dialogs.ConfigurationConflictDialog"
         Title="配置目录已存在"
         Width="540"
         SizeToContent="Height"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="#111522"
+        Background="{StaticResource BaseBgBrush}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,Auto,Auto" Margin="26">
     <StackPanel Grid.Row="0" Spacing="10">
       <TextBlock Text="目标目录已存在配置"
                  FontSize="21"
                  FontWeight="Bold"
-                 Foreground="#F6F7FF" />
+                 Foreground="{StaticResource PrimaryTextBrush}" />
       <TextBlock Text="将直接应用目标目录中的配置，不会用当前配置覆盖它。是否删除旧目录中的配置文件？"
                  FontSize="13"
-                 Foreground="#B7BED3"
+                 Foreground="{StaticResource BodyTextBrush}"
                  TextWrapping="Wrap" />
     </StackPanel>
 
     <Border Grid.Row="1"
             Margin="0,18,0,20"
             Padding="14"
-            Background="#1B2132"
-            BorderBrush="#30384F"
+            Background="{StaticResource PanelBgBrush}"
+            BorderBrush="{StaticResource MediumBorderBrush}"
             BorderThickness="1"
             CornerRadius="10">
       <StackPanel Spacing="8">
         <TextBlock Text="旧配置目录"
                    FontSize="11"
                    FontWeight="SemiBold"
-                   Foreground="#8F98B3" />
+                   Foreground="{StaticResource SubtextTextBrush}" />
         <TextBlock x:Name="PreviousDirectoryText"
                    FontFamily="Consolas"
                    FontSize="11"
-                   Foreground="#E3E6F3"
+                   Foreground="{StaticResource TertiaryTextBrush}"
                    TextWrapping="Wrap" />
         <TextBlock Text="将应用的目标目录"
                    Margin="0,6,0,0"
                    FontSize="11"
                    FontWeight="SemiBold"
-                   Foreground="#8F98B3" />
+                   Foreground="{StaticResource SubtextTextBrush}" />
         <TextBlock x:Name="TargetDirectoryText"
                    FontFamily="Consolas"
                    FontSize="11"
-                   Foreground="#E3E6F3"
+                   Foreground="{StaticResource TertiaryTextBrush}"
                    TextWrapping="Wrap" />
         <TextBlock x:Name="ExistingFilesText"
                    Margin="0,6,0,0"
                    FontSize="11"
-                   Foreground="#AEB6FF"
+                   Foreground="{StaticResource AccentTextBrush}"
                    TextWrapping="Wrap" />
       </StackPanel>
     </Border>
@@ -68,8 +68,8 @@
               Click="OnBackupClick" />
       <Button Content="是，删除旧配置"
               Padding="16,8"
-              Background="#B64A5A"
-              Foreground="White"
+              Background="{StaticResource ErrorDarkBrush}"
+              Foreground="{StaticResource WhiteBrush}"
               Click="OnDeleteClick" />
     </StackPanel>
   </Grid>

@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using NyaLauncher.Avalonia.Framework;
 
-namespace NyaLauncher.Avalonia;
+namespace NyaLauncher.Avalonia.Dialogs;
 
 public partial class ConfigurationConflictDialog : Window
 {

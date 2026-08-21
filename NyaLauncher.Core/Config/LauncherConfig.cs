@@ -6,7 +6,7 @@ using NyaLauncher.Core.Tools;
 namespace NyaLauncher.Core.Config;
 
 /// <summary>
-/// 启动器配置的统一入口。底层由 <see cref="ConfigFileManage"/> 负责 JSON 读写。
+/// 启动器配置的统一入口。底层由 <see cref="ConfigFileManager"/> 负责 JSON 读写。
 /// 配置文件为存储目录下的 config.json，默认目录与 workspace.json 保持一致
 /// （%LOCALAPPDATA%\NyaLauncher），可通过 <see cref="SetStorageDirectory"/> 同步工作区存储目录。
 /// </summary>
@@ -19,7 +19,7 @@ public static class LauncherConfig
 
     private static readonly object SyncRoot = new();
     private static string _storageDirectory = DefaultStorageDirectory;
-    private static ConfigFileManage? _store;
+    private static ConfigFileManager? _store;
 
     /// <summary>config.json 所在目录；默认与 workspace.json 同目录。</summary>
     public static string StorageDirectory
@@ -57,16 +57,13 @@ public static class LauncherConfig
         var normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(storageDirectory));
         lock (SyncRoot)
         {
-            if (PathsEqual(normalized, _storageDirectory))
+            if (PathUtil.PathsEqual(normalized, _storageDirectory))
                 return;
 
             StorageDirectory = normalized;
             _store = null; // 下次访问时用新路径重新加载
         }
     }
-
-    private static bool PathsEqual(string left, string right) =>
-        PathUtil.PathsEqual(left, right);
 
     /// <summary>游戏根目录（.minecraft 或自定义目录）；未配置时返回 null。</summary>
     public static string? GameDirectory
@@ -121,6 +118,45 @@ public static class LauncherConfig
     public static void ClearJava() =>
         WithStore(store => store.ConfigItemDelete("javaPath"));
 
+    /// <summary>
+    /// 全局默认版本隔离设置。true = 新实例默认隔离，false = 默认共享目录，null = 跟随自动检测。
+    /// 仅在版本自身的 <c>IsVersionIsolationEnabled</c> 为 null 时生效。
+    /// </summary>
+    public static bool? DefaultVersionIsolation
+    {
+        get
+        {
+            var value = GetValue("defaultVersionIsolation");
+            return bool.TryParse(value, out var result) ? result : null;
+        }
+    }
+
+    /// <summary>保存全局默认版本隔离设置；传 null 恢复自动检测。</summary>
+    public static void SaveDefaultVersionIsolation(bool? value)
+    {
+        if (value.HasValue)
+            SetValue("defaultVersionIsolation", value.Value.ToString());
+        else
+            WithStore(store => store.ConfigItemDelete("defaultVersionIsolation"));
+    }
+
+    /// <summary>
+    /// 启动前是否校验游戏文件完整性并自动补全缺失文件。默认 true。
+    /// </summary>
+    public static bool VerifyFilesBeforeLaunch
+    {
+        get
+        {
+            var value = GetValue("verifyFilesBeforeLaunch");
+            // 未设置时默认开启
+            return value is null || bool.TryParse(value, out var result) && result;
+        }
+    }
+
+    /// <summary>保存启动前文件校验设置。</summary>
+    public static void SaveVerifyFilesBeforeLaunch(bool enabled) =>
+        SetValue("verifyFilesBeforeLaunch", enabled.ToString());
+
     /// <summary>保存/更新任意字符串配置项。</summary>
     public static bool SetValue(string key, string value) =>
         !string.IsNullOrWhiteSpace(key) &&
@@ -140,11 +176,11 @@ public static class LauncherConfig
     private static string GetFilePath() =>
         Path.Combine(_storageDirectory, "config.json");
 
-    private static T WithStore<T>(Func<ConfigFileManage, T> action)
+    private static T WithStore<T>(Func<ConfigFileManager, T> action)
     {
         lock (SyncRoot)
         {
-            _store ??= new ConfigFileManage(GetFilePath());
+            _store ??= new ConfigFileManager(GetFilePath());
             return action(_store);
         }
     }

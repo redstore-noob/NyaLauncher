@@ -1,23 +1,23 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="NyaLauncher.Avalonia.CapeSelectionDialog"
+        x:Class="NyaLauncher.Avalonia.Dialogs.CapeSelectionDialog"
         Title="选择披风"
         Width="460"
         Height="500"
         MinHeight="360"
         CanResize="True"
         ShowInTaskbar="False"
-        Background="#111522"
+        Background="{StaticResource BaseBgBrush}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto" Margin="26">
     <StackPanel Spacing="9">
       <TextBlock Text="选择正版账号披风"
                  FontSize="21"
                  FontWeight="Bold"
-                 Foreground="#F6F7FF" />
+                 Foreground="{StaticResource PrimaryTextBrush}" />
       <TextBlock Text="这里只显示该 Minecraft 正版账号已经拥有的披风。"
                  FontSize="12"
-                 Foreground="#A5AEC7" />
+                 Foreground="{StaticResource MutedTextBrush}" />
     </StackPanel>
 
     <ScrollViewer Grid.Row="1" Margin="0,18" VerticalScrollBarVisibility="Auto">

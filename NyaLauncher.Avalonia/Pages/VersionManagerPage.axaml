@@ -2,59 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:NyaLauncher.Avalonia.Controls"
              x:Class="NyaLauncher.Avalonia.Pages.VersionManagerPage"
-             Background="#151826">
-  <UserControl.Resources>
-    <DataTemplate x:Key="ContentEntryTemplate" x:CompileBindings="False">
-      <Border Background="#202638"
-              BorderBrush="#30384F"
-              BorderThickness="1"
-              CornerRadius="9"
-              Padding="11"
-              Margin="0,0,0,7">
-        <Grid ColumnDefinitions="48,12,*">
-          <Border Width="48" Height="48" CornerRadius="8" Background="#2D3550" ClipToBounds="True">
-            <Grid>
-              <TextBlock Text="{Binding FallbackGlyph}"
-                         FontSize="22"
-                         HorizontalAlignment="Center"
-                         VerticalAlignment="Center" />
-              <local:AsyncImage SourceUrl="{Binding IconPath}"
-                                Width="48"
-                                Height="48"
-                                Stretch="Uniform" />
-            </Grid>
-          </Border>
-          <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Name}"
-                       FontSize="13"
-                       FontWeight="SemiBold"
-                       Foreground="#EDF0FF"
-                       TextTrimming="CharacterEllipsis" />
-            <TextBlock Text="{Binding MetadataLine}"
-                       FontSize="10"
-                       Foreground="#9AA5C1"
-                       TextTrimming="CharacterEllipsis" />
-            <TextBlock Text="{Binding Description}"
-                       FontSize="10"
-                       Foreground="#707B98"
-                       TextTrimming="CharacterEllipsis"
-                       MaxLines="2" />
-          </StackPanel>
-        </Grid>
-      </Border>
-    </DataTemplate>
-  </UserControl.Resources>
+             Background="{StaticResource WindowBgBrush}">
   <Grid RowDefinitions="Auto,*,Auto" Margin="26,22">
     <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,0,0,18">
-      <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
-        <TextBlock Text="版本管理"
-                   FontSize="23"
-                   FontWeight="SemiBold"
-                   Foreground="#F4F6FF" />
-        <TextBlock Text="选择游戏文件夹、实例并管理内容与启动参数"
-                   FontSize="11"
-                   Foreground="#838DA8" />
-      </StackPanel>
+      <TextBlock Text="版本管理"
+                 FontSize="23"
+                 FontWeight="SemiBold"
+                 Foreground="{StaticResource PrimaryTextBrush}" />
       <ComboBox x:Name="FolderSelector"
                 Grid.Column="1"
                 MinWidth="280"
@@ -83,8 +37,8 @@
     </Grid>
 
     <Grid Grid.Row="1" ColumnDefinitions="250,16,*">
-      <Border Background="#1D2233"
-              BorderBrush="#30384F"
+      <Border Background="{StaticResource PanelBgBrush}"
+              BorderBrush="{StaticResource MediumBorderBrush}"
               BorderThickness="1"
               CornerRadius="13"
               Padding="12">
@@ -92,40 +46,16 @@
           <TextBlock Text="实例版本"
                      FontSize="13"
                      FontWeight="SemiBold"
-                     Foreground="#DDE2F4"
+                     Foreground="{StaticResource SecondaryTextBrush}"
                      Margin="4,2,4,10" />
           <ListBox x:Name="VersionList"
                    Grid.Row="1"
-                   Background="Transparent"
+                   Background="{StaticResource TransparentBrush}"
                    BorderThickness="0"
                    SelectionChanged="OnVersionSelectionChanged">
             <ListBox.ItemTemplate>
-              <DataTemplate x:CompileBindings="False">
-                <Grid ColumnDefinitions="38,9,*" Margin="5,6">
-                  <Border Width="38" Height="38" CornerRadius="7" Background="#2D3550" ClipToBounds="True">
-                    <Grid>
-                      <TextBlock Text="{Binding IconGlyph}"
-                                 FontSize="19"
-                                 HorizontalAlignment="Center"
-                                 VerticalAlignment="Center" />
-                      <local:AsyncImage SourceUrl="{Binding IconPath}"
-                                        Width="38"
-                                        Height="38"
-                                        Stretch="Uniform" />
-                    </Grid>
-                  </Border>
-                  <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Name}"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Foreground="#EDF0FF"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding DirectoryMode}"
-                               FontSize="10"
-                               Foreground="#7E88A4"
-                               TextTrimming="CharacterEllipsis" />
-                  </StackPanel>
-                </Grid>
+              <DataTemplate>
+                <local:InstanceListItem />
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
@@ -133,35 +63,36 @@
                      Grid.Row="2"
                      Text="0 个实例"
                      FontSize="10"
-                     Foreground="#727C97"
+                     Foreground="{StaticResource DisabledTextBrush}"
                      Margin="4,10,4,2" />
         </Grid>
       </Border>
 
       <Border Grid.Column="2"
-              Background="#1A1F2F"
-              BorderBrush="#30384F"
+              Background="{StaticResource CardBgBrush}"
+              BorderBrush="{StaticResource MediumBorderBrush}"
               BorderThickness="1"
               CornerRadius="13"
               Padding="20">
         <Grid>
         <Grid x:Name="EmptyDetailsView">
-          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="7">
-            <TextBlock Text="▦" FontSize="35" Foreground="#6674DB" HorizontalAlignment="Center" />
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="7">
+            <Image Source="avares://NyaLauncher.Avalonia/Resources/Icons/ic_fluent_apps_24_filled.png"
+                   Width="40" Height="40" HorizontalAlignment="Center" />
             <TextBlock Text="请选择一个实例版本"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="#DDE2F4"
+                       Foreground="{StaticResource SecondaryTextBrush}"
                        HorizontalAlignment="Center" />
             <TextBlock Text="选择后可以查看详情、内容与启动设置"
                        FontSize="11"
-                       Foreground="#7E88A4" />
+                       Foreground="{StaticResource SubtextTextBrush}" />
           </StackPanel>
         </Grid>
 
         <Grid x:Name="DetailsView" IsVisible="False" RowDefinitions="Auto,*">
           <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,0,0,14">
-            <Border Width="48" Height="48" CornerRadius="9" Background="#2D3550" ClipToBounds="True" Margin="0,0,12,0">
+            <Border Width="48" Height="48" CornerRadius="9" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True" Margin="0,0,12,0">
               <Grid>
                 <TextBlock x:Name="DetailsIconGlyphText"
                            Text="🟩"
@@ -179,11 +110,11 @@
                          Text="实例详情"
                          FontSize="21"
                          FontWeight="SemiBold"
-                         Foreground="#F4F6FF" />
+                         Foreground="{StaticResource PrimaryTextBrush}" />
               <TextBlock x:Name="DetailsSubtitleText"
                          Text="Minecraft"
                          FontSize="11"
-                         Foreground="#838DA8" />
+                         Foreground="{StaticResource SubtextTextBrush}" />
             </StackPanel>
             <Button Grid.Column="2"
                     Content="打开版本文件夹"
@@ -210,56 +141,56 @@
               <ScrollViewer>
                 <StackPanel Margin="14" Spacing="12">
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="实际版本 ID" Foreground="#8F99B3" />
-                    <TextBlock x:Name="VersionIdText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="实际版本 ID" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="VersionIdText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="Minecraft 基础版本" Foreground="#8F99B3" />
-                    <TextBlock x:Name="BaseGameVersionText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="Minecraft 基础版本" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="BaseGameVersionText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="版本类型" Foreground="#8F99B3" />
-                    <TextBlock x:Name="VersionTypeText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="版本类型" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="VersionTypeText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="模组加载器" Foreground="#8F99B3" />
-                    <TextBlock x:Name="LoaderText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="模组加载器" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="LoaderText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="模组加载器版本" Foreground="#8F99B3" />
-                    <TextBlock x:Name="LoaderVersionText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="模组加载器版本" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="LoaderVersionText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="版本隔离" Foreground="#8F99B3" />
-                    <TextBlock x:Name="IsolationText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="版本隔离" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="IsolationText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="布局识别来源" Foreground="#8F99B3" />
+                    <TextBlock Text="布局识别来源" Foreground="{StaticResource MutedTextBrush}" />
                     <TextBlock x:Name="LayoutProviderText"
                                Grid.Column="1"
-                               Foreground="#E7EAF7"
+                               Foreground="{StaticResource TertiaryTextBrush}"
                                TextWrapping="Wrap" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="实例内容目录" Foreground="#8F99B3" />
+                    <TextBlock Text="实例内容目录" Foreground="{StaticResource MutedTextBrush}" />
                     <TextBlock x:Name="ContentDirectoryText"
                                Grid.Column="1"
-                               Foreground="#E7EAF7"
+                               Foreground="{StaticResource TertiaryTextBrush}"
                                TextWrapping="Wrap" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="发布时间" Foreground="#8F99B3" />
-                    <TextBlock x:Name="ReleaseTimeText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="发布时间" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="ReleaseTimeText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="Java 要求" Foreground="#8F99B3" />
-                    <TextBlock x:Name="JavaRequirementText" Grid.Column="1" Foreground="#E7EAF7" />
+                    <TextBlock Text="Java 要求" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="JavaRequirementText" Grid.Column="1" Foreground="{StaticResource TertiaryTextBrush}" />
                   </Grid>
                   <Grid ColumnDefinitions="150,*">
-                    <TextBlock Text="主类" Foreground="#8F99B3" />
+                    <TextBlock Text="主类" Foreground="{StaticResource MutedTextBrush}" />
                     <TextBlock x:Name="MainClassText"
                                Grid.Column="1"
-                               Foreground="#E7EAF7"
+                               Foreground="{StaticResource TertiaryTextBrush}"
                                TextWrapping="Wrap" />
                   </Grid>
                 </StackPanel>
@@ -269,22 +200,22 @@
             <TabItem Header="启动设置">
               <ScrollViewer>
                 <StackPanel Margin="14" Spacing="12">
-                  <TextBlock Text="版本名称（将直接重命名版本文件夹与文件）" Foreground="#AAB2C9" />
+                  <TextBlock Text="版本名称（将直接重命名版本文件夹与文件）" Foreground="{StaticResource MutedTextBrush}" />
                   <TextBox x:Name="VersionNameBox" PlaceholderText="输入新的实际版本名称" />
                   <CheckBox x:Name="VersionIsolationCheckBox"
                             Content="开启版本隔离（模组、资源包、光影、配置和存档使用识别到的实例内容目录）"
-                            Foreground="#DDE2F4" />
+                            Foreground="{StaticResource SecondaryTextBrush}" />
                   <StackPanel Spacing="8">
                     <CheckBox x:Name="IndependentMemoryCheckBox"
                               Content="独立调整（关闭时锁定下方滑块并使用全局内存设置）"
-                              Foreground="#DDE2F4"
+                              Foreground="{StaticResource SecondaryTextBrush}"
                               IsCheckedChanged="OnIndependentMemoryChanged" />
                     <Grid ColumnDefinitions="*,Auto">
-                      <TextBlock Text="实例最小内存" Foreground="#AAB2C9" />
+                      <TextBlock Text="实例最小内存" Foreground="{StaticResource MutedTextBrush}" />
                       <TextBlock x:Name="MinimumMemoryValueText"
                                  Grid.Column="1"
                                  Text="512 MiB"
-                                 Foreground="#DDE2F4"
+                                 Foreground="{StaticResource SecondaryTextBrush}"
                                  FontWeight="SemiBold" />
                     </Grid>
                     <Slider x:Name="MinimumMemorySlider"
@@ -295,11 +226,11 @@
                             IsSnapToTickEnabled="True"
                             ValueChanged="OnInstanceMemoryValueChanged" />
                     <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-                      <TextBlock Text="实例最大内存" Foreground="#AAB2C9" />
+                      <TextBlock Text="实例最大内存" Foreground="{StaticResource MutedTextBrush}" />
                       <TextBlock x:Name="MaximumMemoryValueText"
                                  Grid.Column="1"
                                  Text="4096 MiB"
-                                 Foreground="#DDE2F4"
+                                 Foreground="{StaticResource SecondaryTextBrush}"
                                  FontWeight="SemiBold" />
                     </Grid>
                     <Slider x:Name="MaximumMemorySlider"
@@ -312,38 +243,38 @@
                     <TextBlock x:Name="InstanceMemoryPolicyText"
                                Text="实际最大内存不会超过设置页中的全局上限。"
                                FontSize="11"
-                               Foreground="#7F89A5"
+                               Foreground="{StaticResource HintTextBrush}"
                                TextWrapping="Wrap" />
                   </StackPanel>
                   <Expander Header="高级选项" IsExpanded="False">
                     <StackPanel Spacing="10" Margin="0,8,0,0">
                       <CheckBox x:Name="FollowGlobalAdvancedSettingsCheckBox"
                                 Content="跟随全局高级启动设置（默认开启；关闭后才能自定义）"
-                                Foreground="#DDE2F4"
+                                Foreground="{StaticResource SecondaryTextBrush}"
                                 IsCheckedChanged="OnFollowGlobalAdvancedSettingsChanged" />
                       <Grid ColumnDefinitions="*,12,*">
                     <StackPanel>
-                      <TextBlock Text="窗口宽度" Foreground="#AAB2C9" Margin="0,0,0,5" />
+                      <TextBlock Text="窗口宽度" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
                       <TextBox x:Name="WindowWidthBox" />
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                      <TextBlock Text="窗口高度" Foreground="#AAB2C9" Margin="0,0,0,5" />
+                      <TextBlock Text="窗口高度" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,5" />
                       <TextBox x:Name="WindowHeightBox" />
                     </StackPanel>
                       </Grid>
-                      <TextBlock Text="Java 可执行文件（留空时自动检测）" Foreground="#AAB2C9" />
+                      <TextBlock Text="Java 可执行文件（留空时自动检测）" Foreground="{StaticResource MutedTextBrush}" />
                       <TextBox x:Name="JavaExecutableBox" />
-                      <TextBlock Text="额外 JVM 参数（每行一个参数）" Foreground="#AAB2C9" />
+                      <TextBlock Text="额外 JVM 参数（每行一个参数）" Foreground="{StaticResource MutedTextBrush}" />
                       <TextBox x:Name="JvmArgumentsBox" AcceptsReturn="True" MinHeight="72" />
-                      <TextBlock Text="额外游戏参数（每行一个参数）" Foreground="#AAB2C9" />
+                      <TextBlock Text="额外游戏参数（每行一个参数）" Foreground="{StaticResource MutedTextBrush}" />
                       <TextBox x:Name="GameArgumentsBox" AcceptsReturn="True" MinHeight="72" />
                     </StackPanel>
                   </Expander>
                   <Button Content="保存实例设置"
                           HorizontalAlignment="Left"
                           Padding="18,8"
-                          Background="#5968E8"
-                          Foreground="White"
+                          Background="{StaticResource AccentDeepBrush}"
+                          Foreground="{StaticResource WhiteBrush}"
                           Click="OnSaveSettingsClick" />
                 </StackPanel>
               </ScrollViewer>
@@ -355,25 +286,30 @@
                            Text="0 个模组"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="#DDE2F4" />
+                           Foreground="{StaticResource SecondaryTextBrush}" />
                 <Border x:Name="ModLoaderHint"
                         Grid.Row="1"
-                        Background="#322D21"
-                        BorderBrush="#665A35"
+                        Background="{StaticResource BadgeBgBrush}"
+                        BorderBrush="{StaticResource EmphasizedBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="12"
                         Margin="0,10,0,8">
                   <TextBlock Text="当前是原版实例。安装 Fabric、Forge、NeoForge 或 Quilt 后才能加载模组。"
-                             Foreground="#E8D59A"
+                             Foreground="{StaticResource WarningBrush}"
                              TextWrapping="Wrap" />
                 </Border>
                 <ListBox x:Name="ModsList"
                          Grid.Row="2"
                          Margin="0,8,0,0"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         ItemTemplate="{StaticResource ContentEntryTemplate}" />
+                         Background="{StaticResource TransparentBrush}"
+                         BorderThickness="0">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <local:ContentEntryItem />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
               </Grid>
             </TabItem>
 
@@ -383,13 +319,18 @@
                            Text="0 个资源包"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="#DDE2F4" />
+                           Foreground="{StaticResource SecondaryTextBrush}" />
                 <ListBox x:Name="ResourcePacksList"
                          Grid.Row="1"
                          Margin="0,10,0,0"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         ItemTemplate="{StaticResource ContentEntryTemplate}" />
+                         Background="{StaticResource TransparentBrush}"
+                         BorderThickness="0">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <local:ContentEntryItem />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
               </Grid>
             </TabItem>
 
@@ -399,13 +340,18 @@
                            Text="0 个光影"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="#DDE2F4" />
+                           Foreground="{StaticResource SecondaryTextBrush}" />
                 <ListBox x:Name="ShadersList"
                          Grid.Row="1"
                          Margin="0,10,0,0"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         ItemTemplate="{StaticResource ContentEntryTemplate}" />
+                         Background="{StaticResource TransparentBrush}"
+                         BorderThickness="0">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <local:ContentEntryItem />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
               </Grid>
             </TabItem>
 
@@ -415,13 +361,18 @@
                            Text="0 个存档"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="#DDE2F4" />
+                           Foreground="{StaticResource SecondaryTextBrush}" />
                 <ListBox x:Name="SavesList"
                          Grid.Row="1"
                          Margin="0,10,0,0"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         ItemTemplate="{StaticResource ContentEntryTemplate}" />
+                         Background="{StaticResource TransparentBrush}"
+                         BorderThickness="0">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <local:ContentEntryItem />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
               </Grid>
             </TabItem>
 
@@ -435,7 +386,7 @@
                Grid.Row="2"
                Text="请选择一个 Minecraft 文件夹"
                FontSize="11"
-               Foreground="#838DA8"
+               Foreground="{StaticResource SubtextTextBrush}"
                Margin="2,13,0,0"
                TextWrapping="Wrap" />
   </Grid>

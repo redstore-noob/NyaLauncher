@@ -10,12 +10,13 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
 
-namespace NyaLauncher.Avalonia;
+namespace NyaLauncher.Avalonia.Windows;
 
 public partial class PersonalizationWindow : UserControl
 {
-    private static readonly IBrush Muted = Brush.Parse("#8F98B3");
+    private static readonly IBrush Muted = ThemePolygonHelper.Muted;
     private static readonly string[] PresetGlyphs = ["◇", "▶", "◆", "✦", "⚙", "☰", "＋", "⌂", "▦", "◉"];
     private FeatureAreaRegistry _registry = null!;
     private readonly List<AreaEditorState> _editors = [];
@@ -113,8 +114,8 @@ public partial class PersonalizationWindow : UserControl
                 : preference.DisplayName,
             PlaceholderText = sourceArea.Title,
             FontSize = 14,
-            Background = Brush.Parse("#202638"),
-            BorderBrush = Brush.Parse("#343C52"),
+            Background = ThemePolygonHelper.EditorSurface,
+            BorderBrush = ThemePolygonHelper.EditorBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(12, 8),
@@ -128,8 +129,8 @@ public partial class PersonalizationWindow : UserControl
                 : preference.Description,
             PlaceholderText = sourceArea.Subtitle,
             FontSize = 14,
-            Background = Brush.Parse("#202638"),
-            BorderBrush = Brush.Parse("#343C52"),
+            Background = ThemePolygonHelper.EditorSurface,
+            BorderBrush = ThemePolygonHelper.EditorBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(12, 8),
@@ -144,8 +145,8 @@ public partial class PersonalizationWindow : UserControl
 
         var card = new Border
         {
-            Background = Brush.Parse("#171B2B"),
-            BorderBrush = Brush.Parse("#30374D"),
+            Background = ThemePolygonHelper.CardBg,
+            BorderBrush = ThemePolygonHelper.CardBrd,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(16),
             Padding = new Thickness(18),
@@ -164,8 +165,8 @@ public partial class PersonalizationWindow : UserControl
                     new Border
                     {
                         Padding = new Thickness(12, 10),
-                        Background = Brush.Parse("#202638"),
-                        BorderBrush = Brush.Parse("#31394F"),
+                        Background = ThemePolygonHelper.EditorSurface,
+                        BorderBrush = ThemePolygonHelper.CardBorder,
                         BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(10),
                         Child = new TextBlock
@@ -209,7 +210,7 @@ public partial class PersonalizationWindow : UserControl
             Width = 44,
             Height = 44,
             CornerRadius = new CornerRadius(13),
-            Background = Brush.Parse("#303958"),
+            Background = ThemePolygonHelper.IconBoxBg,
             ClipToBounds = true
         };
         iconState.RegisterPreview(glyph);
@@ -226,7 +227,7 @@ public partial class PersonalizationWindow : UserControl
                     Text = $"功能区 · {area.Id}",
                     FontSize = 12,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = Brushes.White
+                    Foreground = ThemePolygonHelper.Muted
                 },
                 new TextBlock
                 {
@@ -290,10 +291,10 @@ public partial class PersonalizationWindow : UserControl
                 Content = "删除功能区",
                 Margin = new Thickness(12, 17, 0, 0),
                 Padding = new Thickness(13, 8),
-                Background = Brush.Parse("#39212B"),
-                BorderBrush = Brush.Parse("#713547"),
+                Background = ThemePolygonHelper.DeleteBg,
+                BorderBrush = ThemePolygonHelper.DeleteBorder,
                 BorderThickness = new Thickness(1),
-                Foreground = Brush.Parse("#FFB7C5"),
+                Foreground = ThemePolygonHelper.DeleteFg,
                 CornerRadius = new CornerRadius(9),
                 Cursor = new Cursor(StandardCursorType.Hand),
                 VerticalAlignment = VerticalAlignment.Top
@@ -331,7 +332,7 @@ public partial class PersonalizationWindow : UserControl
             Width = 42,
             Height = 42,
             CornerRadius = new CornerRadius(12),
-            Background = Brush.Parse("#303958"),
+            Background = ThemePolygonHelper.IconBoxBg,
             ClipToBounds = true,
             Margin = new Thickness(0, 0, 12, 0)
         };
@@ -353,8 +354,8 @@ public partial class PersonalizationWindow : UserControl
                 Height = 32,
                 Padding = new Thickness(0),
                 FontSize = 15,
-                Background = Brush.Parse("#252C40"),
-                BorderBrush = Brush.Parse("#394159"),
+                Background = ThemePolygonHelper.PresetBg,
+                BorderBrush = ThemePolygonHelper.PresetBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Cursor = new Cursor(StandardCursorType.Hand)
@@ -393,8 +394,8 @@ public partial class PersonalizationWindow : UserControl
         {
             Content = "浏览本地图片…",
             Padding = new Thickness(13, 7),
-            Background = Brush.Parse("#252C40"),
-            BorderBrush = Brush.Parse("#394159"),
+            Background = ThemePolygonHelper.PresetBg,
+            BorderBrush = ThemePolygonHelper.PresetBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Cursor = new Cursor(StandardCursorType.Hand)

@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using NyaLauncher.Core.Models;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Core.Download;
 
@@ -10,37 +11,39 @@ public static class ModrinthSearch
 {
     private const string BaseUrl = "https://api.modrinth.com/v2/search";
 
-    private static readonly HttpClient HttpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(15),
-        DefaultRequestHeaders =
-        {
-            { "User-Agent", "NyaLauncher/1.0" }
-        }
-    };
-
     /// <summary>
     /// 通用搜索（无关键词）
     /// </summary>
-    /// <param name="projectType">项目类型: mod / modpack / shader / resourcepack</param>
-    /// <param name="limit">返回数量上限</param>
     public static Task<List<ModrinthProject>> SearchAsync(string projectType, int limit = 50)
         => SearchAsync(projectType, "", limit);
 
     /// <summary>
-    /// 通用搜索（带关键词，用于用户搜索）
+    /// 通用搜索（带关键词）
+    /// </summary>
+    public static Task<List<ModrinthProject>> SearchAsync(string projectType, string query, int limit = 50)
+        => SearchAsync(projectType, query, null, limit);
+
+    /// <summary>
+    /// 通用搜索（带关键词 + MC 版本过滤）
     /// </summary>
     /// <param name="projectType">项目类型: mod / modpack / shader / resourcepack</param>
     /// <param name="query">搜索关键词</param>
+    /// <param name="gameVersion">按 MC 版本过滤（可选）</param>
     /// <param name="limit">返回数量上限</param>
-    public static async Task<List<ModrinthProject>> SearchAsync(string projectType, string query, int limit = 50)
+    public static async Task<List<ModrinthProject>> SearchAsync(
+        string projectType, string query, string? gameVersion, int limit = 50,
+        CancellationToken cancellationToken = default)
     {
-        // Modrinth API 要求双引号 JSON 格式的 facets
-        var facets = Uri.EscapeDataString($"[[\"project_type:{projectType}\"]]");
+        var facetParts = new List<string> { $"\"project_type:{projectType}\"" };
+        if (!string.IsNullOrWhiteSpace(gameVersion))
+            facetParts.Add($"\"versions:{gameVersion}\"");
+
+        var facets = Uri.EscapeDataString($"[[{string.Join(",", facetParts)}]]");
         var encodedQuery = Uri.EscapeDataString(query);
         var url = $"{BaseUrl}?query={encodedQuery}&facets={facets}&limit={limit}";
 
-        var result = await HttpClient.GetFromJsonAsync<ModrinthSearchResult>(url);
+        var result = await PathUtil.SharedHttpClient
+            .GetFromJsonAsync<ModrinthSearchResult>(url, cancellationToken);
         return result?.Hits ?? [];
     }
 

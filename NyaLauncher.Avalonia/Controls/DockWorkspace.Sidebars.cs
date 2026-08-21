@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
 
 namespace NyaLauncher.Avalonia.Controls;
 
@@ -54,7 +55,7 @@ public partial class DockWorkspace
             var host = new Border
             {
                 Background = CardBackground,
-                BorderBrush = Brush.Parse("#46506A"),
+                BorderBrush = ThemeBrushes.SidebarBorder,
                 BorderThickness = SidebarBorderThickness(sidebar.Edge),
                 ZIndex = sidebar.Edge is DockEdge.Top or DockEdge.Bottom ? 52 : 51,
                 ClipToBounds = true
@@ -114,13 +115,13 @@ public partial class DockWorkspace
             },
             RoutingStrategies.Bubble,
             handledEventsToo: true);
-        host.AddHandler(
-            DragDrop.DropEvent,
-            (_, args) =>
-            {
-                CancelSidebarComponentDragHide(sidebar);
-                host.BorderBrush = Brush.Parse("#46506A");
-                HideComponentDragPreview(sidebar.Desktop);
+            host.AddHandler(
+                DragDrop.DropEvent,
+                (_, args) =>
+                {
+                    CancelSidebarComponentDragHide(sidebar);
+                    host.BorderBrush = ThemeBrushes.SidebarBorder;
+                    HideComponentDragPreview(sidebar.Desktop);
 
                 // The revealed area card is already a drop target. If it handled
                 // this routed event, only keep the sidebar open and avoid adding
@@ -204,7 +205,7 @@ public partial class DockWorkspace
                 return;
 
             sidebar.ComponentDragLeaveTimer = null;
-            host.BorderBrush = Brush.Parse("#46506A");
+            host.BorderBrush = ThemeBrushes.SidebarBorder;
             if (!host.IsPointerOver && _draggedSidebarEdge != sidebar.Edge)
                 HideSidebar(sidebar);
         };
@@ -224,7 +225,7 @@ public partial class DockWorkspace
             Width = 30,
             Height = 30,
             CornerRadius = new CornerRadius(9),
-            Background = Brush.Parse("#303958"),
+            Background = ThemeBrushes.IconBoxBg,
             ClipToBounds = true,
             Child = FeatureIconFactory.Create(
                 sidebar.Definition.Glyph,
@@ -725,7 +726,7 @@ public partial class DockWorkspace
 
         _draggedSidebarEdge = sidebar.Edge;
         _sidebarDropEdge = sidebar.Edge;
-        handle.Background = Brush.Parse("#445078");
+        handle.Background = ThemeBrushes.DragHandleActive;
         if (sidebar.Host is not null)
             sidebar.Host.Opacity = 0.72;
         e.Pointer.Capture(handle);

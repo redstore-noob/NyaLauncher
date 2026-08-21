@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Core.Launch;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -78,7 +79,13 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
                 new("settings", "启动器设置", "外观、语言与行为", "⚙",
                     () => _navigate("settings")),
                 new("runtime", "Java 运行环境", "自动查找并管理 Java", "⌘",
-                    () => _navigate("runtime"))
+                    () => _navigate("runtime")),
+                new("music-player", "音乐播放器", "播放音乐、管理播放列表", "♪",
+                    () => _navigate("music-player"))
+            ],
+            PolygonComponents =
+            [
+                BuiltInMusicPlayerComponent.Create(_navigate)
             ]
         };
     }
@@ -93,15 +100,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             .WithSize(320, 180)
             .WithShape(PolygonShapeDefinition.RegularPolygon(6, rotationDegrees: 0))
             .WithDragHandle(new ComponentRect(0.45, 0.055, 0.1, 0.1))
-            .WithTheme(new PolygonComponentTheme
-            {
-                Surface = "#20283D",
-                SurfaceHover = "#293552",
-                Border = "#53658F",
-                BorderHover = "#8C9DFF",
-                Accent = "#6C7BFF",
-                ProgressTrack = "#303B56"
-            })
+            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
             .AddAction("run-demo")
             .AddText(
                 "title",

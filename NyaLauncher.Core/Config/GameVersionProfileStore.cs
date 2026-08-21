@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Launch;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Config;
 
-internal sealed record GameVersionProfile
+public sealed record GameVersionProfile
 {
     public string MinecraftDirectory { get; init; } = string.Empty;
 
@@ -39,7 +39,7 @@ internal sealed record GameVersionProfile
 
 }
 
-internal static class GameVersionIsolation
+public static class GameVersionIsolation
 {
     public static GameVersionLayout Resolve(GameInstanceSnapshot snapshot, string versionId)
     {
@@ -56,11 +56,16 @@ internal static class GameVersionIsolation
         }
 
         var profile = GameVersionProfileStore.Get(snapshot.MinecraftDirectory, versionId);
+
+        // 优先使用版本自身的显式设置；若未设置则使用全局默认；都未设置则交给自动检测。
+        var isolationOverride = profile.IsVersionIsolationEnabled
+                                ?? LauncherConfig.DefaultVersionIsolation;
+
         return GameInstanceLayoutResolver.Resolve(
             snapshot.MinecraftDirectory,
             snapshot.SourcePath,
             versionId,
-            profile.IsVersionIsolationEnabled);
+            isolationOverride);
     }
 
     public static bool IsEnabled(GameInstanceSnapshot snapshot, string versionId) =>
@@ -83,7 +88,7 @@ internal static class GameVersionIsolation
 /// Persists the folder catalog and editable per-version launch settings in
 /// config.json. The physical version ID and directory remain unchanged.
 /// </summary>
-internal static class GameVersionProfileStore
+public static class GameVersionProfileStore
 {
     private const string FoldersKey = "gameVersionFolders";
     private const string ProfilesKey = "gameVersionProfiles";
@@ -103,6 +108,10 @@ internal static class GameVersionProfileStore
             var configured = LauncherConfig.GameDirectory;
             if (!string.IsNullOrWhiteSpace(configured))
                 folders.Insert(0, configured);
+
+            var defaultDir = MinecraftDirectoryLocator.GetDefaultDirectory();
+            if (Directory.Exists(defaultDir))
+                folders.Add(defaultDir);
 
             return folders
                 .Where(path => !string.IsNullOrWhiteSpace(path))
@@ -126,6 +135,41 @@ internal static class GameVersionProfileStore
                 folders.Add(normalized);
             if (!SaveFolders(folders))
                 return false;
+        }
+
+        RaiseChanged();
+        return true;
+    }
+
+    /// <summary>
+    /// 从文件夹列表中移除指定目录。不允许移除平台默认 Minecraft 目录；
+    /// 若移除的是当前活跃游戏目录，则自动切换到列表中剩余的首个目录。
+    /// </summary>
+    /// <returns>移除成功返回 true；目录不在列表中或为默认目录时返回 false。</returns>
+    public static bool RemoveFolder(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path.Trim()));
+
+        var defaultDir = MinecraftDirectoryLocator.GetDefaultDirectory();
+        if (PathsEqual(normalized, Path.TrimEndingDirectorySeparator(Path.GetFullPath(defaultDir))))
+            return false;
+
+        lock (Gate)
+        {
+            var folders = GetFolders().ToList();
+            if (!folders.Contains(normalized, PathComparer))
+                return false;
+
+            folders.RemoveAll(f => PathsEqual(f, normalized));
+            if (!SaveFolders(folders))
+                return false;
+
+            if (PathsEqual(LauncherConfig.GameDirectory ?? string.Empty, normalized))
+            {
+                var next = folders.FirstOrDefault(f => !PathsEqual(f, normalized));
+                LauncherConfig.SaveGameDirectory(next ?? string.Empty);
+            }
         }
 
         RaiseChanged();

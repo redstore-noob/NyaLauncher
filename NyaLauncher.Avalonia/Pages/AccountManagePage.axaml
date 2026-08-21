@@ -14,15 +14,15 @@
       <TextBlock Text="账户管理"
                  FontSize="28"
                  FontWeight="Bold"
-                 Foreground="#FFFFFF" />
+                 Foreground="{StaticResource PrimaryTextBrush}" />
       <TextBlock Text="管理正版与离线账号，切换默认账号，并编辑玩家外观"
                  FontSize="13"
-                 Foreground="#8B8B9E" />
+                 Foreground="{StaticResource HintTextBrush}" />
     </StackPanel>
 
     <!-- 主卡片：工具栏 + 账号列表 -->
     <Border Grid.Row="1"
-            Background="#1E1E2E"
+            Background="{StaticResource PanelBgBrush}"
             CornerRadius="16"
             Padding="24,20">
       <Grid RowDefinitions="Auto,*">
@@ -37,9 +37,9 @@
                          Text="未选择账号"
                          FontSize="16"
                          FontWeight="SemiBold"
-                         Foreground="#FFFFFF" />
+                         Foreground="{StaticResource PrimaryTextBrush}" />
               <Border x:Name="SelectedDefaultBadge"
-                      Background="#2D3450"
+                      Background="{StaticResource BadgeBgBrush}"
                       CornerRadius="6"
                       Padding="7,2"
                       IsVisible="False"
@@ -47,19 +47,19 @@
                 <TextBlock Text="默认账号"
                            FontSize="10"
                            FontWeight="SemiBold"
-                           Foreground="#AEB6FF" />
+                           Foreground="{StaticResource AccentTextBrush}" />
               </Border>
             </StackPanel>
             <TextBlock x:Name="SelectedAccountDetailText"
                        Text="请选择一个账号，再使用右侧工具按钮"
                        FontSize="12"
-                       Foreground="#8B8B9E" />
+                       Foreground="{StaticResource HintTextBrush}" />
           </StackPanel>
 
           <Button Grid.Column="1"
                   Content="＋ 添加账户"
                   Background="{StaticResource SystemAccentColor}"
-                  Foreground="White"
+                  Foreground="{StaticResource WhiteBrush}"
                   CornerRadius="8"
                   Padding="16,7"
                   FontSize="13"
@@ -71,8 +71,8 @@
 
           <Button Grid.Column="2"
                   Content="设为默认"
-                  Background="#2D2D44"
-                  Foreground="#CCCCDD"
+                  Background="{StaticResource ButtonBgBrush}"
+                  Foreground="{StaticResource BodyTextBrush}"
                   CornerRadius="8"
                   Padding="14,7"
                   FontSize="13"
@@ -83,8 +83,8 @@
 
           <Button Grid.Column="3"
                   Content="更换皮肤"
-                  Background="#2D2D44"
-                  Foreground="#CCCCDD"
+                  Background="{StaticResource ButtonBgBrush}"
+                  Foreground="{StaticResource BodyTextBrush}"
                   CornerRadius="8"
                   Padding="14,7"
                   FontSize="13"
@@ -96,8 +96,8 @@
           <Button x:Name="ChangeCapeButton"
                   Grid.Column="4"
                   Content="更换披风"
-                  Background="#2D2D44"
-                  Foreground="#CCCCDD"
+                  Background="{StaticResource ButtonBgBrush}"
+                  Foreground="{StaticResource BodyTextBrush}"
                   CornerRadius="8"
                   Padding="14,7"
                   FontSize="13"
@@ -108,8 +108,8 @@
 
           <Button Grid.Column="5"
                   Content="删除账户"
-                  Background="Transparent"
-                  Foreground="#E56B6B"
+                  Background="{StaticResource TransparentBrush}"
+                  Foreground="{StaticResource ErrorBrush}"
                   CornerRadius="8"
                   Padding="14,7"
                   FontSize="13"
@@ -123,12 +123,12 @@
         <Grid Grid.Row="1" Margin="0,16,0,0">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
             <ListBox x:Name="AccountList"
-                     Background="Transparent"
+                     Background="{StaticResource TransparentBrush}"
                      BorderThickness="0"
                      SelectionChanged="OnAccountSelectionChanged">
               <ListBox.ItemTemplate>
                 <DataTemplate DataType="local:AccountListItem" x:CompileBindings="False">
-                  <Border Background="#2A2A3E"
+                  <Border Background="{StaticResource ControlBgBrush}"
                           CornerRadius="12"
                           Padding="16,12"
                           Margin="0,0,0,10">
@@ -137,7 +137,7 @@
                       <Border Width="54"
                               Height="54"
                               CornerRadius="10"
-                              Background="#3A3A50"
+                              Background="{StaticResource BadgeBgBrush}"
                               ClipToBounds="True">
                         <Grid>
                           <TextBlock Text="{Binding AvatarFallback}"
@@ -162,17 +162,17 @@
                           <TextBlock Text="{Binding DisplayName}"
                                      FontSize="15"
                                      FontWeight="SemiBold"
-                                     Foreground="#FFFFFF" />
-                          <Border Background="#2D3450"
+                                     Foreground="{StaticResource PrimaryTextBrush}" />
+                          <Border Background="{StaticResource BadgeBgBrush}"
                                   CornerRadius="6"
                                   Padding="7,2"
                                   VerticalAlignment="Center">
                             <TextBlock Text="{Binding TypeLabel}"
                                        FontSize="10"
                                        FontWeight="SemiBold"
-                                       Foreground="#AEB6FF" />
+                                       Foreground="{StaticResource AccentTextBrush}" />
                           </Border>
-                          <Border Background="#24303B"
+                          <Border Background="{StaticResource SurfaceBgBrush}"
                                   CornerRadius="6"
                                   Padding="7,2"
                                   IsVisible="{Binding IsDefault}"
@@ -180,12 +180,12 @@
                             <TextBlock Text="默认"
                                        FontSize="10"
                                        FontWeight="SemiBold"
-                                       Foreground="#62D49A" />
+                                       Foreground="{StaticResource SuccessBrush}" />
                           </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding Detail}"
                                    FontSize="11"
-                                   Foreground="#8B8B9E"
+                                   Foreground="{StaticResource HintTextBrush}"
                                    TextWrapping="Wrap" />
                       </StackPanel>
 
@@ -212,16 +212,16 @@
                       VerticalAlignment="Center">
             <TextBlock Text="☺"
                        FontSize="40"
-                       Foreground="#6674DB"
+                       Foreground="{StaticResource AccentBrush}"
                        HorizontalAlignment="Center" />
             <TextBlock Text="还没有任何账号"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="#DDE2F4"
+                       Foreground="{StaticResource SecondaryTextBrush}"
                        HorizontalAlignment="Center" />
             <TextBlock Text="点击上方「＋ 添加账户」新建账号，支持正版（微软设备码登录）与离线账号"
                        FontSize="12"
-                       Foreground="#8B8B9E"
+                       Foreground="{StaticResource HintTextBrush}"
                        HorizontalAlignment="Center" />
           </StackPanel>
         </Grid>
@@ -232,7 +232,7 @@
     <TextBlock x:Name="StatusText"
                Grid.Row="2"
                FontSize="12"
-               Foreground="#8B8B9E"
+               Foreground="{StaticResource HintTextBrush}"
                TextWrapping="Wrap"
                HorizontalAlignment="Center"
                Margin="0,18,0,0" />

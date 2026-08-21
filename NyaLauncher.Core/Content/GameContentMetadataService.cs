@@ -11,19 +11,25 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Launch;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Content;
 
-internal sealed record GameContentEntry(
+public sealed record GameContentEntry(
     string Name,
     string MetadataLine,
     string Description,
     string? IconPath,
-    string FallbackGlyph);
+    string FallbackGlyph,
+    string SourcePath,
+    bool IsDisabled);
 
-internal sealed record GameInstanceVisual(string? IconPath, string FallbackGlyph);
+public sealed record GameInstanceVisual(string? IconPath, string FallbackGlyph);
 
-internal static partial class GameContentMetadataService
+/// <summary>
+/// 从 JAR、ZIP 和 level.dat 中读取 Mod、资源包、光影和存档的元数据。
+/// </summary>
+public static partial class GameContentMetadataService
 {
     private const long MaximumMetadataBytes = 2 * 1024 * 1024;
     private const long MaximumIconBytes = 8 * 1024 * 1024;
@@ -32,6 +38,7 @@ internal static partial class GameContentMetadataService
         string directory,
         CancellationToken cancellationToken) =>
         EnumerateFiles(directory, "*.jar")
+            .Concat(EnumerateFiles(directory, "*.jar.disabled"))
             .Select(path => ReadMod(path, cancellationToken))
             .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -124,6 +131,9 @@ internal static partial class GameContentMetadataService
 
         return UnknownEntry(fallbackName, "◆", path);
     }
+
+    private static bool IsDisabledFile(string path) =>
+        path.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase);
 
     private static GameContentEntry ReadFabricMod(
         string sourcePath,
@@ -229,7 +239,7 @@ internal static partial class GameContentMetadataService
                 var metadataPath = Path.Combine(path, "pack.mcmeta");
                 var directoryIcon = FindFirstExisting(path, "pack.png", "icon.png", "preview.png");
                 if (!File.Exists(metadataPath))
-                    return new GameContentEntry(fallbackName, "作者 未提供 · 版本 未提供", path, directoryIcon, fallbackGlyph);
+                    return new GameContentEntry(fallbackName, "作者 未提供 · 版本 未提供", path, directoryIcon, fallbackGlyph, path, false);
                 using var stream = File.OpenRead(metadataPath);
                 using var directoryDocument = JsonDocument.Parse(stream);
                 return ReadPackDocument(
@@ -237,7 +247,8 @@ internal static partial class GameContentMetadataService
                     fallbackName,
                     path,
                     directoryIcon,
-                    fallbackGlyph);
+                    fallbackGlyph,
+                    path);
             }
 
             using var archive = ZipFile.OpenRead(path);
@@ -247,9 +258,9 @@ internal static partial class GameContentMetadataService
                             FindEntry(archive, "preview.png");
             var icon = iconEntry is null ? null : ExtractIcon(path, iconEntry);
             if (metadata is null)
-                return new GameContentEntry(fallbackName, "作者 未提供 · 版本 未提供", Path.GetFileName(path), icon, fallbackGlyph);
+                return new GameContentEntry(fallbackName, "作者 未提供 · 版本 未提供", Path.GetFileName(path), icon, fallbackGlyph, path, false);
             using var document = ReadJson(metadata);
-            return ReadPackDocument(document.RootElement, fallbackName, Path.GetFileName(path), icon, fallbackGlyph);
+            return ReadPackDocument(document.RootElement, fallbackName, Path.GetFileName(path), icon, fallbackGlyph, path);
         }
         catch (InvalidDataException)
         {
@@ -272,7 +283,8 @@ internal static partial class GameContentMetadataService
         string fallbackName,
         string sourceLabel,
         string? icon,
-        string fallbackGlyph)
+        string fallbackGlyph,
+        string sourcePath)
     {
         var pack = root.TryGetProperty("pack", out var value) ? value : root;
         var name = ReadString(root, "name") ?? ReadString(pack, "name") ?? fallbackName;
@@ -281,7 +293,7 @@ internal static partial class GameContentMetadataService
         var description = ReadDescription(pack, "description");
         if (string.IsNullOrWhiteSpace(description))
             description = sourceLabel;
-        return new GameContentEntry(name, $"作者 {author} · 版本 {version}", description, icon, fallbackGlyph);
+        return new GameContentEntry(name, $"作者 {author} · 版本 {version}", description, icon, fallbackGlyph, sourcePath, false);
     }
 
     private static GameContentEntry ReadSave(string path)
@@ -320,7 +332,9 @@ internal static partial class GameContentMetadataService
                 ? $"存档文件夹：{folderName}"
                 : $"最后游玩：{lastPlayed:yyyy-MM-dd HH:mm} · 存档文件夹：{folderName}",
             icon,
-            "🌍");
+            "🌍",
+            path,
+            false);
     }
 
     private static GameContentEntry CreateEntry(
@@ -340,11 +354,13 @@ internal static partial class GameContentMetadataService
             $"作者 {NormalizeDisplay(authors)} · 版本 {NormalizeDisplay(version)}",
             string.IsNullOrWhiteSpace(description) ? Path.GetFileName(sourcePath) : description.Trim(),
             icon,
-            fallbackGlyph);
+            fallbackGlyph,
+            sourcePath,
+            IsDisabledFile(sourcePath));
     }
 
     private static GameContentEntry UnknownEntry(string name, string glyph, string sourcePath) =>
-        new(name, "作者 未提供 · 版本 未提供", Path.GetFileName(sourcePath), null, glyph);
+        new(name, "作者 未提供 · 版本 未提供", Path.GetFileName(sourcePath), null, glyph, sourcePath, IsDisabledFile(sourcePath));
 
     private static string NormalizeDisplay(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "未提供" : value.Trim();

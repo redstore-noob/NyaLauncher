@@ -6,10 +6,15 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Tools;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Launch;
 
-internal static class GameVersionRenameService
+/// <summary>
+/// 重命名版本文件夹，并同步修补所有引用该版本 ID 的 inheritsFrom 与 jar 字段。
+/// </summary>
+public static class GameVersionRenameService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {

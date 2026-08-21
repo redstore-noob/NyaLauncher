@@ -1,6 +1,6 @@
 using NyaLauncher.Core.Launch.Auth;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Launch.Auth;
 
 /// <summary>一个可选用的启动账号。</summary>
 public sealed class LaunchAccount

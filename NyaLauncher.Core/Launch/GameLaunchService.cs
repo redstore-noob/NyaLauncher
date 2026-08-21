@@ -5,13 +5,12 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Core.Config;
-using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Launch.Auth;
 using NyaLauncher.Plugin.Abstractions.Components;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Launch;
 
-internal enum GameLaunchPhase
+public enum GameLaunchPhase
 {
     Idle,
     Preparing,
@@ -20,7 +19,7 @@ internal enum GameLaunchPhase
     Exited
 }
 
-internal sealed record GameLaunchSnapshot(
+public sealed record GameLaunchSnapshot(
     long Revision,
     GameLaunchPhase Phase,
     string Title,
@@ -50,7 +49,7 @@ internal sealed record GameLaunchSnapshot(
 /// polygon component. Lifecycle state is published as immutable snapshots;
 /// process output is retained in a bounded in-memory log for the log window.
 /// </summary>
-internal sealed class GameLaunchService
+public sealed class GameLaunchService
 {
     private const int MaximumLogLines = 2000;
     private readonly object _gate = new();
@@ -133,6 +132,37 @@ internal sealed class GameLaunchService
                 instance.SelectedVersionId,
                 selectedAccount.DisplayName,
                 null));
+
+            // 启动前文件完整性校验
+            if (LauncherConfig.VerifyFilesBeforeLaunch)
+            {
+                AppendLog("正在校验游戏文件完整性…");
+                Publish(new GameLaunchSnapshot(
+                    NextRevision(),
+                    GameLaunchPhase.Preparing,
+                    $"正在启动 {instance.SelectedVersionId}",
+                    "正在校验游戏文件完整性…",
+                    instance.SelectedVersionId,
+                    selectedAccount.DisplayName,
+                    null));
+                try
+                {
+                    var verifier = new Download.GameFileVerifier();
+                    var progress = new Progress<string>(status => AppendLog(status));
+                    var repaired = await verifier.VerifyAndRepairAsync(
+                        instance.MinecraftDirectory,
+                        instance.SelectedVersionId,
+                        progress,
+                        cancellationToken).ConfigureAwait(false);
+                    AppendLog(repaired > 0
+                        ? $"文件校验完成，已补全 {repaired} 项缺失文件。"
+                        : "文件校验完成，所有文件正常。");
+                }
+                catch (Exception verifyEx)
+                {
+                    AppendLog($"文件校验异常（将继续启动）：{verifyEx.Message}");
+                }
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             IMinecraftAccount launchAccount;

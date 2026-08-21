@@ -4,13 +4,13 @@ using System.IO;
 using System.Runtime.InteropServices;
 using NyaLauncher.Core.Config;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Launch;
 
-internal sealed record SystemMemorySnapshot(
+public sealed record SystemMemorySnapshot(
     int TotalMemoryMb,
     int AvailableMemoryMb);
 
-internal sealed record GameMemoryDecision(
+public sealed record GameMemoryDecision(
     bool IsAutomatic,
     int MaximumMemoryMb,
     int TotalMemoryMb,
@@ -21,7 +21,7 @@ internal sealed record GameMemoryDecision(
 /// Persists the global memory policy and resolves the effective JVM -Xmx at
 /// launch time. Automatic decisions always use a fresh physical-memory sample.
 /// </summary>
-internal static class GameMemorySettings
+public static class GameMemorySettings
 {
     private const string MaximumMemoryKey = "globalMaximumMemoryMb";
     private const string AutomaticAdjustmentKey = "automaticMemoryAdjustment";

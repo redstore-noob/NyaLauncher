@@ -4,8 +4,9 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
 
-namespace NyaLauncher.Avalonia;
+namespace NyaLauncher.Avalonia.Dialogs;
 
 public partial class CapeSelectionDialog : Window
 {
@@ -22,7 +23,7 @@ public partial class CapeSelectionDialog : Window
             CapeList.Children.Add(new TextBlock
             {
                 Text = "该账号当前没有可选择的披风。",
-                Foreground = Brush.Parse("#A5AEC7"),
+                Foreground = ThemePolygonHelper.Muted,
                 Margin = new Thickness(2, 8)
             });
             return;
@@ -40,8 +41,8 @@ public partial class CapeSelectionDialog : Window
                 Content = cape.IsActive ? $"✓ {label} · 当前使用" : label,
                 Padding = new Thickness(16, 12),
                 HorizontalContentAlignment = global::Avalonia.Layout.HorizontalAlignment.Left,
-                Background = Brush.Parse(cape.IsActive ? "#293552" : "#20283D"),
-                BorderBrush = Brush.Parse(cape.IsActive ? "#8C9DFF" : "#53658F"),
+                Background = cape.IsActive ? ThemePolygonHelper.SkinButtonBgCurrent : ThemePolygonHelper.SkinButtonBg,
+                BorderBrush = cape.IsActive ? ThemePolygonHelper.SkinButtonBorderCurrent : ThemePolygonHelper.SkinButtonBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(9)
             };

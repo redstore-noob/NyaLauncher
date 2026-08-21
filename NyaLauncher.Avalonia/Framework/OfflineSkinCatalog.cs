@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Launch;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia.Framework;
 
@@ -60,7 +61,7 @@ internal static class OfflineSkinCatalog
     {
         cancellationToken.ThrowIfCancellationRequested();
         var choice = Get(id);
-        // Snapshot the shared configuration before dispatch. ConfigFileManage
+        // Snapshot the shared configuration before dispatch. ConfigFileManager
         // owns a mutable JsonDocument and account persistence also uses it on
         // the UI thread, so background work must not read it concurrently.
         var context = CaptureContext();
@@ -278,7 +279,7 @@ internal static class OfflineSkinCatalog
         var roots = new List<string>();
         if (!string.IsNullOrWhiteSpace(context.GameDirectory))
             roots.Add(context.GameDirectory);
-        if (!roots.Any(root => PathsEqual(root, context.ConventionalDirectory)))
+        if (!roots.Any(root => PathUtil.PathsEqual(root, context.ConventionalDirectory)))
             roots.Add(context.ConventionalDirectory);
 
         var files = new List<(string Path, DateTime LastWriteTimeUtc)>();
@@ -338,9 +339,6 @@ internal static class OfflineSkinCatalog
             return path.Trim();
         }
     }
-
-    private static bool PathsEqual(string left, string right) =>
-        NyaLauncher.Core.Tools.PathUtil.PathsEqual(left, right);
 
     private static string CreateGeneratedTextureDataUri(OfflineSkinChoice choice)
     {

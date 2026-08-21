@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Core.Launch.Internal;
 
@@ -59,7 +60,7 @@ internal sealed class MinecraftLibraryResolver
                 $"版本文件不完整，缺少以下依赖：{Environment.NewLine}{preview}{suffix}");
         }
 
-        return (classpath.Distinct(GetPathComparer()).ToArray(), natives);
+        return (            classpath.Distinct(PathUtil.PathComparer).ToArray(), natives);
     }
 
     public string ExtractNatives(
@@ -143,12 +144,12 @@ internal sealed class MinecraftLibraryResolver
         path = string.Empty;
         if (library.TryGetProperty("downloads", out var downloads) &&
             downloads.TryGetProperty("artifact", out var artifact) &&
-            TryGetString(artifact, "path", out path))
+            PathUtil.TryGetString(artifact, "path", out path))
         {
             return true;
         }
 
-        return TryGetString(library, "name", out var name) &&
+        return PathUtil.TryGetString(library, "name", out var name) &&
                TryConvertMavenNameToPath(name, out path);
     }
 
@@ -167,7 +168,7 @@ internal sealed class MinecraftLibraryResolver
         return library.TryGetProperty("downloads", out var downloads) &&
                downloads.TryGetProperty("classifiers", out var classifiers) &&
                classifiers.TryGetProperty(classifier, out var nativeArtifact) &&
-               TryGetString(nativeArtifact, "path", out path);
+               PathUtil.TryGetString(nativeArtifact, "path", out path);
     }
 
     private static IReadOnlyList<string> GetNativeExclusions(JsonElement library)
@@ -218,15 +219,4 @@ internal sealed class MinecraftLibraryResolver
             fileName);
         return true;
     }
-
-    private static bool TryGetString(JsonElement parent, string propertyName, out string value)
-    {
-        value = string.Empty;
-        return parent.TryGetProperty(propertyName, out var property) &&
-               property.ValueKind == JsonValueKind.String &&
-               !string.IsNullOrWhiteSpace(value = property.GetString()!);
-    }
-
-    private static StringComparer GetPathComparer() =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 }

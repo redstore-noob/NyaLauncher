@@ -3,8 +3,8 @@
              x:Class="NyaLauncher.Avalonia.Pages.AccountLoginOverlay">
   <Panel x:Name="OverlayRoot"
          IsVisible="False"
-         Background="#C0000000">
-    <Border Background="#1E1E2E"
+         Background="{StaticResource OverlayBgBrush}">
+    <Border Background="{StaticResource PanelBgBrush}"
             CornerRadius="16"
             Padding="28,24"
             Width="380"
@@ -17,7 +17,7 @@
           <TextBlock Text="新建账户"
                      FontSize="20"
                      FontWeight="Bold"
-                     Foreground="#FFFFFF"
+                     Foreground="{StaticResource PrimaryTextBrush}"
                      HorizontalAlignment="Center" />
 
           <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
@@ -25,14 +25,14 @@
                     Height="52"
                     FontSize="14"
                     FontWeight="SemiBold"
-                    Background="#2D2D44"
-                    Foreground="#FFFFFF"
+                    Background="{StaticResource ButtonBgBrush}"
+                    Foreground="{StaticResource PrimaryTextBrush}"
                     CornerRadius="10"
                     Click="OnAddMicrosoftClick"
                     Cursor="Hand">
               <Button.Styles>
                 <Style Selector="Button:hover">
-                  <Setter Property="Background" Value="#3A3A55" />
+                  <Setter Property="Background" Value="{StaticResource HighlightBgBrush}" />
                 </Style>
               </Button.Styles>
             </Button>
@@ -41,14 +41,14 @@
                     Height="52"
                     FontSize="14"
                     FontWeight="SemiBold"
-                    Background="#2D2D44"
-                    Foreground="#FFFFFF"
+                    Background="{StaticResource ButtonBgBrush}"
+                    Foreground="{StaticResource PrimaryTextBrush}"
                     CornerRadius="10"
                     Click="OnAddOfflineClick"
                     Cursor="Hand">
               <Button.Styles>
                 <Style Selector="Button:hover">
-                  <Setter Property="Background" Value="#3A3A55" />
+                  <Setter Property="Background" Value="{StaticResource HighlightBgBrush}" />
                 </Style>
               </Button.Styles>
             </Button>
@@ -58,13 +58,13 @@
           <StackPanel x:Name="OfflineAddPanel"
                       IsVisible="False"
                       Spacing="10">
-            <Border Background="#2A2A3E"
+            <Border Background="{StaticResource ControlBgBrush}"
                     CornerRadius="8"
                     Padding="12,4">
               <TextBox x:Name="NewOfflineNameBox"
                        Text="Player_01"
                        MaxLength="16"
-                       Background="Transparent"
+                       Background="{StaticResource TransparentBrush}"
                        BorderThickness="0"
                        FontSize="14"
                        PlaceholderText="输入离线用户名" />
@@ -74,7 +74,7 @@
                     FontSize="13"
                     FontWeight="SemiBold"
                     Background="{StaticResource SystemAccentColor}"
-                    Foreground="White"
+                    Foreground="{StaticResource WhiteBrush}"
                     CornerRadius="8"
                     Click="OnConfirmOfflineClick"
                     Cursor="Hand" />
@@ -82,21 +82,21 @@
 
           <TextBlock x:Name="HintText"
                      FontSize="11"
-                     Foreground="#8B8B9E"
+                     Foreground="{StaticResource HintTextBrush}"
                      TextWrapping="Wrap"
                      HorizontalAlignment="Center" />
 
           <Button Content="取消"
                   Height="34"
                   FontSize="12"
-                  Background="Transparent"
-                  Foreground="#8B8B9E"
+                  Background="{StaticResource TransparentBrush}"
+                  Foreground="{StaticResource HintTextBrush}"
                   CornerRadius="8"
                   Click="OnCancelClick"
                   Cursor="Hand">
             <Button.Styles>
               <Style Selector="Button:hover">
-                <Setter Property="Foreground" Value="#FFFFFF" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
               </Style>
             </Button.Styles>
           </Button>
@@ -109,15 +109,15 @@
           <TextBlock Text="微软账号登录"
                      FontSize="20"
                      FontWeight="Bold"
-                     Foreground="#FFFFFF"
+                     Foreground="{StaticResource PrimaryTextBrush}"
                      HorizontalAlignment="Center" />
           <TextBlock x:Name="DeviceCodeHintText"
                      Text="请在浏览器中打开以下地址，然后输入验证码"
                      FontSize="12"
-                     Foreground="#8B8B9E"
+                     Foreground="{StaticResource HintTextBrush}"
                      TextWrapping="Wrap"
                      HorizontalAlignment="Center" />
-          <Border Background="#2D2D44"
+          <Border Background="{StaticResource ButtonBgBrush}"
                   CornerRadius="10"
                   Padding="28,12"
                   HorizontalAlignment="Center">
@@ -129,12 +129,12 @@
           </Border>
           <TextBlock x:Name="DeviceCodeUrlText"
                      FontSize="12"
-                     Foreground="#6B6B80"
+                     Foreground="{StaticResource DisabledTextBrush}"
                      TextWrapping="Wrap"
                      HorizontalAlignment="Center" />
           <TextBlock x:Name="DeviceCodeStatusText"
                      FontSize="11"
-                     Foreground="#8B8B9E"
+                     Foreground="{StaticResource HintTextBrush}"
                      TextWrapping="Wrap"
                      HorizontalAlignment="Center" />
           <StackPanel Orientation="Horizontal"

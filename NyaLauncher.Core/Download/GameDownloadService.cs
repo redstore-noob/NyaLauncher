@@ -3,13 +3,12 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Core.Config;
-using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Models;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Download;
 
-internal enum GameDownloadPhase
+public enum GameDownloadPhase
 {
     Idle,
     Preparing,
@@ -19,7 +18,7 @@ internal enum GameDownloadPhase
     Cancelled
 }
 
-internal sealed record GameDownloadSnapshot(
+public sealed record GameDownloadSnapshot(
     long Revision,
     long TaskId,
     GameDownloadPhase Phase,
@@ -57,7 +56,10 @@ internal sealed record GameDownloadSnapshot(
         GameDownloadPhase.Failed or GameDownloadPhase.Cancelled;
 }
 
-internal sealed class GameDownloadService
+/// <summary>
+/// 包装 MinecraftVersionInstaller，通过阶段/快照状态机对外发布下载进度。
+/// </summary>
+public sealed class GameDownloadService
 {
     public static readonly string[] StageNames =
     [
@@ -72,6 +74,7 @@ internal sealed class GameDownloadService
 
     private readonly object _gate = new();
     private readonly MinecraftVersionInstaller _installer = new();
+    private readonly ModLoaderInstaller _modLoaderInstaller = new();
     private GameDownloadSnapshot _current = GameDownloadSnapshot.Idle;
     private CancellationTokenSource? _activeTask;
     private long _revision;
@@ -154,6 +157,12 @@ internal sealed class GameDownloadService
                     taskCancellation.Token)
                 .ConfigureAwait(false);
 
+            // 全局默认隔离开启时，为新版本预建隔离内容目录骨架。
+            if (LauncherConfig.DefaultVersionIsolation == true)
+            {
+                ScaffoldIsolatedContentDirectory(targetRoot, version.Id);
+            }
+
             var sourcePath = LauncherConfig.GameDirectory;
             if (string.IsNullOrWhiteSpace(sourcePath))
             {
@@ -207,6 +216,125 @@ internal sealed class GameDownloadService
         }
     }
 
+    /// <summary>
+    /// 以 Mod Loader 模式下载：先确保原版已安装，再叠加安装 Loader。
+    /// </summary>
+    public async Task<bool> StartModLoaderAsync(
+        MinecraftVersion version,
+        ModLoaderVersion loader,
+        string instanceName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+        ArgumentNullException.ThrowIfNull(loader);
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName);
+
+        CancellationTokenSource taskCancellation;
+        long taskId;
+        lock (_gate)
+        {
+            if (_activeTask is not null)
+                return false;
+
+            taskCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _activeTask = taskCancellation;
+            taskId = ++_taskId;
+        }
+
+        var displayName = $"{loader.Type} {loader.LoaderVersion} (Minecraft {version.Id})";
+        Publish(new GameDownloadSnapshot(
+            NextRevision(),
+            taskId,
+            GameDownloadPhase.Preparing,
+            instanceName,
+            1,
+            StageNames[0],
+            $"正在准备下载 {displayName}",
+            0, 0, 0, 0, 0, 0));
+
+        try
+        {
+            var targetRoot = ResolveTargetMinecraftDirectory();
+            var progress = new InlineProgress<MinecraftInstallProgress>(update =>
+            {
+                if (taskCancellation.IsCancellationRequested || taskId != Volatile.Read(ref _taskId))
+                    return;
+
+                Publish(new GameDownloadSnapshot(
+                    NextRevision(),
+                    taskId,
+                    GameDownloadPhase.Downloading,
+                    instanceName,
+                    update.StageIndex,
+                    update.StageName,
+                    update.Detail,
+                    update.Percentage,
+                    update.CompletedBytes,
+                    update.TotalBytes,
+                    update.CompletedFiles,
+                    update.TotalFiles,
+                    update.BytesPerSecond));
+            });
+
+            await _modLoaderInstaller.InstallAsync(
+                    loader,
+                    instanceName,
+                    targetRoot,
+                    version.Id,
+                    progress,
+                    taskCancellation.Token)
+                .ConfigureAwait(false);
+
+            if (LauncherConfig.DefaultVersionIsolation == true)
+            {
+                ScaffoldIsolatedContentDirectory(targetRoot, instanceName);
+            }
+
+            var sourcePath = LauncherConfig.GameDirectory;
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                LauncherConfig.SaveGameDirectory(targetRoot);
+                sourcePath = targetRoot;
+            }
+
+            await GameInstanceStore.RefreshAsync(sourcePath).ConfigureAwait(false);
+            GameInstanceStore.Select(instanceName);
+
+            var previous = Current;
+            Publish(previous with
+            {
+                Revision = NextRevision(),
+                Phase = GameDownloadPhase.Completed,
+                StageIndex = MinecraftVersionInstaller.StageCount,
+                StageName = StageNames[^1],
+                Detail = $"{displayName} 安装完成",
+                Percentage = 100
+            });
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            PublishTerminal(taskId, GameDownloadPhase.Cancelled, "下载已取消", $"{displayName} 下载已取消");
+            return false;
+        }
+        catch (Exception exception)
+        {
+            PublishTerminal(taskId, GameDownloadPhase.Failed, "下载失败", exception.Message);
+            return false;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(_activeTask, taskCancellation))
+                {
+                    _activeTask.Dispose();
+                    _activeTask = null;
+                }
+            }
+        }
+    }
+
     public bool CancelActive()
     {
         lock (_gate)
@@ -222,7 +350,7 @@ internal sealed class GameDownloadService
     {
         var configured = LauncherConfig.GameDirectory ??
                          Environment.GetEnvironmentVariable("NYALAUNCHER_MINECRAFT_DIR") ??
-                         MinecraftDirectoryLocator.GetDefaultDirectory();
+                         MinecraftDirectoryLocator.EnsureDefaultDirectory();
         var fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(configured));
         var directory = new DirectoryInfo(fullPath);
         if (directory.Parent is { } versionsDirectory &&
@@ -239,6 +367,34 @@ internal sealed class GameDownloadService
         Directory.CreateDirectory(Path.Combine(fullPath, "versions"));
         return fullPath;
     }
+
+    /// <summary>
+    /// 在版本隔离启用时，于版本目录下创建标准 Minecraft 内容子文件夹骨架。
+    /// 游戏启动时会以该目录作为 <c>--gameDir</c>，提前创建可避免首次运行时目录缺失。
+    /// </summary>
+    private static void ScaffoldIsolatedContentDirectory(string minecraftRoot, string versionId)
+    {
+        var versionDirectory = Path.Combine(minecraftRoot, "versions", versionId);
+        if (!Directory.Exists(versionDirectory))
+            return;
+
+        foreach (var sub in IsolatedContentSubDirectories)
+        {
+            Directory.CreateDirectory(Path.Combine(versionDirectory, sub));
+        }
+    }
+
+    private static readonly string[] IsolatedContentSubDirectories =
+    [
+        "saves",
+        "resourcepacks",
+        "mods",
+        "config",
+        "crash-reports",
+        "logs",
+        "screenshots",
+        "shaderpacks",
+    ];
 
     private void PublishTerminal(
         long taskId,

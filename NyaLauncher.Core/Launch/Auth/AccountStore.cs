@@ -6,7 +6,7 @@ using System.Text.Json;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Launch.Auth;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Launch.Auth;
 
 /// <summary>
 /// 全局账号存储：所有页面共享同一份内存列表，并通过 config.json 持久化。

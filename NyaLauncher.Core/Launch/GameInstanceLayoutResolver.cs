@@ -2,15 +2,15 @@ using System;
 using System.IO;
 using System.Linq;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Launch;
 
-internal sealed record GameVersionLayout(
+public sealed record GameVersionLayout(
     bool IsIsolated,
     string ContentDirectory,
     string Provider,
     string Evidence);
 
-internal sealed record ExternalGameInstanceLayout(
+public sealed record ExternalGameInstanceLayout(
     string InstanceId,
     string InstanceDirectory,
     string ContentDirectory,
@@ -23,7 +23,7 @@ internal sealed record ExternalGameInstanceLayout(
 /// The result is launcher-agnostic: every content scanner and the launch pipeline
 /// consume this same path instead of independently guessing isolation state.
 /// </summary>
-internal static class GameInstanceLayoutResolver
+public static class GameInstanceLayoutResolver
 {
     private static readonly string[] ContentDirectories =
         ["mods", "resourcepacks", "shaderpacks", "saves", "config"];

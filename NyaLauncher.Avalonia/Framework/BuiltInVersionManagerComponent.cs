@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Core.Launch;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Framework;
@@ -23,15 +24,7 @@ internal static class BuiltInVersionManagerComponent
             .WithSizeLimits(230, 84, 390, 138)
             .WithShape(PolygonShapeDefinition.Rectangle())
             .WithDragHandle(new ComponentRect(0.035, 0.16, 0.08, 0.32))
-            .WithTheme(new PolygonComponentTheme
-            {
-                Surface = "#29304A",
-                SurfaceHover = "#343E5E",
-                Border = "#465377",
-                BorderHover = "#91A0FF",
-                Accent = "#91A0FF",
-                ProgressTrack = "#36405D"
-            })
+            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
             .AddAction(OpenActionId)
             .UseSurfaceAction(OpenActionId)
             .AddText(

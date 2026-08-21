@@ -9,8 +9,9 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
 
-namespace NyaLauncher.Avalonia;
+namespace NyaLauncher.Avalonia.Dialogs;
 
 /// <summary>
 /// 离线默认皮肤选择窗口：展示 <see cref="OfflineSkinCatalog.Choices"/> 中的全部皮肤，
@@ -49,8 +50,8 @@ public partial class OfflineSkinPickerDialog : Window
                 Margin = new Thickness(0, 0, 10, 10),
                 Padding = new Thickness(14, 14),
                 HorizontalContentAlignment = HorizontalAlignment.Center,
-                Background = Brush.Parse(isCurrent ? "#293552" : "#20283D"),
-                BorderBrush = Brush.Parse(isCurrent ? "#8C9DFF" : "#53658F"),
+                Background = isCurrent ? ThemePolygonHelper.SkinButtonBgCurrent : ThemePolygonHelper.SkinButtonBg,
+                BorderBrush = isCurrent ? ThemePolygonHelper.SkinButtonBorderCurrent : ThemePolygonHelper.SkinButtonBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(9),
                 Cursor = new Cursor(StandardCursorType.Hand)
@@ -64,7 +65,7 @@ public partial class OfflineSkinPickerDialog : Window
                 Width = 64,
                 Height = 64,
                 CornerRadius = new CornerRadius(8),
-                Background = Brush.Parse("#2D3550"),
+                Background = ThemePolygonHelper.SkinAvatarBg,
                 ClipToBounds = true,
                 Child = CreateAvatarContent(choice)
             };
@@ -80,7 +81,7 @@ public partial class OfflineSkinPickerDialog : Window
                 Text = choice.DisplayName,
                 FontSize = 13,
                 FontWeight = FontWeight.SemiBold,
-                Foreground = Brush.Parse("#EDF0FF")
+                Foreground = ThemePolygonHelper.Muted
             });
             if (isCurrent)
             {
@@ -88,7 +89,7 @@ public partial class OfflineSkinPickerDialog : Window
                 {
                     Text = "当前使用",
                     FontSize = 10,
-                    Foreground = Brush.Parse("#8C9DFF"),
+                    Foreground = ThemePolygonHelper.AccentGlyph,
                     VerticalAlignment = VerticalAlignment.Center
                 });
             }
@@ -101,7 +102,7 @@ public partial class OfflineSkinPickerDialog : Window
                     ? "纤细模型 · Slim"
                     : "经典模型 · Classic",
                 FontSize = 10,
-                Foreground = Brush.Parse("#A5AEC7"),
+                Foreground = ThemePolygonHelper.DisabledText,
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -122,7 +123,7 @@ public partial class OfflineSkinPickerDialog : Window
             Text = choice.FallbackText,
             FontSize = 26,
             FontWeight = FontWeight.Bold,
-            Foreground = Brush.Parse("#7C8CFF"),
+                Foreground = ThemePolygonHelper.AccentGlyph,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         });

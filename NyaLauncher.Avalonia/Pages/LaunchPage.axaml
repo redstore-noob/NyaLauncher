@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:NyaLauncher.Avalonia.Pages"
+             xmlns:auth="using:NyaLauncher.Core.Launch.Auth"
              x:Class="NyaLauncher.Avalonia.Pages.LaunchPage"
              Loaded="Control_OnLoaded">
   <Grid RowDefinitions="Auto,*,Auto" Margin="40,40,40,32">
@@ -13,12 +14,12 @@
                  Foreground="{StaticResource SystemAccentColor}" />
       <TextBlock Text="一个轻量优雅的 Minecraft 启动器"
                  FontSize="14"
-                 Foreground="#8B8B9E" />
+                 Foreground="{StaticResource HintTextBrush}" />
     </StackPanel>
 
     <!-- 中央大启动区 -->
     <Border Grid.Row="1"
-            Background="#1E1E2E"
+            Background="{StaticResource PanelBgBrush}"
             CornerRadius="16"
             VerticalAlignment="Center"
             HorizontalAlignment="Stretch">
@@ -31,11 +32,11 @@
                     Spacing="8">
           <Border Width="96" Height="96"
                   CornerRadius="24"
-                  Background="#2D2D44"
+                  Background="{StaticResource ControlBgBrush}"
                   HorizontalAlignment="Center">
             <TextBlock Text="▶"
                        FontSize="40"
-                       Foreground="{StaticResource SystemAccentColor}"
+                       Foreground="{StaticResource AccentBrush}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center" />
           </Border>
@@ -43,28 +44,28 @@
                      FontSize="24"
                      FontWeight="SemiBold"
                      HorizontalAlignment="Center"
-                     Foreground="#FFFFFF" />
+                     Foreground="{StaticResource PrimaryTextBrush}" />
           <TextBlock Text="Java Edition"
                      FontSize="13"
                      HorizontalAlignment="Center"
-                     Foreground="#6B6B80" />
+                     Foreground="{StaticResource SubtextTextBrush}" />
         </StackPanel>
 
         <!-- Minecraft 目录 -->
         <Border Grid.Row="1"
-                Background="#2A2A3E"
+                Background="{StaticResource ControlBgBrush}"
                 CornerRadius="10"
                 Padding="12,8"
                 Margin="0,24,0,12">
           <Grid ColumnDefinitions="Auto,*,Auto,Auto">
             <TextBlock Text="游戏目录"
                        FontSize="12"
-                       Foreground="#8B8B9E"
+                       Foreground="{StaticResource HintTextBrush}"
                        VerticalAlignment="Center"
                        Margin="0,0,12,0" />
             <TextBox x:Name="MinecraftPathBox"
                      Grid.Column="1"
-                     Background="Transparent"
+                     Background="{StaticResource TransparentBrush}"
                      BorderThickness="0"
                      FontSize="13"
                      PlaceholderText="Minecraft 根目录或 versions\版本号 目录" />
@@ -91,16 +92,16 @@
 
           <!-- 版本选择 -->
           <Border Grid.Column="0" Margin="0,0,8,0"
-                  Background="#2A2A3E"
+                  Background="{StaticResource ControlBgBrush}"
                   CornerRadius="10"
                   Padding="12,6">
             <StackPanel Spacing="4">
               <TextBlock Text="游戏版本"
                          FontSize="11"
-                         Foreground="#8B8B9E" />
+                         Foreground="{StaticResource HintTextBrush}" />
               <ComboBox x:Name="VersionSelector"
                         PlaceholderText="未找到已安装版本"
-                        Background="Transparent"
+                        Background="{StaticResource TransparentBrush}"
                         BorderThickness="0"
                         FontSize="14"
                         SelectionChanged="OnVersionSelectionChanged" />
@@ -109,14 +110,14 @@
 
           <!-- 账号选择 -->
           <Border Grid.Column="1" Margin="8,0,0,0"
-                  Background="#2A2A3E"
+                  Background="{StaticResource ControlBgBrush}"
                   CornerRadius="10"
                   Padding="12,6">
             <StackPanel Spacing="4">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="账号"
                            FontSize="11"
-                           Foreground="#8B8B9E"
+                           Foreground="{StaticResource HintTextBrush}"
                            VerticalAlignment="Center" />
                 <Button Grid.Column="1"
                         Content="+ 新建账户"
@@ -128,12 +129,12 @@
               </Grid>
               <ComboBox x:Name="AccountSelector"
                         PlaceholderText="未选择账号"
-                        Background="Transparent"
+                        Background="{StaticResource TransparentBrush}"
                         BorderThickness="0"
                         FontSize="13"
                         SelectionChanged="OnAccountSelectionChanged">
                 <ComboBox.ItemTemplate>
-                  <DataTemplate DataType="local:LaunchAccount">
+                  <DataTemplate DataType="auth:LaunchAccount">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <TextBlock Text="{Binding Badge}"
                                  FontSize="10"
@@ -141,7 +142,7 @@
                                  VerticalAlignment="Center" />
                       <TextBlock Text="{Binding DisplayName}"
                                  FontSize="13"
-                                 Foreground="#FFFFFF"
+                                 Foreground="{StaticResource PrimaryTextBrush}"
                                  VerticalAlignment="Center" />
                     </StackPanel>
                   </DataTemplate>
@@ -158,8 +159,8 @@
                     Height="48"
                     FontSize="16"
                     FontWeight="SemiBold"
-                    Background="{StaticResource SystemAccentColor}"
-                    Foreground="White"
+                    Background="{StaticResource AccentBrush}"
+                    Foreground="{StaticResource WhiteBrush}"
                     CornerRadius="12"
                     Click="OnLaunchClick"
                     Cursor="Hand">
@@ -175,7 +176,7 @@
                    Grid.Row="3"
                    Text="正在查找本地 Minecraft 版本…"
                    FontSize="12"
-                   Foreground="#8B8B9E"
+                   Foreground="{StaticResource HintTextBrush}"
                    TextWrapping="Wrap"
                    HorizontalAlignment="Center"
                    Margin="0,18,0,0" />
@@ -191,7 +192,7 @@
                Text="版本号:"
                x:Name="BottomVersionText"
                FontSize="12"
-               Foreground="#5A5A70"
+               Foreground="{StaticResource SubtextTextBrush}"
                HorizontalAlignment="Center"
                Margin="0,24,0,0" />
   </Grid>

@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using NyaLauncher.Avalonia.Dialogs;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Core.Launch.Auth;
 
 namespace NyaLauncher.Avalonia.Pages;
 

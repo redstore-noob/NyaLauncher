@@ -1,4 +1,5 @@
 using System.Text.Json;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Core.Launch.Internal;
 
@@ -51,7 +52,7 @@ internal sealed class MinecraftVersionProfileLoader
             }
 
             chain.Add((currentId, root));
-            if (!TryGetString(root, "inheritsFrom", out var parentId))
+            if (!PathUtil.TryGetString(root, "inheritsFrom", out var parentId))
             {
                 break;
             }
@@ -81,17 +82,17 @@ internal sealed class MinecraftVersionProfileLoader
 
         foreach (var (profileId, root) in chain)
         {
-            if (TryGetString(root, "mainClass", out var mainClassValue))
+            if (PathUtil.TryGetString(root, "mainClass", out var mainClassValue))
                 mainClass = mainClassValue;
-            if (TryGetString(root, "assets", out var assetsValue))
+            if (PathUtil.TryGetString(root, "assets", out var assetsValue))
                 assetsId = assetsValue;
-            if (TryGetString(root, "type", out var typeValue))
+            if (PathUtil.TryGetString(root, "type", out var typeValue))
                 versionType = typeValue;
-            if (TryGetString(root, "minecraftArguments", out var legacyValue))
+            if (PathUtil.TryGetString(root, "minecraftArguments", out var legacyValue))
                 legacyArguments = legacyValue;
 
             if (root.TryGetProperty("assetIndex", out var assetIndex) &&
-                TryGetString(assetIndex, "id", out var assetIndexId))
+                PathUtil.TryGetString(assetIndex, "id", out var assetIndexId))
             {
                 assetsId = assetIndexId;
             }
@@ -109,7 +110,7 @@ internal sealed class MinecraftVersionProfileLoader
                 clientJarVersionId = profileId;
             }
 
-            if (TryGetString(root, "jar", out var explicitJarVersion))
+            if (PathUtil.TryGetString(root, "jar", out var explicitJarVersion))
             {
                 clientJarVersionId = explicitJarVersion;
             }
@@ -175,7 +176,7 @@ internal sealed class MinecraftVersionProfileLoader
 
     private static string GetLibraryKey(JsonElement library)
     {
-        if (!TryGetString(library, "name", out var name))
+        if (!PathUtil.TryGetString(library, "name", out var name))
         {
             return Guid.NewGuid().ToString("N");
         }
@@ -195,14 +196,6 @@ internal sealed class MinecraftVersionProfileLoader
 
     private static string GetVersionJsonPath(string minecraftDirectory, string versionId) =>
         Path.Combine(minecraftDirectory, "versions", versionId, $"{versionId}.json");
-
-    private static bool TryGetString(JsonElement parent, string propertyName, out string value)
-    {
-        value = string.Empty;
-        return parent.TryGetProperty(propertyName, out var property) &&
-               property.ValueKind == JsonValueKind.String &&
-               !string.IsNullOrWhiteSpace(value = property.GetString()!);
-    }
 
     private static void ValidateVersionId(string versionId)
     {

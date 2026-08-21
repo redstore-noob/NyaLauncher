@@ -1,19 +1,15 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="NyaLauncher.Avalonia.App"
-             RequestedThemeVariant="Dark">
+             >
 
   <Application.Resources>
-    <Color x:Key="SystemAccentColor">#7C8CFF</Color>
-    <Color x:Key="SystemAccentColorDark1">#6C7BFF</Color>
-    <Color x:Key="SystemAccentColorDark2">#5868EA</Color>
-    <Color x:Key="SystemAccentColorLight1">#98A3FF</Color>
-    <FontFamily x:Key="ContentFontTheme">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
+    <FontFamily x:Key="ContentFontTheme">avares://NyaLauncher.Avalonia/Resources/Fonts#HarmonyOS Sans, avares://NyaLauncher.Avalonia/Resources/Fonts#Noto Color Emoji</FontFamily>
   </Application.Resources>
 
   <Application.Styles>
     <FluentTheme />
-
+    
     <Style Selector="Window">
       <Setter Property="FontFamily" Value="{StaticResource ContentFontTheme}" />
     </Style>

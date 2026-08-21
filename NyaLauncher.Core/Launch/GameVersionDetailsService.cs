@@ -6,9 +6,12 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Content;
 
-internal sealed record GameVersionDetails(
+namespace NyaLauncher.Core.Launch;
+
+public sealed record GameVersionDetails(
     string VersionId,
     string VersionDirectory,
     string ContentDirectory,
@@ -34,7 +37,10 @@ internal sealed record GameVersionDetails(
     public bool IsVanilla => string.Equals(LoaderName, "原版", StringComparison.Ordinal);
 }
 
-internal static class GameVersionDetailsService
+/// <summary>
+/// 加载单个已安装版本的详情信息（Mod 加载器识别、inheritsFrom 继承链解析、内容列表扫描）。
+/// </summary>
+public static class GameVersionDetailsService
 {
     public static Task<GameVersionDetails> LoadAsync(
         GameInstanceSnapshot snapshot,

@@ -5,11 +5,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Core.Config;
-using NyaLauncher.Core.Launch;
 
-namespace NyaLauncher.Avalonia.Pages;
+namespace NyaLauncher.Core.Launch;
 
-internal sealed record GameInstanceSnapshot(
+public sealed record GameInstanceSnapshot(
     string SourcePath,
     string MinecraftDirectory,
     string? GameDirectory,
@@ -35,7 +34,7 @@ internal sealed record GameInstanceSnapshot(
 /// polygon selector. Disk enumeration runs on the thread pool; published
 /// snapshots are immutable and stale scans cannot replace a newer request.
 /// </summary>
-internal static class GameInstanceStore
+public static class GameInstanceStore
 {
     private const string SelectedVersionConfigKey = "selectedGameInstance";
     private static readonly object Gate = new();

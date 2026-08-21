@@ -1,14 +1,22 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Dialogs;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Avalonia.Windows;
 using NyaLauncher.Core.Config;
+using NyaLauncher.Core.Download;
+using NyaLauncher.Core.Launch;
+using NyaLauncher.Core.Launch.Auth;
+using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia;
 
@@ -23,6 +31,7 @@ public partial class MainWindow : Window
     private readonly VersionManagerPage _versionManagerPage;
     private readonly SettingsHubPage _settingsPage;
     private readonly AccountManagePage _accountManagePage;
+    private readonly MusicPlayerPage _musicPlayerPage;
     private ComponentLibraryWindow? _componentLibraryWindow;
     private TaskDetailsWindow? _taskDetailsWindow;
     private bool _suppressWorkspaceSave;
@@ -39,8 +48,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // [诊断] 在标题栏显示当前主题，确认主题加载是否正确
+        var loadedTheme = Pages.ThemeSettings.LoadTheme();
+        var accent = Application.Current?.Resources.TryGetValue("AccentBrush", out var a) == true ? a : "null";
+        var bg = Application.Current?.Resources.TryGetValue("WindowBgBrush", out var b) == true ? b : "null";
+        Title = $"NyaLauncher [{loadedTheme}] Accent={accent} Bg={bg}";
+
         // 让 config.json 与 workspace.json 存放在同一目录（含自定义存储目录）。
         LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+        try { DownloadSettings.ApplySavedSettings(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"下载设置恢复失败，使用默认值：{ex.Message}"); }
         _gameLaunchService = new GameLaunchService();
         _gameLaunchService.Changed += OnGameLaunchChanged;
         _gameDownloadService = new GameDownloadService();
@@ -70,13 +87,21 @@ public partial class MainWindow : Window
 
         _launchPage = new LaunchPage(_gameLaunchService);
         _downloadPage = new DownloadPage(_gameDownloadService);
+        _downloadPage.ModInstallRequested += (_, project) =>
+            ModOverlay.ShowFor(project);
         _versionManagerPage = new VersionManagerPage();
         _settingsPage = new SettingsHubPage(
             FeatureAreas,
             _profileStore.StorageDirectory);
         _settingsPage.PersonalizationSaved += OnPersonalizationSaved;
         _settingsPage.AccountManageRequested += OnAccountManageRequested;
+        _settingsPage.InstanceManageRequested += (_, _) =>
+        {
+            _versionManagerPage.Activate();
+            ShowPage(_versionManagerPage, "版本管理");
+        };
         _accountManagePage = new AccountManagePage();
+        _musicPlayerPage = new MusicPlayerPage();
 
         AddHandler(
             KeyDownEvent,
@@ -166,6 +191,11 @@ public partial class MainWindow : Window
                 ShowSettings(SettingsSection.Launcher);
                 break;
 
+            case "music":
+            case "music-player":
+                ShowPage(_musicPlayerPage, "音乐播放器");
+                break;
+
             default:
                 ShowStatus($"尚未注册页面：{actionId}");
                 break;
@@ -242,8 +272,8 @@ public partial class MainWindow : Window
         if (download.IsActive)
         {
             TaskActivityButton.IsVisible = true;
-            TaskActivityButton.Background = Brush.Parse("#2E8C78");
-            TaskActivityButton.BorderBrush = Brush.Parse("#75D9BE");
+            TaskActivityButton.Background = ThemePolygonHelper.TaskDownloadingBg;
+            TaskActivityButton.BorderBrush = ThemePolygonHelper.TaskDownloadingBorder;
             TaskActivityGlyph.Text = "↓";
             TaskActivityProgress.IsVisible = true;
             TaskActivityProgress.IsIndeterminate = download.TotalBytes <= 0;
@@ -260,8 +290,8 @@ public partial class MainWindow : Window
         if (!launch.ShouldShowIndicator)
             return;
 
-        TaskActivityButton.Background = Brush.Parse("#5968E8");
-        TaskActivityButton.BorderBrush = Brush.Parse("#9AA5FF");
+        TaskActivityButton.Background = ThemePolygonHelper.TaskLaunchingBg;
+        TaskActivityButton.BorderBrush = ThemePolygonHelper.TaskLaunchingBorder;
         TaskActivityProgress.IsVisible = launch.Phase == GameLaunchPhase.Preparing;
         TaskActivityProgress.IsIndeterminate = launch.Phase == GameLaunchPhase.Preparing;
         TaskActivityGlyph.Text = launch.Phase switch
@@ -403,7 +433,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var directoryChanged = !WorkspaceProfileStore.PathsEqual(
+            var directoryChanged = !PathUtil.PathsEqual(
                 _profileStore.StorageDirectory,
                 result.StorageDirectory);
             StorageDirectoryChangeTransaction? storageChange = null;

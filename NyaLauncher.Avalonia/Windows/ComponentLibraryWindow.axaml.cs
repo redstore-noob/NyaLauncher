@@ -7,12 +7,13 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
 
-namespace NyaLauncher.Avalonia;
+namespace NyaLauncher.Avalonia.Windows;
 
 public partial class ComponentLibraryWindow : Window
 {
-    private static readonly IBrush Muted = Brush.Parse("#8F98B3");
+    private static readonly IBrush Muted = ThemePolygonHelper.Muted;
     private FeatureAreaRegistry? _registry;
     private bool _isClosed;
 
@@ -68,8 +69,8 @@ public partial class ComponentLibraryWindow : Window
             var card = new Border
             {
                 Padding = new Thickness(13, 11),
-                Background = Brush.Parse("#1D2334"),
-                BorderBrush = Brush.Parse("#323A51"),
+                Background = ThemePolygonHelper.CardBackground,
+                BorderBrush = ThemePolygonHelper.CardBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
                 Cursor = new Cursor(StandardCursorType.SizeAll)
@@ -85,12 +86,12 @@ public partial class ComponentLibraryWindow : Window
                 Width = 38,
                 Height = 38,
                 CornerRadius = new CornerRadius(11),
-                Background = Brush.Parse("#303958"),
+                Background = ThemePolygonHelper.IconBoxBg,
                 Child = new TextBlock
                 {
                     Text = component.Glyph,
                     FontSize = 17,
-                    Foreground = Brushes.White,
+                    Foreground = ThemePolygonHelper.Muted,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 }
@@ -108,7 +109,7 @@ public partial class ComponentLibraryWindow : Window
                         Text = component.Title,
                         FontSize = 13,
                         FontWeight = FontWeight.SemiBold,
-                        Foreground = Brushes.White
+                        Foreground = ThemePolygonHelper.Muted
                     },
                     new TextBlock
                     {
@@ -125,7 +126,7 @@ public partial class ComponentLibraryWindow : Window
             {
                 Text = "⠿",
                 FontSize = 20,
-                Foreground = Brush.Parse("#AAB2CC"),
+                Foreground = ThemePolygonHelper.DragGlyph,
                 VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetColumn(dragGlyph, 2);
@@ -173,7 +174,7 @@ public partial class ComponentLibraryWindow : Window
             Text = component.Title,
             FontSize = 13,
             FontWeight = FontWeight.SemiBold,
-            Foreground = Brushes.White,
+            Foreground = ThemePolygonHelper.Muted,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var description = new TextBlock
@@ -193,7 +194,7 @@ public partial class ComponentLibraryWindow : Window
         {
             Text = "⠿",
             FontSize = 20,
-            Foreground = Brush.Parse("#AAB2CC"),
+            Foreground = ThemePolygonHelper.DragGlyph,
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(dragGlyph, 1);
@@ -207,8 +208,8 @@ public partial class ComponentLibraryWindow : Window
         var card = new Border
         {
             Padding = new Thickness(13, 11),
-            Background = Brush.Parse("#1D2334"),
-            BorderBrush = Brush.Parse("#323A51"),
+            Background = ThemePolygonHelper.CardBackground,
+            BorderBrush = ThemePolygonHelper.CardBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Cursor = new Cursor(StandardCursorType.SizeAll),
