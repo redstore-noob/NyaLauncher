@@ -22,6 +22,7 @@ internal static class Program
         {
             ("SemanticVersion ordering", TestSemanticVersionAsync),
             ("Repository index validation", TestRepositoryIndexAsync),
+            ("Repository historical release selection", TestRepositoryHistoricalReleasesAsync),
             ("Repository index strict compatibility", TestStrictRepositoryContractAsync),
             ("Verified repository review", TestVerifiedRepositoryReviewAsync),
             ("Review hash mismatch rejection", TestReviewHashMismatchAsync),
@@ -36,6 +37,9 @@ internal static class Program
             ("Prepared new install recovery removes target", TestPreparedNewInstallRecoveryAsync),
             ("Committed update recovery keeps target", TestCommittedUpdateRecoveryAsync),
             ("New install clears stale plugin trust", TestNewInstallClearsStaleStateAsync),
+            ("Repository downgrade requires confirmation", TestRepositoryDowngradeAsync),
+            ("Repository preview release installation", TestRepositoryPreviewInstallAsync),
+            ("Repository install uses canonical release", TestCanonicalRepositoryReleaseAsync),
             ("Plugin components start in library", TestPluginComponentsStartInLibraryAsync),
             ("Plugin area removal persists", TestPluginAreaRemovalAsync),
             ("All workspace areas can be removed", TestAllWorkspaceAreasCanBeRemovedAsync),
@@ -43,7 +47,8 @@ internal static class Program
             ("Plugin storage is single-manager", TestPluginStorageSingleManagerAsync),
             ("Unsafe shutdown retains manager lock", TestUnsafeShutdownRetainsManagerLockAsync),
             ("Unresolved recovery blocks catalog scan", TestRecoveryFailureBlocksRefreshAsync),
-            ("ZIP traversal rejection", TestTraversalRejectionAsync)
+            ("ZIP traversal rejection", TestTraversalRejectionAsync),
+            ("ZIP Windows device name rejection", TestWindowsDeviceNameRejectionAsync)
         };
 
         var failures = 0;
@@ -241,6 +246,43 @@ internal static class Program
         Assert(parsedRelease is not null &&
                RepositoryReviewPolicy.RequiresInstallConfirmation(parsedRelease),
             "an index release without review requires explicit confirmation");
+    }
+
+    private static Task TestRepositoryHistoricalReleasesAsync()
+    {
+        var payload = CreatePackage(includeTraversal: false);
+        var oldStable = CreateRelease(payload, "1.0.0");
+        var preview = CreateRelease(payload, "1.5.0-beta.1", "preview");
+        var newStable = CreateRelease(payload, "2.0.0");
+        var yanked = CreateRelease(payload, "1.4.0") with
+        {
+            Yanked = true,
+            YankReason = "security issue"
+        };
+        var incompatible = CreateRelease(payload, "3.0.0") with
+        {
+            Compatibility = CreateRelease(payload).Compatibility with
+            {
+                MinimumLauncherVersion = "999.0.0"
+            }
+        };
+        var plugin = CreatePlugin() with
+        {
+            Releases = [oldStable, yanked, incompatible, preview, newStable]
+        };
+        using var http = new HttpClient(new PayloadHandler(payload));
+        using var client = new PluginRepositoryClient(http);
+
+        var releases = client.GetCompatibleReleases(plugin);
+        Assert(
+            releases.Select(release => release.Version).SequenceEqual(
+                ["2.0.0", "1.5.0-beta.1", "1.0.0"],
+                StringComparer.Ordinal),
+            "every compatible non-yanked historical release is selectable in semantic order");
+        Assert(
+            client.GetLatestCompatibleRelease(plugin)?.Version == "2.0.0",
+            "latest stable release remains the default selection");
+        return Task.CompletedTask;
     }
 
     private static async Task TestVerifiedRepositoryReviewAsync()
@@ -441,6 +483,34 @@ internal static class Program
             Assert(!Directory.EnumerateFiles(storage, "escape.txt", SearchOption.AllDirectories).Any(),
                 "traversal target was never created");
             Assert(catalog.Scan().Count == 0, "malicious package was not installed");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestWindowsDeviceNameRejectionAsync()
+    {
+        var payload = CreatePackage(includeTraversal: false, extraEntry: "COM¹/payload.dll");
+        var plugin = CreatePlugin();
+        var release = CreateRelease(payload);
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var http = new HttpClient(new PayloadHandler(payload));
+            using var client = new PluginRepositoryClient(http);
+            var catalog = new PluginCatalog(storage);
+            await AssertThrowsAsync<InvalidDataException>(() =>
+                PluginPackageInstaller.InstallAsync(
+                    catalog,
+                    client,
+                    plugin,
+                    release,
+                    null,
+                    null,
+                    CancellationToken.None));
+            Assert(catalog.Scan().Count == 0, "reserved Windows device path was not installed");
         }
         finally
         {
@@ -681,6 +751,119 @@ internal static class Program
         }
     }
 
+    private static async Task TestRepositoryDowngradeAsync()
+    {
+        var oldPayload = CreatePackage(includeTraversal: false, version: "1.0.0");
+        var newPayload = CreatePackage(includeTraversal: false, version: "2.0.0");
+        var oldRelease = CreateRelease(oldPayload, "1.0.0");
+        var newRelease = CreateRelease(newPayload, "2.0.0");
+        var plugin = CreatePlugin() with { Releases = [oldRelease, newRelease] };
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var oldHttp = new HttpClient(new PayloadHandler(oldPayload));
+            using var oldClient = new PluginRepositoryClient(oldHttp);
+            using var newHttp = new HttpClient(new PayloadHandler(newPayload));
+            using var newClient = new PluginRepositoryClient(newHttp);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+
+            var install = await manager.InstallFromRepositoryAsync(
+                newClient,
+                plugin,
+                newRelease);
+            Assert(install.Success, $"new version installs: {install.Message}");
+            var refused = await manager.InstallFromRepositoryAsync(
+                oldClient,
+                plugin,
+                oldRelease);
+            Assert(!refused.Success, "downgrade without explicit confirmation is refused");
+            Assert(
+                manager.Current.Plugins.Single().Version == "2.0.0",
+                "refused downgrade leaves the installed package untouched");
+            var staleConfirmation = await manager.InstallFromRepositoryAsync(
+                oldClient,
+                plugin,
+                oldRelease,
+                confirmedDowngradeFromVersion: "1.9.0");
+            Assert(
+                !staleConfirmation.Success,
+                "confirmation for a stale installed version cannot authorize a downgrade");
+
+            var downgraded = await manager.InstallFromRepositoryAsync(
+                oldClient,
+                plugin,
+                oldRelease,
+                confirmedDowngradeFromVersion: "2.0.0");
+            Assert(downgraded.Success, $"confirmed downgrade succeeds: {downgraded.Message}");
+            Assert(
+                manager.Current.Plugins.Single().Version == "1.0.0",
+                "confirmed downgrade installs the selected historical release");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestRepositoryPreviewInstallAsync()
+    {
+        const string version = "2.0.0-beta.1";
+        var payload = CreatePackage(includeTraversal: false, version);
+        var release = CreateRelease(payload, version, "preview");
+        var plugin = CreatePlugin() with { Releases = [release] };
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var http = new HttpClient(new PayloadHandler(payload));
+            using var client = new PluginRepositoryClient(http);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+
+            var result = await manager.InstallFromRepositoryAsync(client, plugin, release);
+            Assert(result.Success, $"selected preview release installs: {result.Message}");
+            Assert(
+                manager.Current.Plugins.Single().Version == version,
+                "installed preview version matches the selected historical release");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestCanonicalRepositoryReleaseAsync()
+    {
+        var payload = CreatePackage(includeTraversal: false);
+        var canonical = CreateRelease(payload) with
+        {
+            Yanked = true,
+            YankReason = "Withdrawn by the repository administrator."
+        };
+        var suppliedClone = canonical with { Yanked = false, YankReason = null };
+        var plugin = CreatePlugin() with { Releases = [canonical] };
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var http = new HttpClient(new PayloadHandler(payload));
+            using var client = new PluginRepositoryClient(http);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+
+            var result = await manager.InstallFromRepositoryAsync(
+                client,
+                plugin,
+                suppliedClone);
+
+            Assert(!result.Success, "a cloned DTO cannot clear the canonical yank state");
+            Assert(manager.Current.Plugins.Count == 0, "withdrawn canonical release is not installed");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
     private static async Task TestRecoveryFailureBlocksRefreshAsync()
     {
         var storage = CreateTemporaryDirectory();
@@ -855,18 +1038,21 @@ internal static class Program
         License = "MIT"
     };
 
-    private static RepositoryRelease CreateRelease(byte[] payload)
+    private static RepositoryRelease CreateRelease(
+        byte[] payload,
+        string version = "1.0.0",
+        string channel = "stable")
     {
         var hash = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
         return new RepositoryRelease
         {
-            Version = "1.0.0",
-            Channel = "stable",
+            Version = version,
+            Channel = channel,
             PublishedAt = "2026-08-13T00:00:00Z",
-            ReleaseNotesUrl = "https://github.com/example/test-plugin/releases/tag/v1.0.0",
+            ReleaseNotesUrl = $"https://github.com/example/test-plugin/releases/tag/v{version}",
             Download = new RepositoryDownload
             {
-                Url = "https://github.com/example/test-plugin/releases/download/v1.0.0/test-plugin.zip",
+                Url = $"https://github.com/example/test-plugin/releases/download/v{version}/test-plugin.zip",
                 Sha256 = hash,
                 Size = payload.Length
             },
@@ -941,7 +1127,10 @@ internal static class Program
         """;
     }
 
-    private static byte[] CreatePackage(bool includeTraversal)
+    private static byte[] CreatePackage(
+        bool includeTraversal,
+        string version = "1.0.0",
+        string? extraEntry = null)
     {
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
@@ -951,7 +1140,7 @@ internal static class Program
               "manifestVersion": 1,
               "id": "dev.example.test",
               "name": "Test Plugin",
-              "version": "1.0.0",
+              "version": "{{VERSION}}",
               "apiVersion": "1.0",
               "minimumLauncherVersion": "0.1.0",
               "description": "Test",
@@ -963,10 +1152,12 @@ internal static class Program
               "optionalCapabilities": [],
               "settings": []
             }
-            """);
+            """.Replace("{{VERSION}}", version, StringComparison.Ordinal));
             WriteEntry(archive, "TestPlugin.dll", "not loaded during package validation");
             if (includeTraversal)
                 WriteEntry(archive, "../escape.txt", "must not escape");
+            if (extraEntry is not null)
+                WriteEntry(archive, extraEntry, "must not install");
         }
         return memory.ToArray();
     }

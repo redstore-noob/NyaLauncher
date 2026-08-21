@@ -332,11 +332,10 @@ internal sealed class PluginRepositoryClient : IDisposable
         return index;
     }
 
-    public RepositoryRelease? GetLatestCompatibleRelease(RepositoryPlugin plugin) =>
+    public IReadOnlyList<RepositoryRelease> GetCompatibleReleases(RepositoryPlugin plugin) =>
         plugin.Releases
             .Where(release =>
                 !release.Yanked &&
-                string.Equals(release.Channel, "stable", StringComparison.Ordinal) &&
                 IsCompatible(release))
             .Select(release => new
             {
@@ -347,7 +346,15 @@ internal sealed class PluginRepositoryClient : IDisposable
             })
             .OrderByDescending(item => item.Version)
             .Select(item => item.Release)
-            .FirstOrDefault();
+            .ToArray();
+
+    public RepositoryRelease? GetLatestCompatibleRelease(RepositoryPlugin plugin)
+    {
+        var releases = GetCompatibleReleases(plugin);
+        return releases.FirstOrDefault(release =>
+                   string.Equals(release.Channel, "stable", StringComparison.Ordinal)) ??
+               releases.FirstOrDefault();
+    }
 
     public static bool IsCompatible(RepositoryRelease release)
     {
