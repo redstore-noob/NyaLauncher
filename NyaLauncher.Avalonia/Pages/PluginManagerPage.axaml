@@ -250,7 +250,7 @@
           </StackPanel>
 
           <Grid x:Name="DetailsView" IsVisible="False" RowDefinitions="Auto,*">
-            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,14">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,14">
               <Border Width="48" Height="48" CornerRadius="13" Background="#303958">
                 <TextBlock x:Name="DetailsInitialText"
                            Text="P"
@@ -275,6 +275,15 @@
                       Padding="13,7"
                       VerticalAlignment="Center"
                       Click="OnOpenSelectedPluginDirectoryClick" />
+              <Button x:Name="UninstallPluginButton"
+                      Grid.Column="3"
+                      Content="卸载插件"
+                      Margin="8,0,0,0"
+                      Padding="13,7"
+                      Background="#412832"
+                      Foreground="#F1A7B6"
+                      VerticalAlignment="Center"
+                      Click="OnUninstallSelectedPluginClick" />
             </Grid>
 
             <TabControl Grid.Row="1">
@@ -291,6 +300,15 @@
                     <Grid ColumnDefinitions="130,*">
                       <TextBlock Text="版本" Foreground="#8F99B3" />
                       <TextBlock x:Name="DetailsVersionText" Grid.Column="1" Foreground="#E7EAF7" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="仓库来源" Foreground="#8F99B3" />
+                      <TextBlock x:Name="DetailsOriginText"
+                                 Grid.Column="1"
+                                 Foreground="#E7EAF7"
+                                 FontFamily="Consolas"
+                                 FontSize="10"
+                                 TextWrapping="Wrap" />
                     </Grid>
                     <Grid ColumnDefinitions="130,*">
                       <TextBlock Text="作者" Foreground="#8F99B3" />
@@ -315,6 +333,17 @@
                       <TextBlock Text="安装目录" Foreground="#8F99B3" />
                       <TextBlock x:Name="DetailsDirectoryText" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
                     </Grid>
+                    <Border x:Name="PluginOriginWarningPanel"
+                            IsVisible="False"
+                            Background="#403522"
+                            BorderBrush="#705D2F"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            Padding="12">
+                      <TextBlock x:Name="PluginOriginWarningText"
+                                 Foreground="#E8C882"
+                                 TextWrapping="Wrap" />
+                    </Border>
                     <Border x:Name="PluginErrorPanel"
                             IsVisible="False"
                             Background="#38232C"

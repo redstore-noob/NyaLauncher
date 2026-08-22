@@ -179,6 +179,121 @@ internal sealed partial class PluginManager : IAsyncDisposable
         }
     }
 
+    public async Task<PluginOperationResult> UninstallAsync(
+        string pluginId,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (string.IsNullOrWhiteSpace(pluginId))
+            return PluginOperationResult.Failed("插件 ID 不能为空。");
+
+        await _lifecycleGate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+            ThrowIfStorageTransition();
+            if (!TryRecoverRepositoryTransactions())
+            {
+                return PluginOperationResult.Failed(
+                    $"插件目录尚未安全恢复，不能卸载插件：{_repositoryRecoveryError}");
+            }
+            if (!_packages.TryGetValue(pluginId, out var package) || package.Manifest is null)
+                return PluginOperationResult.Failed("插件包不存在或清单无效。");
+
+            var previousState = _catalog.GetState(pluginId);
+            if (previousState.Enabled || _runtimes.ContainsKey(pluginId))
+            {
+                var disabled = await DisableCoreAsync(package, cancellationToken);
+                if (!disabled.Success)
+                {
+                    return PluginOperationResult.Failed(
+                        $"插件未能安全停止，因此没有删除任何安装文件：{disabled.Message}");
+                }
+            }
+            if (_quarantined.Contains(pluginId) ||
+                _retiredRuntimes.Any(candidate => string.Equals(
+                    candidate.Manifest.Id,
+                    pluginId,
+                    StringComparison.OrdinalIgnoreCase)) ||
+                _runtimes.ContainsKey(pluginId))
+            {
+                return PluginOperationResult.Failed(
+                    "插件代码仍在进程中或等待重启清理。为避免删除仍在使用的程序集，请重启后再卸载。");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            PluginPackageRemovalResult removal;
+            try
+            {
+                removal = PluginPackageInstaller.StageRemoval(
+                    _catalog,
+                    package.PackageDirectory);
+            }
+            catch (Exception exception)
+            {
+                Publish(CreateCatalogSnapshot());
+                return PluginOperationResult.Failed(
+                    "插件已安全禁用，但卸载事务未能开始，安装文件未删除：" +
+                    exception.Message);
+            }
+            try
+            {
+                // From the first directory rename onward, complete or roll back
+                // without caller cancellation so no half-uninstalled catalog is
+                // intentionally left in memory.
+                await RefreshCoreAsync(CancellationToken.None);
+                _catalog.RemoveState(pluginId);
+                var completionError = removal.Complete();
+                if (completionError is not null)
+                    throw new IOException($"无法确认插件卸载事务：{completionError}");
+                Publish(CreateCatalogSnapshot());
+                return PluginOperationResult.Completed(
+                    $"插件 {package.Manifest.Name} 已卸载；能力授权和来源快照已撤销，" +
+                    "历史代私有数据仍保留供手工恢复或审计。");
+            }
+            catch (Exception exception)
+            {
+                var rollbackError = removal.Rollback();
+                if (rollbackError is null)
+                {
+                    RestoreState(pluginId, previousState);
+                    try
+                    {
+                        await RefreshCoreAsync(CancellationToken.None);
+                    }
+                    catch (Exception refreshException)
+                    {
+                        _repositoryRecoveryError =
+                            $"卸载已回滚，但插件目录未能重新载入：{refreshException.Message}";
+                        Publish(CreateCatalogSnapshot(error: _repositoryRecoveryError));
+                    }
+                    return PluginOperationResult.Failed(
+                        $"插件卸载失败，原安装已恢复：{exception.Message}");
+                }
+
+                _repositoryRecoveryError =
+                    $"插件卸载失败且原包未能自动恢复：{rollbackError}";
+                Publish(CreateCatalogSnapshot(error: _repositoryRecoveryError));
+                return PluginOperationResult.Failed(
+                    $"插件卸载未完成：{exception.Message}；回滚错误：{rollbackError}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return PluginOperationResult.Failed("插件卸载已取消；尚未删除安装文件。");
+        }
+        catch (Exception exception)
+        {
+            if (!TryRecoverRepositoryTransactions())
+                Publish(CreateCatalogSnapshot(error: _repositoryRecoveryError));
+            return PluginOperationResult.Failed($"插件卸载失败：{exception.Message}");
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
     public async Task<PluginOperationResult> SaveSettingsAsync(
         string pluginId,
         IReadOnlyDictionary<string, string?> values,
@@ -606,6 +721,15 @@ internal sealed partial class PluginManager : IAsyncDisposable
                 _status.Remove(removedId);
         }
 
+        foreach (var removedId in _settings.Keys
+                     .Where(id => !validPackages.ContainsKey(id))
+                     .ToArray())
+        {
+            _settings.Remove(removedId);
+            if (!_quarantined.Contains(removedId))
+                _status.Remove(removedId);
+        }
+
         _packages.Clear();
         foreach (var package in scanned)
             _packages[package.CatalogKey] = package;
@@ -615,6 +739,10 @@ internal sealed partial class PluginManager : IAsyncDisposable
             var manifest = package.Manifest!;
             if (package.Status is PluginStatus.Invalid or PluginStatus.Incompatible)
                 continue;
+            // The metadata stored inside the package directory is authoritative
+            // because it participates in package rename/rollback. State keeps a
+            // synchronized cache solely for generation-isolated data paths.
+            _catalog.SynchronizeInstallOrigin(manifest.Id, package.InstallOrigin);
             if (!_runtimes.TryGetValue(manifest.Id, out var settingsRuntime) ||
                 !settingsRuntime.IsStarted)
             {
@@ -1095,6 +1223,8 @@ internal sealed partial class PluginManager : IAsyncDisposable
                 StringComparer.Ordinal)],
             RequiredCapabilities = [.. manifest.RequiredCapabilities],
             OptionalCapabilities = [.. manifest.OptionalCapabilities],
+            InstallOrigin = package.InstallOrigin,
+            InstallOriginWarning = package.InstallOriginWarning,
             SettingDefinitions = [.. manifest.Settings],
             Settings = settings?.GetGlobalDisplayValues() ??
                 new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
@@ -1247,6 +1377,7 @@ internal sealed partial class PluginManager : IAsyncDisposable
             entry.Enabled = state.Enabled;
             entry.GrantedCapabilities = [.. state.GrantedCapabilities];
             entry.LastError = state.LastError;
+            entry.InstallOrigin = state.InstallOrigin;
         });
 
     private bool TryRecoverRepositoryTransactions()

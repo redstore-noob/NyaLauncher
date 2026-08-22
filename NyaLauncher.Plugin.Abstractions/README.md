@@ -1648,28 +1648,49 @@ sha256sum plugin.zip
 
 后续版本只需创建新 Release 并向 releases 追加；同步约每 6 小时运行。不可覆盖旧资产；需要修复就升版。
 listed 不等于 verified。审核绑定 ID、版本、ZIP SHA-256；未经审核版本会警告并二次确认。
-安全下架通过 Remove/Yank Issue，历史保留且 yanked 版本不可安装。
+安全下架通过 Remove/Yank Issue，历史保留且 yanked 版本不可安装。当前代全部版本撤回后，未安装
+用户的仓库列表会隐藏该插件；已经安装的用户仍会看到醒目的撤回提示，以便及时禁用或卸载。
+
+中心另外维护启动器不可伪造的插件身份：稳定 `lineageId`、正整数 `generation`，以及 GitHub 数字
+`repositoryId` / `ownerId`。仓库或账号改名不会改变数字身份。正常同代发布不改变 generation；原作者
+废弃后若由管理员定向转让，中心会创建新 generation。若 ID 被永久释放后重新使用，则创建新的
+lineageId。作者仓库的 `_manifest.json` 不得自行指定或修改这些中心身份字段。
 
 完整规则见中心 [README](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/README.md) 和
-[CONTRIBUTING](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/CONTRIBUTING.md)。固定索引：
+[CONTRIBUTING](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/CONTRIBUTING.md)。身份索引
+（NyaLauncher 0.1.2 及以上优先读取）：
 
 ```text
-https://raw.githubusercontent.com/TouristH/NyaLauncher-Plugins/main/public/v1/index.json
+https://raw.githubusercontent.com/TouristH/NyaLauncher-Plugins/main/public/v2/index.json
 ```
+
+只有 v2 地址明确返回 HTTP 404 时，启动器才回退完全旧格式的
+`public/v1/index.json`。v2 损坏、校验失败或暂时不可用时不会降级，以免绕过发布者身份保护。旧启动器
+仍可读取 v1，但中心不会把转让后的新代发布写入 v1。
 
 ### 12.5 用户侧更新与降级
 
 - 新安装默认禁用，启用前检查授权。
-- 仓库页只允许兼容、未 yanked 的 stable/preview 历史版本。
+- 仓库页只允许当前 generation 中兼容、未 yanked 的 stable/preview 历史版本；旧代只保留审计展示。
 - 更新/降级前必须禁用；运行中或 RestartRequired 时不能直接替换。
 - 降级须额外确认，因为旧代码可能无法读取新数据。
-- 整体替换包，但保留私有数据、设置和授权。
+- 同一 lineage、generation 和 GitHub 数字发布者内整体替换包，保留私有数据、设置和授权。
+- lineage、generation、repositoryId 或 ownerId 任一不同，都不是自动更新。启动器会阻止下载，并要求
+  用户先卸载旧插件，再把新插件作为独立安装重新确认；新代不会继承旧代能力授权或启用状态。
+- 手动安装、旧启动器安装且没有可信来源快照的本地包，也不会仅凭相同 ID 被仓库自动认领。
 - 当前没有静默后台自动更新；由用户选择版本并安装。
 
 安装器先核对索引声明的大小/SHA-256，并复核 ZIP 内 plugin.json 的 ID、版本、API、最低版本和能力；
 随后通过目录级 journal 和旧包备份整体替换，刷新失败则回滚。恢复不完整时会阻断继续扫描/安装并要求
-人工处理。新装会清除同 ID 残留启用/授权状态并保持禁用；更新/降级保留 data、settings、授权且保持
-禁用。当前索引请求约 30 秒超时，包下载约 5 分钟超时，不应把这些保护时限当稳定 API。
+人工处理。安装器在包目录写入由启动器所有的 `.nyalauncher-origin.json`，记录 ID、lineage、generation、
+GitHub 数字发布者、版本和 ZIP SHA-256；它与包目录一起提交、备份和回滚。插件不得依赖、分发或修改
+此文件。新装会清除同 ID 残留启用/授权状态并保持禁用；同代更新/降级保留 data、settings、授权且
+保持禁用。私有数据目录按 lineage + generation + GitHub 数字发布者隔离，因此转让后的新代或身份异常的
+发布者默认无法读取旧安装数据。
+当前索引请求约 30 秒超时，包下载约 5 分钟超时，不应把这些保护时限当稳定 API。
+
+插件管理页的“卸载插件”会先停止运行实例，再通过可恢复的目录事务移除安装包，并撤销该安装的能力
+授权与来源快照。卸载不会删除代际私有数据；这是为了失败恢复和审计，而不是允许新代继承旧数据。
 
 ---
 

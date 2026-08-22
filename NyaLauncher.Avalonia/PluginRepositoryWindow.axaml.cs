@@ -84,7 +84,8 @@ public partial class PluginRepositoryWindow : Window
             _index = await _repositoryClient.LoadIndexAsync(_lifetimeCancellation.Token);
             RebuildItems();
             RepositoryStatusText.Text =
-                $"已从在线仓库读取 {_index.Plugins.Count} 个插件条目。";
+                $"已从在线仓库读取 {_index.Plugins.Count} 个插件条目，" +
+                $"当前显示 {_allItems.Count} 个；已隐藏的撤回插件仅对已安装用户显示。";
         }
         catch (OperationCanceledException)
         {
@@ -115,14 +116,25 @@ public partial class PluginRepositoryWindow : Window
         {
             var installed = _pluginManager?.Current.Plugins ?? [];
             _allItems = _index.Plugins
-                .OrderBy(plugin => plugin.Name, StringComparer.CurrentCultureIgnoreCase)
-                .Select(plugin => new RepositoryListItem(
-                    plugin,
-                    _repositoryClient.GetLatestCompatibleRelease(plugin),
-                    installed.FirstOrDefault(local => string.Equals(
+                .Select(plugin => new
+                {
+                    Plugin = plugin,
+                    Installed = installed.FirstOrDefault(local => string.Equals(
                         local.Id,
                         plugin.Id,
-                        StringComparison.OrdinalIgnoreCase))))
+                        StringComparison.OrdinalIgnoreCase))
+                })
+                .Where(item => RepositoryCatalogPolicy.ShouldDisplay(
+                    item.Plugin,
+                    item.Installed))
+                .OrderBy(item => item.Plugin.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(item => new RepositoryListItem(
+                    item.Plugin,
+                    SelectDisplayRelease(
+                        item.Plugin,
+                        item.Installed,
+                        _repositoryClient.GetLatestCompatibleRelease(item.Plugin)),
+                    item.Installed))
                 .ToArray();
         }
 
@@ -156,8 +168,12 @@ public partial class PluginRepositoryWindow : Window
         EmptyRepositoryView.IsVisible = filtered.Length == 0 && !_loading;
         if (_allItems.Count == 0 && _index is not null)
         {
-            EmptyRepositoryTitle.Text = "仓库暂时没有插件";
-            EmptyRepositoryHint.Text = "插件作者可在自己的仓库发布固定 Release ZIP，再创建收录 Issue";
+            EmptyRepositoryTitle.Text = _index.Plugins.Count == 0
+                ? "仓库暂时没有插件"
+                : "当前没有公开可安装插件";
+            EmptyRepositoryHint.Text = _index.Plugins.Count == 0
+                ? "插件作者可在自己的仓库发布固定 Release ZIP，再创建收录 Issue"
+                : "全部撤回或隐藏的插件不会占用商店列表；已安装用户仍会看到对应风险提示";
         }
         else if (_allItems.Count > 0 && filtered.Length == 0)
         {
@@ -210,7 +226,10 @@ public partial class PluginRepositoryWindow : Window
         RepositoryDetailsDescription.Text = string.IsNullOrWhiteSpace(item.Plugin.Description)
             ? "插件作者未提供说明。"
             : item.Plugin.Description;
+        RepositoryIdentityWarningBorder.IsVisible = item.WarningText is not null;
+        RepositoryIdentityWarningText.Text = item.WarningText ?? string.Empty;
         RepositoryDetailsId.Text = item.Plugin.Id;
+        RepositoryDetailsIdentity.Text = item.IdentityText;
         RepositoryDetailsAuthors.Text = item.Plugin.Authors.Count == 0
             ? "未提供"
             : string.Join("、", item.Plugin.Authors);
@@ -236,6 +255,32 @@ public partial class PluginRepositoryWindow : Window
         InstallPluginButton.Content = item.ActionText;
         InstallPluginButton.IsEnabled = item.CanInstall && !_installing && !_confirmingInstall;
         InstallHintText.Text = item.ActionHint;
+    }
+
+    private static RepositoryRelease? SelectDisplayRelease(
+        RepositoryPlugin plugin,
+        PluginSnapshot? installed,
+        RepositoryRelease? latestInstallable)
+    {
+        if (latestInstallable is not null || installed is null)
+            return latestInstallable;
+
+        var installedGeneration = installed.InstallOrigin?.Generation;
+        return plugin.Releases.FirstOrDefault(release =>
+                   release.Generation == installedGeneration &&
+                   string.Equals(release.Version, installed.Version, StringComparison.Ordinal)) ??
+               plugin.Releases
+                   .Select(release => new
+                   {
+                       Release = release,
+                       Version = SemanticVersion.TryParse(release.Version, out var version)
+                           ? version
+                           : default
+                   })
+                   .OrderByDescending(item => item.Release.Generation)
+                   .ThenByDescending(item => item.Version)
+                   .Select(item => item.Release)
+                   .FirstOrDefault();
     }
 
     private void PopulateVersionSelector(RepositoryListItem item)
@@ -668,20 +713,28 @@ public partial class PluginRepositoryWindow : Window
 
     private sealed class RepositoryVersionChoice
     {
-        public RepositoryVersionChoice(RepositoryRelease release)
+        public RepositoryVersionChoice(RepositoryPlugin plugin, RepositoryRelease release)
         {
             Release = release;
-            IsSelectable = !release.Yanked && PluginRepositoryClient.IsCompatible(release);
+            IsSelectable = release.Generation == plugin.Generation &&
+                           RepositoryCatalogPolicy.IsCurrentGenerationInstallable(plugin) &&
+                           !release.Yanked &&
+                           PluginRepositoryClient.IsCompatible(release);
             var review = RepositoryReviewPolicy.RequiresInstallConfirmation(release)
                 ? "未经审核"
                 : "管理员已审核";
-            var availability = release.Yanked
+            var availability = release.Generation != plugin.Generation
+                ? $" · 历史第 {release.Generation} 代"
+                : release.Yanked
                 ? " · 已撤回"
                 : IsSelectable
                     ? string.Empty
                     : " · 与当前启动器不兼容";
-            DisplayText = $"{release.Version} · {GetChannelName(release)} · {review}{availability}";
-            Hint = release.Yanked
+            DisplayText = $"第 {release.Generation} 代 · {release.Version} · " +
+                          $"{GetChannelName(release)} · {review}{availability}";
+            Hint = release.Generation != plugin.Generation
+                ? "这是不同发布者代际的只读历史，不会覆盖当前安装。"
+                : release.Yanked
                 ? $"此版本已撤回：{release.YankReason ?? "未提供原因"}"
                 : IsSelectable
                     ? $"发布于 {release.PublishedAt}"
@@ -714,7 +767,7 @@ public partial class PluginRepositoryWindow : Window
             VersionChoices = plugin.Releases
                 .Select(candidate => new
                 {
-                    Choice = new RepositoryVersionChoice(candidate),
+                    Choice = new RepositoryVersionChoice(plugin, candidate),
                     Version = SemanticVersion.TryParse(candidate.Version, out var version)
                         ? version
                         : default
@@ -726,6 +779,10 @@ public partial class PluginRepositoryWindow : Window
                 ? "P"
                 : plugin.Name[..1].ToUpperInvariant();
             Name = plugin.Name;
+            IdentityText = plugin.Publisher is null
+                ? "旧版 v1 索引 · 未绑定 GitHub 数字发布者"
+                : $"{plugin.LineageId}\n第 {plugin.Generation} 代 · " +
+                  $"repository #{plugin.Publisher.RepositoryId} · owner #{plugin.Publisher.OwnerId}";
             SelectRelease(release, notify: false);
         }
 
@@ -742,6 +799,10 @@ public partial class PluginRepositoryWindow : Window
         public string Initial { get; }
 
         public string Name { get; }
+
+        public string IdentityText { get; }
+
+        public string? WarningText { get; private set; }
 
         public string Metadata { get; private set; } = string.Empty;
 
@@ -769,11 +830,13 @@ public partial class PluginRepositoryWindow : Window
         {
             Release = release;
             Metadata = release is null
-                ? Plugin.Id
-                : $"{release.Version} · {Plugin.Authors.FirstOrDefault() ?? Plugin.Id}";
+                ? $"第 {Plugin.Generation} 代 · {Plugin.Id}"
+                : $"第 {release.Generation} 代 · {release.Version} · " +
+                  (Plugin.Authors.FirstOrDefault() ?? Plugin.Id);
             (StatusText, StatusBackground, StatusForeground, ActionText, ActionHint, CanInstall) =
-                ResolveState(release, Installed);
-            IsDowngrade = IsVersionDowngrade(release, Installed);
+                ResolveState(Plugin, release, Installed);
+            WarningText = ResolveWarning(Plugin, release, Installed);
+            IsDowngrade = CanInstall && IsVersionDowngrade(release, Installed);
             if (release is null)
             {
                 ReviewText = "无可用版本";
@@ -798,8 +861,9 @@ public partial class PluginRepositoryWindow : Window
                      {
                          nameof(Release), nameof(Metadata), nameof(StatusText),
                          nameof(StatusBackground), nameof(StatusForeground), nameof(ReviewText),
-                         nameof(ReviewBackground), nameof(ReviewForeground), nameof(ActionText),
-                         nameof(ActionHint), nameof(CanInstall), nameof(IsDowngrade)
+                          nameof(ReviewBackground), nameof(ReviewForeground), nameof(ActionText),
+                          nameof(ActionHint), nameof(CanInstall), nameof(IsDowngrade),
+                          nameof(WarningText)
                      })
             {
                 OnPropertyChanged(propertyName);
@@ -815,9 +879,44 @@ public partial class PluginRepositoryWindow : Window
                 StringComparison.CurrentCultureIgnoreCase));
 
         private static (string, IBrush, IBrush, string, string, bool) ResolveState(
+            RepositoryPlugin plugin,
             RepositoryRelease? release,
             PluginSnapshot? installed)
         {
+            if (installed is not null && release is not null)
+            {
+                var identity = RepositoryIdentityPolicy.Compare(
+                    plugin,
+                    release,
+                    installed.InstallOrigin);
+                if (!RepositoryIdentityPolicy.IsSafeUpdate(identity) &&
+                    release.Generation == plugin.Generation)
+                {
+                    return (
+                        "发布身份已变更",
+                        ErrorBackground,
+                        ErrorForeground,
+                        "必须先卸载旧插件",
+                        IdentityMismatchHint(identity),
+                        false);
+                }
+            }
+            if (!RepositoryCatalogPolicy.IsCurrentGenerationInstallable(plugin))
+            {
+                var transferred = string.Equals(
+                    plugin.LifecycleStatus,
+                    "transferred",
+                    StringComparison.Ordinal);
+                return (
+                    transferred ? "ID 转让中" : "已撤回 / 隐藏",
+                    ErrorBackground,
+                    ErrorForeground,
+                    installed is null ? "不可安装" : "保留已安装副本",
+                    transferred
+                        ? "此 ID 正在转让，新一代尚未形成可安装发布；旧代不会被自动替换。"
+                        : "当前代没有可安装版本。已安装副本仍保留用于显示风险，但不会获得自动更新。",
+                    false);
+            }
             if (release is null)
             {
                 return (
@@ -826,6 +925,18 @@ public partial class PluginRepositoryWindow : Window
                     ErrorForeground,
                     "不可安装",
                     "仓库中没有与当前 NyaLauncher 兼容且未撤回的可安装版本。",
+                    false);
+            }
+            if (release.Generation != plugin.Generation || release.Yanked)
+            {
+                return (
+                    release.Yanked ? "版本已撤回" : "历史发布代",
+                    ErrorBackground,
+                    ErrorForeground,
+                    "不可安装",
+                    release.Yanked
+                        ? $"此版本已由仓库撤回：{release.YankReason ?? "未提供原因"}"
+                        : "不同发布代际只保留审计历史，不能覆盖当前插件。",
                     false);
             }
             if (installed is null)
@@ -879,6 +990,52 @@ public partial class PluginRepositoryWindow : Window
                 $"将整体替换本地包 {installed.Version}，插件私有数据与授权状态会保留。",
                 true);
         }
+
+        private static string? ResolveWarning(
+            RepositoryPlugin plugin,
+            RepositoryRelease? release,
+            PluginSnapshot? installed)
+        {
+            if (installed is null)
+                return null;
+            var warnings = new List<string>();
+            if (release is not null)
+            {
+                var identity = RepositoryIdentityPolicy.Compare(
+                    plugin,
+                    release,
+                    installed.InstallOrigin);
+                if (!RepositoryIdentityPolicy.IsSafeUpdate(identity) &&
+                    release.Generation == plugin.Generation)
+                    warnings.Add("安全警告：" + IdentityMismatchHint(identity));
+            }
+            if (!RepositoryCatalogPolicy.HasCurrentNonYankedRelease(plugin) ||
+                plugin.LifecycleStatus is "retired" or "transferred" ||
+                string.Equals(plugin.Visibility, "hidden", StringComparison.Ordinal))
+            {
+                warnings.Add(
+                    "撤回警告：该插件当前没有公开、未撤回的可安装版本。" +
+                    "已安装副本仍可能在启动器进程中运行；请根据撤回原因决定是否立即禁用或卸载。");
+            }
+            if (!string.IsNullOrWhiteSpace(installed.InstallOriginWarning))
+                warnings.Add(installed.InstallOriginWarning);
+            return warnings.Count == 0 ? null : string.Join("\n\n", warnings);
+        }
+
+        private static string IdentityMismatchHint(RepositoryIdentityMatch match) => match switch
+        {
+            RepositoryIdentityMatch.MissingInstalledOrigin =>
+                "已安装包没有可信来源快照，不能仅凭相同插件 ID 自动更新。请到插件列表点击“卸载插件”，再重新安装。",
+            RepositoryIdentityMatch.LegacyV1NeedsReinstall =>
+                "已安装包来自未绑定数字发布者的 v1 索引；v2 身份不能自动认领它。请到插件列表卸载后重装。",
+            RepositoryIdentityMatch.DifferentGeneration =>
+                "此 ID 已进入新的发布代际；这不是旧插件的正常更新。请卸载旧代后单独确认新代。",
+            RepositoryIdentityMatch.DifferentLineage =>
+                "此 ID 已分配给新的插件谱系。为防止供应链劫持，必须卸载旧插件后重新确认。",
+            RepositoryIdentityMatch.DifferentPublisher =>
+                "GitHub 数字仓库或发布者身份与已安装来源不同，已阻止自动替换。",
+            _ => "插件发布身份不一致，已阻止自动替换。"
+        };
 
         private static bool IsVersionDowngrade(
             RepositoryRelease? release,

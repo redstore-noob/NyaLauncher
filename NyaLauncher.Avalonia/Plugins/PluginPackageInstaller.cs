@@ -64,6 +64,41 @@ internal sealed class PluginPackageInstallResult
     }
 }
 
+internal sealed class PluginPackageRemovalResult
+{
+    private readonly Action _complete;
+    private readonly Func<string?> _rollback;
+    private int _finished;
+
+    internal PluginPackageRemovalResult(Action complete, Func<string?> rollback)
+    {
+        _complete = complete;
+        _rollback = rollback;
+    }
+
+    public string? Complete()
+    {
+        if (Interlocked.CompareExchange(ref _finished, 3, 0) != 0)
+            return "插件卸载事务已经结束，不能再次提交。";
+        try
+        {
+            _complete();
+            Volatile.Write(ref _finished, 1);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            Volatile.Write(ref _finished, 0);
+            return exception.Message;
+        }
+    }
+
+    public string? Rollback() =>
+        Interlocked.CompareExchange(ref _finished, 2, 0) == 0
+            ? _rollback()
+            : "插件卸载事务已经结束，不能再次回滚。";
+}
+
 /// <summary>
 /// Expands an already registry-described package into an isolated same-volume
 /// transaction directory, asks the normal catalog to validate it, and then
@@ -166,7 +201,8 @@ internal static class PluginPackageInstaller
                     if (journal.Version != TransactionJournalVersion ||
                         string.IsNullOrWhiteSpace(journal.TargetDirectoryName) ||
                         Path.GetFileName(journal.TargetDirectoryName) != journal.TargetDirectoryName ||
-                        journal.Phase is not ("prepared" or "committed"))
+                        journal.Phase is not ("prepared" or "committed") ||
+                        journal.Operation is not (null or "install" or "remove"))
                     {
                         throw new InvalidDataException("事务日志版本或目标目录无效。");
                     }
@@ -177,7 +213,26 @@ internal static class PluginPackageInstaller
                         Path.Combine(catalog.PackagesDirectory, journal.TargetDirectoryName));
                     var targetExists = Directory.Exists(targetDirectory);
                     var backupExists = Directory.Exists(backupDirectory);
-                    if (string.Equals(journal.Phase, "committed", StringComparison.Ordinal))
+                    var isRemoval = string.Equals(
+                        journal.Operation,
+                        "remove",
+                        StringComparison.Ordinal);
+                    if (string.Equals(journal.Phase, "committed", StringComparison.Ordinal) &&
+                        isRemoval)
+                    {
+                        if (targetExists)
+                        {
+                            failures.Add(
+                                $"已提交卸载事务 {name} 的目标目录意外存在，未删除任何目录");
+                            continue;
+                        }
+                        if (backupExists)
+                        {
+                            DeleteTreeWithoutFollowingLinks(new DirectoryInfo(backupDirectory));
+                            backupExists = false;
+                        }
+                    }
+                    else if (string.Equals(journal.Phase, "committed", StringComparison.Ordinal))
                     {
                         if (!targetExists && backupExists)
                         {
@@ -191,6 +246,26 @@ internal static class PluginPackageInstaller
                         {
                             DeleteTreeWithoutFollowingLinks(new DirectoryInfo(backupDirectory));
                             backupExists = false;
+                        }
+                    }
+                    else if (isRemoval)
+                    {
+                        if (targetExists && backupExists)
+                        {
+                            failures.Add(
+                                $"待回滚卸载事务 {name} 同时存在目标和备份，未覆盖任何目录");
+                            continue;
+                        }
+                        if (!targetExists && backupExists)
+                        {
+                            Directory.Move(backupDirectory, targetDirectory);
+                            targetExists = true;
+                            backupExists = false;
+                        }
+                        else if (!targetExists)
+                        {
+                            failures.Add($"待回滚卸载事务 {name} 的目标和备份均已丢失");
+                            continue;
                         }
                     }
                     else if (journal.HadExistingTarget && targetExists && backupExists)
@@ -245,6 +320,128 @@ internal static class PluginPackageInstaller
                 failures.Add("待恢复的插件安装事务超过 128 个，其余未处理");
         }
         return failures.Count == 0 ? null : string.Join("；", failures);
+    }
+
+    public static PluginPackageRemovalResult StageRemoval(
+        PluginCatalog catalog,
+        string packageDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageDirectory);
+        var repositoryRoot = Path.Combine(catalog.RootDirectory, "repository");
+        var transactionsRoot = Path.Combine(repositoryRoot, "transactions");
+        RejectReparsePoint(catalog.RootDirectory, "插件根目录");
+        Directory.CreateDirectory(repositoryRoot);
+        RejectReparsePoint(repositoryRoot, "插件仓库工作目录");
+        Directory.CreateDirectory(transactionsRoot);
+        RejectReparsePoint(transactionsRoot, "插件仓库事务目录");
+        var installationLock = AcquireInstallationLock(repositoryRoot);
+        var lockTransferred = false;
+        try
+        {
+            var targetDirectory = ResolveTargetDirectory(
+                catalog.PackagesDirectory,
+                Path.GetFileName(packageDirectory),
+                packageDirectory);
+            if (!Directory.Exists(targetDirectory))
+                throw new DirectoryNotFoundException("插件安装目录不存在。");
+
+            var transactionDirectory = Path.Combine(
+                transactionsRoot,
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(transactionDirectory);
+            RejectReparsePoint(transactionDirectory, "插件卸载事务目录");
+            var backupDirectory = Path.Combine(transactionDirectory, "backup");
+            var journalPath = Path.Combine(transactionDirectory, "journal.json");
+            var moved = false;
+            var preserveTransaction = false;
+            try
+            {
+                WriteJournalDurably(
+                    journalPath,
+                    new TransactionJournal
+                    {
+                        Version = TransactionJournalVersion,
+                        Operation = "remove",
+                        TargetDirectoryName = Path.GetFileName(targetDirectory),
+                        HadExistingTarget = true,
+                        Phase = "prepared"
+                    });
+                Directory.Move(targetDirectory, backupDirectory);
+                moved = true;
+                preserveTransaction = true;
+                lockTransferred = true;
+                var ownedLock = installationLock;
+                return new PluginPackageRemovalResult(
+                    complete: () =>
+                    {
+                        WriteJournalDurably(
+                            journalPath,
+                            new TransactionJournal
+                            {
+                                Version = TransactionJournalVersion,
+                                Operation = "remove",
+                                TargetDirectoryName = Path.GetFileName(targetDirectory),
+                                HadExistingTarget = true,
+                                Phase = "committed"
+                            });
+                        TryDeleteTransactionDirectory(transactionsRoot, transactionDirectory);
+                        DisposeLockNoThrow(ownedLock);
+                    },
+                    rollback: () =>
+                    {
+                        try
+                        {
+                            if (Directory.Exists(targetDirectory))
+                                return "卸载回滚目标已被其他目录占用；原包备份仍保留。";
+                            if (!Directory.Exists(backupDirectory))
+                                return "卸载回滚所需的原包备份不存在。";
+                            Directory.Move(backupDirectory, targetDirectory);
+                            TryDeleteTransactionDirectory(transactionsRoot, transactionDirectory);
+                            return null;
+                        }
+                        catch (Exception exception) when (exception is
+                            IOException or UnauthorizedAccessException or InvalidDataException)
+                        {
+                            return exception.Message;
+                        }
+                        finally
+                        {
+                            DisposeLockNoThrow(ownedLock);
+                        }
+                    });
+            }
+            catch
+            {
+                if (moved && !Directory.Exists(targetDirectory) && Directory.Exists(backupDirectory))
+                {
+                    try
+                    {
+                        Directory.Move(backupDirectory, targetDirectory);
+                        moved = false;
+                    }
+                    catch (Exception exception) when (exception is
+                        IOException or UnauthorizedAccessException)
+                    {
+                        preserveTransaction = true;
+                        throw new IOException(
+                            $"插件卸载事务启动失败，且原包未能自动恢复。备份保留在 {backupDirectory}。",
+                            exception);
+                    }
+                }
+                throw;
+            }
+            finally
+            {
+                if (!preserveTransaction)
+                    TryDeleteTransactionDirectory(transactionsRoot, transactionDirectory);
+            }
+        }
+        finally
+        {
+            if (!lockTransferred)
+                installationLock.Dispose();
+        }
     }
 
     public static async Task<PluginPackageInstallResult> InstallAsync(
@@ -317,6 +514,14 @@ internal static class PluginPackageInstaller
 
                 var manifest = inspected[0].Manifest!;
                 ValidateManifestMatchesIndex(plugin, release, manifest, stagedPackage);
+                // This launcher-owned provenance travels with the package
+                // directory through the same rename/backup transaction. A
+                // rollback therefore restores the old package and old origin
+                // together, and a crash recovery never has to infer identity
+                // from a mutable URL or plugin ID alone.
+                PluginCatalog.WriteInstallOrigin(
+                    stagedPackage,
+                    PluginCatalog.CreateInstallOrigin(plugin, release));
 
                 targetDirectory = ResolveTargetDirectory(
                     catalog.PackagesDirectory,
@@ -329,6 +534,7 @@ internal static class PluginPackageInstaller
                     new TransactionJournal
                     {
                         Version = TransactionJournalVersion,
+                        Operation = "install",
                         TargetDirectoryName = Path.GetFileName(targetDirectory),
                         HadExistingTarget = hadExistingTarget,
                         Phase = "prepared"
@@ -361,6 +567,7 @@ internal static class PluginPackageInstaller
                             new TransactionJournal
                             {
                                 Version = TransactionJournalVersion,
+                                Operation = "install",
                                 TargetDirectoryName = Path.GetFileName(targetDirectory),
                                 HadExistingTarget = oldMoved,
                                 Phase = "committed"
@@ -552,6 +759,11 @@ internal static class PluginPackageInstaller
         PluginManifest manifest,
         string packageDirectory)
     {
+        if (File.Exists(Path.Combine(packageDirectory, PluginCatalog.InstallOriginFileName)))
+        {
+            throw new InvalidDataException(
+                $"插件 ZIP 不能携带启动器所有的 {PluginCatalog.InstallOriginFileName}。");
+        }
         if (!string.Equals(plugin.Id, manifest.Id, StringComparison.Ordinal) ||
             !string.Equals(release.Version, manifest.Version, StringComparison.Ordinal) ||
             release.Compatibility.ManifestVersion != manifest.ManifestVersion ||
@@ -784,6 +996,8 @@ internal static class PluginPackageInstaller
     private sealed class TransactionJournal
     {
         public int Version { get; set; }
+
+        public string? Operation { get; set; }
 
         public string TargetDirectoryName { get; set; } = string.Empty;
 

@@ -238,9 +238,30 @@
                 <TextBlock x:Name="RepositoryDetailsDescription"
                            Foreground="#DDE2F4"
                            TextWrapping="Wrap" />
+                <Border x:Name="RepositoryIdentityWarningBorder"
+                        IsVisible="False"
+                        Background="#412832"
+                        BorderBrush="#845063"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="12,9">
+                  <TextBlock x:Name="RepositoryIdentityWarningText"
+                             Foreground="#F1A7B6"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                </Border>
                 <Grid ColumnDefinitions="130,*">
                   <TextBlock Text="插件 ID" Foreground="#8F99B3" />
                   <TextBlock x:Name="RepositoryDetailsId" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="130,*">
+                  <TextBlock Text="发布身份" Foreground="#8F99B3" />
+                  <TextBlock x:Name="RepositoryDetailsIdentity"
+                             Grid.Column="1"
+                             Foreground="#E7EAF7"
+                             FontFamily="Consolas"
+                             FontSize="10"
+                             TextWrapping="Wrap" />
                 </Grid>
                 <Grid ColumnDefinitions="130,*">
                   <TextBlock Text="作者" Foreground="#8F99B3" />

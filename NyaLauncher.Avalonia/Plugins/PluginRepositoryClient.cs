@@ -24,6 +24,9 @@ internal sealed record PluginRepositoryIndex
 
     public required string SourceUrl { get; init; }
 
+    /// <summary>Present and required in v2; absent from the immutable v1 contract.</summary>
+    public string? MinimumLauncherVersion { get; init; }
+
     public IReadOnlyList<RepositoryPlugin> Plugins { get; init; } = [];
 }
 
@@ -39,6 +42,25 @@ internal sealed record RepositoryPlugin
 
     public required string RepositoryUrl { get; init; }
 
+    /// <summary>
+    /// Stable opaque identity shared by every generation of one plugin lineage.
+    /// Missing only for the legacy v1 index, where the plugin ID is the fallback.
+    /// </summary>
+    public string? LineageId { get; init; }
+
+    /// <summary>
+    /// Current publisher generation. Legacy v1 entries are generation 1.
+    /// </summary>
+    public int Generation { get; init; } = 1;
+
+    public string LifecycleStatus { get; init; } = "active";
+
+    public string Visibility { get; init; } = "listed";
+
+    public RepositoryPublisherIdentity? Publisher { get; init; }
+
+    public IReadOnlyList<RepositoryGenerationBinding> Generations { get; init; } = [];
+
     public IReadOnlyList<string> Maintainers { get; init; } = [];
 
     public IReadOnlyList<string> Categories { get; init; } = [];
@@ -46,10 +68,37 @@ internal sealed record RepositoryPlugin
     public string License { get; init; } = string.Empty;
 
     public IReadOnlyList<RepositoryRelease> Releases { get; init; } = [];
+
+    [JsonIgnore]
+    public string EffectiveLineageId => LineageId ?? Id;
+}
+
+internal sealed record RepositoryPublisherIdentity
+{
+    public required long RepositoryId { get; init; }
+
+    public required long OwnerId { get; init; }
+}
+
+internal sealed record RepositoryGenerationBinding
+{
+    public required int Generation { get; init; }
+
+    public required string RepositoryUrl { get; init; }
+
+    public required RepositoryPublisherIdentity Publisher { get; init; }
+
+    public required string Status { get; init; }
 }
 
 internal sealed record RepositoryRelease
 {
+    /// <summary>
+    /// Publisher generation that produced these exact bytes. Legacy v1 releases
+    /// belong to generation 1.
+    /// </summary>
+    public int Generation { get; init; } = 1;
+
     public required string Version { get; init; }
 
     public required string Channel { get; init; }
@@ -124,6 +173,131 @@ internal static class RepositoryReviewPolicy
                    release.Download.Sha256,
                    StringComparison.Ordinal);
     }
+}
+
+internal static class RepositoryCatalogPolicy
+{
+    public static bool HasCurrentNonYankedRelease(RepositoryPlugin plugin) =>
+        plugin.Releases.Any(release =>
+            release.Generation == plugin.Generation && !release.Yanked);
+
+    public static bool IsCurrentGenerationInstallable(RepositoryPlugin plugin) =>
+        string.Equals(plugin.LifecycleStatus, "active", StringComparison.Ordinal) &&
+        string.Equals(plugin.Visibility, "listed", StringComparison.Ordinal) &&
+        HasCurrentNonYankedRelease(plugin);
+
+    /// <summary>
+    /// Hidden/fully withdrawn entries remain visible only to people who have an
+    /// installed package, so they receive the withdrawal or identity warning.
+    /// </summary>
+    public static bool ShouldDisplay(RepositoryPlugin plugin, PluginSnapshot? installed) =>
+        installed is not null ||
+        string.Equals(plugin.Visibility, "listed", StringComparison.Ordinal) &&
+        HasCurrentNonYankedRelease(plugin);
+
+    public static RepositoryGenerationBinding? FindGeneration(
+        RepositoryPlugin plugin,
+        int generation)
+    {
+        if (plugin.Generations.Count > 0)
+        {
+            return plugin.Generations.FirstOrDefault(binding =>
+                binding.Generation == generation);
+        }
+
+        // The v1 index predates numeric publisher identity. Its repository URL
+        // is still retained as a migration binding for installs made by this
+        // launcher, but an already-installed package with no origin metadata is
+        // never auto-bound to it.
+        return generation == 1
+            ? new RepositoryGenerationBinding
+            {
+                Generation = 1,
+                RepositoryUrl = plugin.RepositoryUrl,
+                Publisher = new RepositoryPublisherIdentity
+                {
+                    RepositoryId = 0,
+                    OwnerId = 0
+                },
+                Status = "active"
+            }
+            : null;
+    }
+}
+
+internal enum RepositoryIdentityMatch
+{
+    Match,
+    LegacyV1NeedsReinstall,
+    MissingInstalledOrigin,
+    DifferentLineage,
+    DifferentGeneration,
+    DifferentPublisher
+}
+
+internal static class RepositoryIdentityPolicy
+{
+    public static RepositoryIdentityMatch Compare(
+        RepositoryPlugin plugin,
+        RepositoryRelease release,
+        PluginInstallOrigin? installedOrigin)
+    {
+        if (installedOrigin is null)
+            return RepositoryIdentityMatch.MissingInstalledOrigin;
+        if (!string.Equals(installedOrigin.Id, plugin.Id, StringComparison.Ordinal))
+            return RepositoryIdentityMatch.DifferentLineage;
+
+        var binding = RepositoryCatalogPolicy.FindGeneration(plugin, release.Generation);
+        if (binding is null)
+            return RepositoryIdentityMatch.DifferentGeneration;
+
+        if (installedOrigin.SourceIndexSchemaVersion == 1 && plugin.LineageId is not null)
+            return RepositoryIdentityMatch.LegacyV1NeedsReinstall;
+        if (!string.Equals(
+                installedOrigin.LineageId,
+                plugin.EffectiveLineageId,
+                StringComparison.Ordinal))
+        {
+            return RepositoryIdentityMatch.DifferentLineage;
+        }
+
+        if (installedOrigin.Generation != release.Generation)
+            return RepositoryIdentityMatch.DifferentGeneration;
+
+        var remoteHasNumericIdentity =
+            binding.Publisher.RepositoryId > 0 && binding.Publisher.OwnerId > 0;
+        var installedHasNumericIdentity =
+            installedOrigin.RepositoryId is > 0 && installedOrigin.OwnerId is > 0;
+        if (remoteHasNumericIdentity && installedHasNumericIdentity)
+        {
+            if (installedOrigin.RepositoryId != binding.Publisher.RepositoryId ||
+                installedOrigin.OwnerId != binding.Publisher.OwnerId)
+            {
+                return RepositoryIdentityMatch.DifferentPublisher;
+            }
+        }
+        else if (!SameRepositoryUrl(installedOrigin.RepositoryUrl, binding.RepositoryUrl))
+        {
+            return RepositoryIdentityMatch.DifferentPublisher;
+        }
+
+        // A contract transition must never acquire or discard numeric identity
+        // from URL equality alone. GitHub repository paths can be deleted and
+        // later reclaimed by a different numeric repository.
+        if (remoteHasNumericIdentity != installedHasNumericIdentity)
+            return RepositoryIdentityMatch.DifferentPublisher;
+
+        return RepositoryIdentityMatch.Match;
+    }
+
+    public static bool IsSafeUpdate(RepositoryIdentityMatch match) =>
+        match == RepositoryIdentityMatch.Match;
+
+    private static bool SameRepositoryUrl(string left, string right) =>
+        string.Equals(
+            left.TrimEnd('/'),
+            right.TrimEnd('/'),
+            StringComparison.OrdinalIgnoreCase);
 }
 
 internal readonly record struct SemanticVersion(
@@ -229,11 +403,14 @@ internal sealed class PluginRepositoryClient : IDisposable
     public const string RepositoryUrl =
         "https://github.com/TouristH/NyaLauncher-Plugins";
     public const string IndexUrl =
+        "https://raw.githubusercontent.com/TouristH/NyaLauncher-Plugins/main/public/v2/index.json";
+    public const string LegacyIndexUrl =
         "https://raw.githubusercontent.com/TouristH/NyaLauncher-Plugins/main/public/v1/index.json";
 
     private const int MaximumIndexBytes = 4 * 1024 * 1024;
     private const int MaximumPluginCount = 2048;
     private const int MaximumReleaseCount = 128;
+    private const int MaximumGenerationCount = 64;
     private const long MaximumPackageBytes = 256L * 1024 * 1024;
     private const int MaximumRedirects = 5;
     private static readonly Regex PluginIdPattern = new(
@@ -247,6 +424,9 @@ internal sealed class PluginRepositoryClient : IDisposable
         RegexOptions.CultureInvariant);
     private static readonly Regex ApiVersionPattern = new(
         "^1(?:\\.[0-9]+){1,2}$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex LineageIdPattern = new(
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         RegexOptions.CultureInvariant);
     private static readonly HashSet<string> KnownCapabilities = new(
         [
@@ -304,22 +484,45 @@ internal sealed class PluginRepositoryClient : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
-        using var response = await SendWithRedirectsAsync(
+        using var v2Response = await SendWithRedirectsAsync(
             new Uri(IndexUrl),
             IsAllowedIndexUri,
             timeout.Token);
-        response.EnsureSuccessStatusCode();
+        if (v2Response.StatusCode != HttpStatusCode.NotFound)
+        {
+            v2Response.EnsureSuccessStatusCode();
+            return await ReadIndexResponseAsync(v2Response, expectedSchemaVersion: 2, timeout.Token);
+        }
+
+        // A missing v2 endpoint means the registry has not deployed identity
+        // generations yet. Do not downgrade on malformed/forbidden v2 data or
+        // transient failures; only an explicit 404 may use the legacy contract.
+        using var legacyResponse = await SendWithRedirectsAsync(
+            new Uri(LegacyIndexUrl),
+            IsAllowedIndexUri,
+            timeout.Token);
+        legacyResponse.EnsureSuccessStatusCode();
+        return await ReadIndexResponseAsync(legacyResponse, expectedSchemaVersion: 1, timeout.Token);
+    }
+
+    private static async Task<PluginRepositoryIndex> ReadIndexResponseAsync(
+        HttpResponseMessage response,
+        int expectedSchemaVersion,
+        CancellationToken cancellationToken)
+    {
         if (response.Content.Headers.ContentLength is > MaximumIndexBytes)
             throw new InvalidDataException("插件仓库索引超过 4 MiB 上限。");
 
-        await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var memory = new MemoryStream();
-        await CopyBoundedAsync(stream, memory, MaximumIndexBytes, timeout.Token);
+        await CopyBoundedAsync(stream, memory, MaximumIndexBytes, cancellationToken);
         PluginRepositoryIndex index;
         try
         {
+            var payload = memory.ToArray();
+            ValidateVersionedContractShape(payload, expectedSchemaVersion);
             index = JsonSerializer.Deserialize<PluginRepositoryIndex>(
-                        memory.GetBuffer().AsSpan(0, checked((int)memory.Length)),
+                        payload,
                         JsonOptions) ??
                     throw new InvalidDataException("插件仓库索引不能为空。");
         }
@@ -328,13 +531,16 @@ internal sealed class PluginRepositoryClient : IDisposable
             throw new InvalidDataException($"插件仓库索引格式错误：{exception.Message}", exception);
         }
 
-        ValidateIndex(index);
+        ValidateIndex(index, expectedSchemaVersion);
         return index;
     }
 
     public IReadOnlyList<RepositoryRelease> GetCompatibleReleases(RepositoryPlugin plugin) =>
-        plugin.Releases
+        !RepositoryCatalogPolicy.IsCurrentGenerationInstallable(plugin)
+            ? []
+            : plugin.Releases
             .Where(release =>
+                release.Generation == plugin.Generation &&
                 !release.Yanked &&
                 IsCompatible(release))
             .Select(release => new
@@ -387,7 +593,9 @@ internal sealed class PluginRepositoryClient : IDisposable
         ArgumentNullException.ThrowIfNull(plugin);
         ArgumentNullException.ThrowIfNull(release);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
-        ValidateDownloadSource(plugin, release.Download);
+        var binding = RepositoryCatalogPolicy.FindGeneration(plugin, release.Generation) ??
+                      throw new InvalidDataException("插件版本没有对应的发布者代际绑定。");
+        ValidateDownloadSource(binding.RepositoryUrl, release.Download);
         ValidateReleaseReview(plugin.Id, release);
         if (release.Download.Size is <= 0 or > MaximumPackageBytes)
             throw new InvalidDataException("插件包大小不在允许范围内。");
@@ -554,9 +762,88 @@ internal sealed class PluginRepositoryClient : IDisposable
         }
     }
 
-    private static void ValidateIndex(PluginRepositoryIndex index)
+    private static void ValidateVersionedContractShape(
+        byte[] payload,
+        int expectedSchemaVersion)
     {
-        if (index.SchemaVersion != 1 ||
+        using var document = JsonDocument.Parse(payload, new JsonDocumentOptions
+        {
+            MaxDepth = 32,
+            CommentHandling = JsonCommentHandling.Disallow,
+            AllowTrailingCommas = false
+        });
+        if (document.RootElement.ValueKind != JsonValueKind.Object ||
+            !document.RootElement.TryGetProperty("schemaVersion", out var schema) ||
+            !schema.TryGetInt32(out var actualSchema) ||
+            actualSchema != expectedSchemaVersion ||
+            !document.RootElement.TryGetProperty("plugins", out var plugins) ||
+            plugins.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException(
+                $"插件仓库索引不是预期的 v{expectedSchemaVersion} 契约。");
+        }
+        var hasMinimumLauncherVersion =
+            document.RootElement.TryGetProperty("minimumLauncherVersion", out _);
+        if (expectedSchemaVersion == 2 && !hasMinimumLauncherVersion)
+            throw new InvalidDataException("v2 索引缺少 minimumLauncherVersion。");
+        if (expectedSchemaVersion == 1 && hasMinimumLauncherVersion)
+            throw new InvalidDataException("v1 索引不得包含 minimumLauncherVersion。");
+
+        string[] v2PluginProperties =
+        [
+            "lineageId", "generation", "lifecycleStatus", "visibility", "publisher", "generations"
+        ];
+        foreach (var plugin in plugins.EnumerateArray())
+        {
+            if (plugin.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("插件仓库条目必须是对象。");
+            if (expectedSchemaVersion == 2)
+            {
+                if (v2PluginProperties.Any(name => !plugin.TryGetProperty(name, out _)) ||
+                    !plugin.TryGetProperty("generations", out var generations) ||
+                    generations.ValueKind != JsonValueKind.Array)
+                {
+                    throw new InvalidDataException("v2 插件条目缺少发布者身份字段。");
+                }
+
+                foreach (var binding in generations.EnumerateArray())
+                {
+                    if (binding.ValueKind != JsonValueKind.Object ||
+                        !binding.TryGetProperty("generation", out _) ||
+                        !binding.TryGetProperty("repositoryUrl", out _) ||
+                        !binding.TryGetProperty("publisher", out _) ||
+                        !binding.TryGetProperty("status", out _))
+                    {
+                        throw new InvalidDataException("v2 插件代际绑定缺少必要字段。");
+                    }
+                }
+            }
+            else if (v2PluginProperties.Any(name => plugin.TryGetProperty(name, out _)))
+            {
+                throw new InvalidDataException("v1 索引不得混入 v2 身份字段。");
+            }
+
+            if (!plugin.TryGetProperty("releases", out var releases) ||
+                releases.ValueKind != JsonValueKind.Array)
+            {
+                throw new InvalidDataException("插件条目缺少发行历史。");
+            }
+            foreach (var release in releases.EnumerateArray())
+            {
+                var hasGeneration = release.ValueKind == JsonValueKind.Object &&
+                                    release.TryGetProperty("generation", out _);
+                if (expectedSchemaVersion == 2 && !hasGeneration)
+                    throw new InvalidDataException("v2 发行记录缺少 generation。");
+                if (expectedSchemaVersion == 1 && hasGeneration)
+                    throw new InvalidDataException("v1 发行记录不得包含 generation。");
+            }
+        }
+    }
+
+    private static void ValidateIndex(PluginRepositoryIndex index, int expectedSchemaVersion)
+    {
+        if (index.SchemaVersion != expectedSchemaVersion ||
+            expectedSchemaVersion is not (1 or 2) ||
             string.IsNullOrWhiteSpace(index.Name) || index.Name.Length > 128 ||
             !Uri.TryCreate(index.SourceUrl, UriKind.Absolute, out var source) ||
             !IsSafeHttpsUri(source) ||
@@ -564,6 +851,19 @@ internal sealed class PluginRepositoryClient : IDisposable
             index.Plugins is null || index.Plugins.Count > MaximumPluginCount)
         {
             throw new InvalidDataException("插件仓库索引头无效或超过上限。");
+        }
+        if (expectedSchemaVersion == 2)
+        {
+            if (!SemanticVersion.TryParse(index.MinimumLauncherVersion, out var minimum) ||
+                SemanticVersion.LauncherVersion.CompareTo(minimum) < 0)
+            {
+                throw new InvalidDataException(
+                    $"插件仓库 v2 需要 NyaLauncher {index.MinimumLauncherVersion ?? "[未知]"} 或更高版本。");
+            }
+        }
+        else if (index.MinimumLauncherVersion is not null)
+        {
+            throw new InvalidDataException("v1 索引包含不允许的启动器版本字段。");
         }
 
         if (index.Plugins.GroupBy(plugin => plugin.Id, StringComparer.OrdinalIgnoreCase)
@@ -573,10 +873,10 @@ internal sealed class PluginRepositoryClient : IDisposable
         }
 
         foreach (var plugin in index.Plugins)
-            ValidatePlugin(plugin);
+            ValidatePlugin(plugin, expectedSchemaVersion);
     }
 
-    private static void ValidatePlugin(RepositoryPlugin plugin)
+    private static void ValidatePlugin(RepositoryPlugin plugin, int schemaVersion)
     {
         if (string.IsNullOrWhiteSpace(plugin.Id) || plugin.Id.Length > 128 ||
             !PluginIdPattern.IsMatch(plugin.Id) ||
@@ -594,16 +894,30 @@ internal sealed class PluginRepositoryClient : IDisposable
         {
             throw new InvalidDataException($"插件条目 {plugin.Id ?? "[未知]"} 无效。");
         }
+        if (schemaVersion == 2)
+            ValidateV2PluginIdentity(plugin);
+        else if (plugin.LineageId is not null ||
+                 plugin.Generation != 1 ||
+                 plugin.Publisher is not null ||
+                 plugin.Generations.Count != 0)
+            throw new InvalidDataException($"v1 插件 {plugin.Id} 包含 v2 身份数据。");
 
-        if (plugin.Releases.GroupBy(release => release.Version, StringComparer.Ordinal)
+        if (plugin.Releases.GroupBy(
+                release => (release.Generation, release.Version),
+                EqualityComparer<(int, string)>.Default)
             .Any(group => group.Count() > 1))
         {
-            throw new InvalidDataException($"插件 {plugin.Id} 包含重复版本。");
+            throw new InvalidDataException($"插件 {plugin.Id} 包含重复代际版本。");
         }
 
         foreach (var release in plugin.Releases)
         {
-            if (!SemanticVersion.TryParse(release.Version, out _) ||
+            var binding = RepositoryCatalogPolicy.FindGeneration(plugin, release.Generation);
+            if (release.Generation < 1 ||
+                binding is null ||
+                schemaVersion == 1 && release.Generation != 1 ||
+                schemaVersion == 2 && release.Generation != plugin.Generation && !release.Yanked ||
+                !SemanticVersion.TryParse(release.Version, out _) ||
                 release.Channel is not ("stable" or "preview") ||
                 !DateTimeOffset.TryParseExact(
                     release.PublishedAt,
@@ -635,7 +949,7 @@ internal sealed class PluginRepositoryClient : IDisposable
                 throw new InvalidDataException($"插件 {plugin.Id} 的版本 {release.Version} 无效。");
             }
 
-            ValidateDownloadSource(plugin, release.Download);
+            ValidateDownloadSource(binding.RepositoryUrl, release.Download);
             ValidateReleaseReview(plugin.Id, release);
             if (!Uri.TryCreate(release.ReleaseNotesUrl, UriKind.Absolute, out var notes) ||
                 !IsSafeHttpsUri(notes))
@@ -643,6 +957,75 @@ internal sealed class PluginRepositoryClient : IDisposable
                 throw new InvalidDataException($"插件 {plugin.Id} 的发行说明地址无效。");
             }
         }
+    }
+
+    private static void ValidateV2PluginIdentity(RepositoryPlugin plugin)
+    {
+        if (plugin.LineageId is null || !LineageIdPattern.IsMatch(plugin.LineageId) ||
+            plugin.Generation < 1 ||
+            plugin.LifecycleStatus is not ("active" or "retired" or "transferred") ||
+            plugin.Visibility is not ("listed" or "hidden") ||
+            plugin.Publisher is null ||
+            !IsValidPublisher(plugin.Publisher) ||
+            plugin.Generations.Count is < 1 or > MaximumGenerationCount ||
+            plugin.Generations.GroupBy(binding => binding.Generation)
+                .Any(group => group.Count() > 1) ||
+            !plugin.Generations.Select(binding => binding.Generation)
+                .SequenceEqual(Enumerable.Range(1, plugin.Generation)))
+        {
+            throw new InvalidDataException($"插件 {plugin.Id} 的 v2 身份无效。");
+        }
+
+        foreach (var binding in plugin.Generations)
+        {
+            if (binding.Generation is < 1 || binding.Generation > plugin.Generation ||
+                binding.Status is not ("active" or "retired" or "transferred") ||
+                binding.Generation < plugin.Generation && binding.Status != "transferred" ||
+                binding.Publisher is null || !IsValidPublisher(binding.Publisher) ||
+                !TryValidateGitHubRepositoryUrl(binding.RepositoryUrl, out _))
+            {
+                throw new InvalidDataException($"插件 {plugin.Id} 的代际绑定无效。");
+            }
+        }
+
+        var current = plugin.Generations.SingleOrDefault(binding =>
+            binding.Generation == plugin.Generation);
+        var currentHasRelease = plugin.Releases.Any(release =>
+            release.Generation == plugin.Generation && !release.Yanked);
+        var expectedVisibility =
+            plugin.LifecycleStatus == "active" && currentHasRelease ? "listed" : "hidden";
+        var expectedCurrentStatus = plugin.LifecycleStatus == "retired" ? "retired" : "active";
+        if (current is null ||
+            !string.Equals(
+                current.RepositoryUrl.TrimEnd('/'),
+                plugin.RepositoryUrl.TrimEnd('/'),
+                StringComparison.OrdinalIgnoreCase) ||
+            current.Publisher.RepositoryId != plugin.Publisher.RepositoryId ||
+            current.Publisher.OwnerId != plugin.Publisher.OwnerId ||
+            !string.Equals(current.Status, expectedCurrentStatus, StringComparison.Ordinal) ||
+            !string.Equals(plugin.Visibility, expectedVisibility, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"插件 {plugin.Id} 的当前代际展示身份不一致。");
+        }
+    }
+
+    private static bool IsValidPublisher(RepositoryPublisherIdentity publisher) =>
+        publisher.RepositoryId is > 0 and <= long.MaxValue &&
+        publisher.OwnerId is > 0 and <= long.MaxValue;
+
+    private static bool TryValidateGitHubRepositoryUrl(string value, out Uri repositoryUri)
+    {
+        repositoryUri = null!;
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed) ||
+            !IsSafeHttpsUri(parsed) ||
+            !string.Equals(parsed.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+            parsed.Segments.Length < 3)
+        {
+            return false;
+        }
+
+        repositoryUri = parsed;
+        return true;
     }
 
     private static void ValidateReleaseReview(string pluginId, RepositoryRelease release)
@@ -674,10 +1057,10 @@ internal sealed class PluginRepositoryClient : IDisposable
     }
 
     private static void ValidateDownloadSource(
-        RepositoryPlugin plugin,
+        string repositoryUrl,
         RepositoryDownload download)
     {
-        if (!Uri.TryCreate(plugin.RepositoryUrl.TrimEnd('/'), UriKind.Absolute, out var repository) ||
+        if (!Uri.TryCreate(repositoryUrl.TrimEnd('/'), UriKind.Absolute, out var repository) ||
             !Uri.TryCreate(download.Url, UriKind.Absolute, out var asset) ||
             !IsAllowedPackageUri(asset) ||
             !string.Equals(asset.Host, "github.com", StringComparison.OrdinalIgnoreCase))

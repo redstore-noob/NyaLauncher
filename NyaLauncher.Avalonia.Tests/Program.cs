@@ -13,6 +13,8 @@ namespace NyaLauncher.Avalonia.Tests;
 
 internal static class Program
 {
+    private const string TestLineageId = "abcdefab-cdef-5abc-8def-abcdefabcdef";
+
     private static async Task<int> Main(string[] args)
     {
         if (args is ["--unsafe-shutdown-child", var storage])
@@ -22,7 +24,10 @@ internal static class Program
         {
             ("SemanticVersion ordering", TestSemanticVersionAsync),
             ("Repository index validation", TestRepositoryIndexAsync),
+            ("Repository v1 fallback is 404-only", TestRepositoryV1FallbackAsync),
+            ("Malformed repository v2 fails closed", TestMalformedV2DoesNotFallbackAsync),
             ("Repository historical release selection", TestRepositoryHistoricalReleasesAsync),
+            ("Repository hidden withdrawal visibility", TestRepositoryWithdrawalVisibilityAsync),
             ("Repository index strict compatibility", TestStrictRepositoryContractAsync),
             ("Verified repository review", TestVerifiedRepositoryReviewAsync),
             ("Review hash mismatch rejection", TestReviewHashMismatchAsync),
@@ -36,10 +41,16 @@ internal static class Program
             ("Prepared update before move keeps target", TestPreparedUpdateBeforeMoveAsync),
             ("Prepared new install recovery removes target", TestPreparedNewInstallRecoveryAsync),
             ("Committed update recovery keeps target", TestCommittedUpdateRecoveryAsync),
+            ("Prepared uninstall recovery restores package", TestPreparedUninstallRecoveryAsync),
+            ("Committed uninstall recovery removes backup", TestCommittedUninstallRecoveryAsync),
             ("New install clears stale plugin trust", TestNewInstallClearsStaleStateAsync),
             ("Repository downgrade requires confirmation", TestRepositoryDowngradeAsync),
             ("Repository preview release installation", TestRepositoryPreviewInstallAsync),
             ("Repository install uses canonical release", TestCanonicalRepositoryReleaseAsync),
+            ("Repository origin blocks identity replacement", TestRepositoryIdentityReplacementAsync),
+            ("Repository generation replacement isolates data", TestRepositoryGenerationIsolationAsync),
+            ("Legacy local plugin cannot auto-bind", TestLegacyLocalPluginCannotAutoBindAsync),
+            ("Legacy v1 origin cannot auto-bind v2", TestLegacyV1OriginCannotAutoBindV2Async),
             ("Plugin components start in library", TestPluginComponentsStartInLibraryAsync),
             ("Plugin area removal persists", TestPluginAreaRemovalAsync),
             ("All workspace areas can be removed", TestAllWorkspaceAreasCanBeRemovedAsync),
@@ -48,7 +59,8 @@ internal static class Program
             ("Unsafe shutdown retains manager lock", TestUnsafeShutdownRetainsManagerLockAsync),
             ("Unresolved recovery blocks catalog scan", TestRecoveryFailureBlocksRefreshAsync),
             ("ZIP traversal rejection", TestTraversalRejectionAsync),
-            ("ZIP Windows device name rejection", TestWindowsDeviceNameRejectionAsync)
+            ("ZIP Windows device name rejection", TestWindowsDeviceNameRejectionAsync),
+            ("ZIP install origin spoofing rejection", TestInstallOriginSpoofingRejectionAsync)
         };
 
         var failures = 0;
@@ -246,6 +258,45 @@ internal static class Program
         Assert(parsedRelease is not null &&
                RepositoryReviewPolicy.RequiresInstallConfirmation(parsedRelease),
             "an index release without review requires explicit confirmation");
+        var plugin = index.Plugins.Single();
+        Assert(plugin.Generation == 1, "v2 current generation parsed");
+        Assert(plugin.LineageId == TestLineageId, "v2 lineage UUID parsed");
+        Assert(plugin.Publisher?.RepositoryId == 1001, "v2 numeric repository identity parsed");
+        Assert(parsedRelease?.Generation == 1, "release generation parsed");
+    }
+
+    private static async Task TestRepositoryV1FallbackAsync()
+    {
+        var package = CreatePackage(includeTraversal: false);
+        var legacy = CreateLegacyRepositoryIndexJson(CreateRelease(package));
+        var handler = new VersionedIndexHandler(
+            v2Status: HttpStatusCode.NotFound,
+            v2Payload: null,
+            v1Payload: Encoding.UTF8.GetBytes(legacy));
+        using var http = new HttpClient(handler);
+        using var client = new PluginRepositoryClient(http);
+
+        var index = await client.LoadIndexAsync();
+
+        Assert(index.SchemaVersion == 1, "a v2 404 falls back to the immutable v1 contract");
+        Assert(index.Plugins.Single().LineageId is null, "v1 does not invent a bound lineage");
+        Assert(index.Plugins.Single().Publisher is null, "v1 does not invent numeric publisher identity");
+        Assert(handler.V1RequestCount == 1, "legacy endpoint is requested after the explicit v2 404");
+    }
+
+    private static async Task TestMalformedV2DoesNotFallbackAsync()
+    {
+        var package = CreatePackage(includeTraversal: false);
+        var legacy = CreateLegacyRepositoryIndexJson(CreateRelease(package));
+        var handler = new VersionedIndexHandler(
+            v2Status: HttpStatusCode.OK,
+            v2Payload: Encoding.UTF8.GetBytes("{\"schemaVersion\":2,\"plugins\":[]}"),
+            v1Payload: Encoding.UTF8.GetBytes(legacy));
+        using var http = new HttpClient(handler);
+        using var client = new PluginRepositoryClient(http);
+
+        await AssertThrowsAsync<InvalidDataException>(() => client.LoadIndexAsync());
+        Assert(handler.V1RequestCount == 0, "malformed v2 never triggers a downgrade request");
     }
 
     private static Task TestRepositoryHistoricalReleasesAsync()
@@ -285,6 +336,43 @@ internal static class Program
         return Task.CompletedTask;
     }
 
+    private static Task TestRepositoryWithdrawalVisibilityAsync()
+    {
+        var payload = CreatePackage(includeTraversal: false);
+        var withdrawn = CreateRelease(payload) with
+        {
+            Yanked = true,
+            YankReason = "retired"
+        };
+        var plugin = CreateV2Plugin(withdrawn) with
+        {
+            LifecycleStatus = "retired",
+            Visibility = "hidden",
+            Generations =
+            [
+                CreateGenerationBinding(1, 1001, 101, "retired")
+            ]
+        };
+
+        Assert(!RepositoryCatalogPolicy.ShouldDisplay(plugin, installed: null),
+            "fully withdrawn uninstalled plugin is hidden from discovery");
+        var installed = new PluginSnapshot
+        {
+            Id = plugin.Id,
+            Name = plugin.Name,
+            Version = withdrawn.Version,
+            PackageDirectory = "test",
+            InstallOrigin = PluginCatalog.CreateInstallOrigin(
+                CreateV2Plugin(withdrawn),
+                withdrawn)
+        };
+        Assert(RepositoryCatalogPolicy.ShouldDisplay(plugin, installed),
+            "fully withdrawn plugin remains visible to an installed user");
+        Assert(!RepositoryCatalogPolicy.IsCurrentGenerationInstallable(plugin),
+            "retired plugin has no installable current generation");
+        return Task.CompletedTask;
+    }
+
     private static async Task TestVerifiedRepositoryReviewAsync()
     {
         var release = CreateRelease(CreatePackage(includeTraversal: false));
@@ -309,21 +397,44 @@ internal static class Program
     {
         var release = CreateRelease(CreatePackage(includeTraversal: false));
         var valid = CreateRepositoryIndexJson(release);
-        foreach (var invalid in new[]
+        var invalidCases = new[]
                  {
                      valid.Replace(
                          "\"apiVersion\": \"1.0\"",
                          "\"apiVersion\": \"1.preview\"",
                          StringComparison.Ordinal),
                      valid.Replace(
-                         "2026-08-13T00:00:00Z",
-                         "2026-08-13T00:00:00+08:00",
+                          "2026-08-13T00:00:00Z",
+                          "2026-08-13T00:00:00+08:00",
+                          StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"minimumLauncherVersion\": \"0.1.2\"",
+                         "\"minimumLauncherVersion\": \"999.0.0\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         TestLineageId,
+                         TestLineageId.ToUpperInvariant(),
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"visibility\": \"listed\"",
+                         "\"visibility\": \"hidden\"",
                          StringComparison.Ordinal)
-                 })
+                  };
+        for (var index = 0; index < invalidCases.Length; index++)
         {
+            var invalid = invalidCases[index];
             using var http = new HttpClient(new PayloadHandler(Encoding.UTF8.GetBytes(invalid)));
             using var client = new PluginRepositoryClient(http);
-            await AssertThrowsAsync<InvalidDataException>(() => client.LoadIndexAsync());
+            try
+            {
+                await AssertThrowsAsync<InvalidDataException>(() => client.LoadIndexAsync());
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException(
+                    $"strict repository contract case {index} was accepted",
+                    exception);
+            }
         }
     }
 
@@ -450,8 +561,21 @@ internal static class Program
             Assert(result.Manifest.Id == plugin.Id, "manifest id matches");
             Assert(File.Exists(Path.Combine(result.PackageDirectory, "plugin.json")), "manifest committed");
             Assert(File.Exists(Path.Combine(result.PackageDirectory, "TestPlugin.dll")), "assembly committed");
+            Assert(File.Exists(Path.Combine(
+                    result.PackageDirectory,
+                    PluginCatalog.InstallOriginFileName)),
+                "launcher-owned install origin is committed with the package");
             var scanned = catalog.Scan();
             Assert(scanned.Count == 1 && scanned[0].Manifest?.Version == release.Version, "installed package scans");
+            Assert(scanned[0].InstallOrigin is
+                {
+                    SourceIndexSchemaVersion: 1,
+                    Generation: 1,
+                    RepositoryId: null,
+                    OwnerId: null
+                }, "legacy v1 package origin remains explicitly unbound");
+            Assert(scanned[0].InstallOrigin?.Sha256 == release.Download.Sha256,
+                "package origin persists the exact release ZIP hash");
             Assert(result.Complete() is null, "installation transaction completes");
         }
         finally
@@ -511,6 +635,35 @@ internal static class Program
                     null,
                     CancellationToken.None));
             Assert(catalog.Scan().Count == 0, "reserved Windows device path was not installed");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestInstallOriginSpoofingRejectionAsync()
+    {
+        var payload = CreatePackage(
+            includeTraversal: false,
+            extraEntry: PluginCatalog.InstallOriginFileName);
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var http = new HttpClient(new PayloadHandler(payload));
+            using var client = new PluginRepositoryClient(http);
+            var catalog = new PluginCatalog(storage);
+            await AssertThrowsAsync<InvalidDataException>(() =>
+                PluginPackageInstaller.InstallAsync(
+                    catalog,
+                    client,
+                    CreatePlugin(),
+                    CreateRelease(payload),
+                    null,
+                    null,
+                    CancellationToken.None));
+            Assert(catalog.Scan().Count == 0,
+                "publisher cannot pre-seed launcher-owned install origin metadata");
         }
         finally
         {
@@ -651,6 +804,73 @@ internal static class Program
         }
     }
 
+    private static Task TestPreparedUninstallRecoveryAsync()
+    {
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            var catalog = new PluginCatalog(storage);
+            var target = Path.Combine(catalog.PackagesDirectory, "dev.example.test");
+            var transaction = Path.Combine(
+                catalog.RootDirectory,
+                "repository",
+                "transactions",
+                Guid.NewGuid().ToString("N"));
+            var backup = Path.Combine(transaction, "backup");
+            Directory.CreateDirectory(backup);
+            File.WriteAllText(Path.Combine(backup, "marker.txt"), "removed package");
+            File.WriteAllText(
+                Path.Combine(transaction, "journal.json"),
+                "{\"Version\":2,\"Operation\":\"remove\",\"TargetDirectoryName\":" +
+                "\"dev.example.test\",\"HadExistingTarget\":true,\"Phase\":\"prepared\"}");
+
+            var error = PluginPackageInstaller.RecoverInterruptedTransactions(catalog);
+
+            Assert(error is null, $"recovery error: {error}");
+            Assert(File.Exists(Path.Combine(target, "marker.txt")),
+                "unconfirmed uninstall restores the original package");
+            Assert(!Directory.Exists(transaction), "prepared uninstall transaction is cleaned");
+            return Task.CompletedTask;
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static Task TestCommittedUninstallRecoveryAsync()
+    {
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            var catalog = new PluginCatalog(storage);
+            var target = Path.Combine(catalog.PackagesDirectory, "dev.example.test");
+            var transaction = Path.Combine(
+                catalog.RootDirectory,
+                "repository",
+                "transactions",
+                Guid.NewGuid().ToString("N"));
+            var backup = Path.Combine(transaction, "backup");
+            Directory.CreateDirectory(backup);
+            File.WriteAllText(Path.Combine(backup, "marker.txt"), "removed package");
+            File.WriteAllText(
+                Path.Combine(transaction, "journal.json"),
+                "{\"Version\":2,\"Operation\":\"remove\",\"TargetDirectoryName\":" +
+                "\"dev.example.test\",\"HadExistingTarget\":true,\"Phase\":\"committed\"}");
+
+            var error = PluginPackageInstaller.RecoverInterruptedTransactions(catalog);
+
+            Assert(error is null, $"recovery error: {error}");
+            Assert(!Directory.Exists(target), "committed uninstall does not restore the removed package");
+            Assert(!Directory.Exists(transaction), "committed uninstall backup is safely cleaned");
+            return Task.CompletedTask;
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
     private static Task TestPreparedNewInstallRecoveryAsync()
     {
         var storage = CreateTemporaryDirectory();
@@ -744,6 +964,8 @@ internal static class Program
             Assert(!persisted.Enabled, "stale enabled flag is cleared");
             Assert(persisted.GrantedCapabilities.Count == 0, "stale capability grants are cleared");
             Assert(persisted.LastError is null, "stale plugin error is cleared");
+            Assert(persisted.InstallOrigin?.Version == release.Version,
+                "state caches the package-owned install origin after scan");
         }
         finally
         {
@@ -857,6 +1079,250 @@ internal static class Program
 
             Assert(!result.Success, "a cloned DTO cannot clear the canonical yank state");
             Assert(manager.Current.Plugins.Count == 0, "withdrawn canonical release is not installed");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestRepositoryIdentityReplacementAsync()
+    {
+        var firstPayload = CreatePackage(includeTraversal: false, version: "1.0.0");
+        var nextPayload = CreatePackage(includeTraversal: false, version: "2.0.0");
+        var firstRelease = CreateRelease(firstPayload, "1.0.0");
+        var nextRelease = CreateRelease(nextPayload, "2.0.0");
+        var trusted = CreateV2Plugin(firstRelease, nextRelease);
+        var impostor = trusted with
+        {
+            Publisher = new RepositoryPublisherIdentity
+            {
+                RepositoryId = 9001,
+                OwnerId = 901
+            },
+            Generations =
+            [
+                CreateGenerationBinding(1, 9001, 901, "active")
+            ]
+        };
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var firstHttp = new HttpClient(new PayloadHandler(firstPayload));
+            using var firstClient = new PluginRepositoryClient(firstHttp);
+            using var nextHttp = new HttpClient(new PayloadHandler(nextPayload));
+            using var nextClient = new PluginRepositoryClient(nextHttp);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+
+            var installed = await manager.InstallFromRepositoryAsync(
+                firstClient,
+                trusted,
+                firstRelease);
+            Assert(installed.Success, $"trusted publisher installs: {installed.Message}");
+            var refused = await manager.InstallFromRepositoryAsync(
+                nextClient,
+                impostor,
+                nextRelease);
+
+            Assert(!refused.Success, "same ID/generation from a different numeric publisher is refused");
+            Assert(refused.Message.Contains("数字发布者", StringComparison.Ordinal),
+                "publisher replacement reports an identity warning");
+            Assert(manager.Current.Plugins.Single().Version == "1.0.0",
+                "publisher replacement leaves installed bytes unchanged");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestRepositoryGenerationIsolationAsync()
+    {
+        var firstPayload = CreatePackage(
+            includeTraversal: false,
+            version: "1.0.0",
+            includeOptionalNetwork: true);
+        var updatedPayload = CreatePackage(
+            includeTraversal: false,
+            version: "1.1.0",
+            includeOptionalNetwork: true);
+        var firstRelease = CreateRelease(firstPayload, "1.0.0") with
+        {
+            OptionalCapabilities = ["network.http"]
+        };
+        var updatedRelease = CreateRelease(updatedPayload, "1.1.0") with
+        {
+            OptionalCapabilities = ["network.http"]
+        };
+        var generationOne = CreateV2Plugin(firstRelease, updatedRelease);
+        var replacementRelease = updatedRelease with { Generation = 2 };
+        var withdrawnOldRelease = updatedRelease with
+        {
+            Yanked = true,
+            YankReason = "transferred"
+        };
+        var generationTwo = CreateV2Plugin(withdrawnOldRelease, replacementRelease) with
+        {
+            Generation = 2,
+            Publisher = new RepositoryPublisherIdentity
+            {
+                RepositoryId = 2002,
+                OwnerId = 202
+            },
+            Generations =
+            [
+                CreateGenerationBinding(1, 1001, 101, "transferred"),
+                CreateGenerationBinding(2, 2002, 202, "active")
+            ]
+        };
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var firstHttp = new HttpClient(new PayloadHandler(firstPayload));
+            using var firstClient = new PluginRepositoryClient(firstHttp);
+            using var updatedHttp = new HttpClient(new PayloadHandler(updatedPayload));
+            using var updatedClient = new PluginRepositoryClient(updatedHttp);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+
+            var install = await manager.InstallFromRepositoryAsync(
+                firstClient,
+                generationOne,
+                firstRelease);
+            Assert(install.Success, $"generation one installs: {install.Message}");
+            var ordinaryUpdate = await manager.InstallFromRepositoryAsync(
+                updatedClient,
+                generationOne,
+                updatedRelease);
+            Assert(ordinaryUpdate.Success, $"same-generation update succeeds: {ordinaryUpdate.Message}");
+            var grant = await manager.SetOptionalCapabilitiesAsync(
+                generationOne.Id,
+                ["network.http"]);
+            Assert(grant.Success, $"old generation capability grant is saved: {grant.Message}");
+
+            var catalog = new PluginCatalog(storage);
+            var oldDataDirectory = catalog.GetPluginDataDirectory(generationOne.Id);
+            Directory.CreateDirectory(oldDataDirectory);
+            File.WriteAllText(Path.Combine(oldDataDirectory, "old-generation.txt"), "private");
+
+            var refused = await manager.InstallFromRepositoryAsync(
+                updatedClient,
+                generationTwo,
+                replacementRelease);
+            Assert(!refused.Success, "cross-generation same-version replacement is refused");
+            Assert(refused.Message.Contains("新的发布代际", StringComparison.Ordinal),
+                "cross-generation refusal explains the boundary");
+
+            var packageDirectory = manager.Current.Plugins.Single().PackageDirectory;
+            var uninstall = await manager.UninstallAsync(generationOne.Id);
+            Assert(uninstall.Success, $"explicit launcher uninstall succeeds: {uninstall.Message}");
+            Assert(manager.Current.Plugins.Count == 0, "uninstall removes the old package from the catalog");
+            Assert(!Directory.Exists(packageDirectory), "uninstall commits removal of the package directory");
+            var uninstalledState = new PluginCatalog(storage).GetState(generationOne.Id);
+            Assert(uninstalledState.GrantedCapabilities.Count == 0,
+                "uninstall revokes capability grants from the removed installation");
+            Assert(uninstalledState.InstallOrigin is null,
+                "uninstall clears the cached launcher-owned origin");
+            Assert(!File.ReadAllText(new PluginCatalog(storage).StateFilePath).Contains(
+                    generationOne.Id,
+                    StringComparison.Ordinal),
+                "uninstall removes the launcher-owned state entry instead of leaving an ID reservation");
+            Assert(File.Exists(Path.Combine(oldDataDirectory, "old-generation.txt")),
+                "uninstall preserves old generation private data for recovery/audit");
+
+            var replacement = await manager.InstallFromRepositoryAsync(
+                updatedClient,
+                generationTwo,
+                replacementRelease);
+            Assert(replacement.Success, $"new generation installs only after removal: {replacement.Message}");
+            var newCatalog = new PluginCatalog(storage);
+            var newDataDirectory = newCatalog.GetPluginDataDirectory(generationTwo.Id);
+            Assert(!string.Equals(oldDataDirectory, newDataDirectory, StringComparison.OrdinalIgnoreCase),
+                "different generations receive different private data directories");
+            Assert(!File.Exists(Path.Combine(newDataDirectory, "old-generation.txt")),
+                "new generation cannot read old generation private data by default");
+            Assert(newCatalog.GetState(generationTwo.Id).GrantedCapabilities.Count == 0,
+                "new generation does not inherit the old generation capability grant");
+            var origin = manager.Current.Plugins.Single().InstallOrigin;
+            Assert(origin?.Generation == 2 && origin.RepositoryId == 2002 && origin.OwnerId == 202,
+                "replacement package persists the new numeric origin");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestLegacyLocalPluginCannotAutoBindAsync()
+    {
+        var payload = CreatePackage(includeTraversal: false);
+        var release = CreateRelease(payload);
+        var plugin = CreateV2Plugin(release);
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            var catalog = new PluginCatalog(storage);
+            var packageDirectory = Path.Combine(catalog.PackagesDirectory, plugin.Id);
+            Directory.CreateDirectory(packageDirectory);
+            using (var archive = new ZipArchive(new MemoryStream(payload), ZipArchiveMode.Read))
+                archive.ExtractToDirectory(packageDirectory);
+
+            using var http = new HttpClient(new PayloadHandler(payload));
+            using var client = new PluginRepositoryClient(http);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+            Assert(manager.Current.Plugins.Single().InstallOrigin is null,
+                "manual package has no launcher-owned origin");
+
+            var result = await manager.InstallFromRepositoryAsync(client, plugin, release);
+
+            Assert(!result.Success, "manual/legacy package cannot auto-bind to a repository identity");
+            Assert(result.Message.Contains("没有可信来源快照", StringComparison.Ordinal),
+                "legacy refusal explains the missing provenance");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestLegacyV1OriginCannotAutoBindV2Async()
+    {
+        var firstPayload = CreatePackage(includeTraversal: false, version: "1.0.0");
+        var nextPayload = CreatePackage(includeTraversal: false, version: "1.1.0");
+        var firstRelease = CreateRelease(firstPayload, "1.0.0");
+        var nextRelease = CreateRelease(nextPayload, "1.1.0");
+        var legacyPlugin = CreatePlugin() with { Releases = [firstRelease] };
+        var v2Plugin = CreateV2Plugin(firstRelease, nextRelease);
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var firstHttp = new HttpClient(new PayloadHandler(firstPayload));
+            using var firstClient = new PluginRepositoryClient(firstHttp);
+            using var nextHttp = new HttpClient(new PayloadHandler(nextPayload));
+            using var nextClient = new PluginRepositoryClient(nextHttp);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+
+            var install = await manager.InstallFromRepositoryAsync(
+                firstClient,
+                legacyPlugin,
+                firstRelease);
+            Assert(install.Success, $"v1 package installs with unbound origin: {install.Message}");
+            Assert(manager.Current.Plugins.Single().InstallOrigin?.SourceIndexSchemaVersion == 1,
+                "installed origin records the legacy source contract");
+
+            var result = await manager.InstallFromRepositoryAsync(
+                nextClient,
+                v2Plugin,
+                nextRelease);
+
+            Assert(!result.Success, "same URL cannot silently bind a v1 origin to v2 identity");
+            Assert(result.Message.Contains("旧版 v1", StringComparison.Ordinal),
+                "v1-to-v2 refusal requires uninstall and reinstall");
+            Assert(manager.Current.Plugins.Single().Version == "1.0.0",
+                "failed binding leaves the legacy package untouched");
         }
         finally
         {
@@ -1038,6 +1504,41 @@ internal static class Program
         License = "MIT"
     };
 
+    private static RepositoryPlugin CreateV2Plugin(params RepositoryRelease[] releases) =>
+        CreatePlugin() with
+        {
+            LineageId = TestLineageId,
+            Generation = 1,
+            LifecycleStatus = "active",
+            Visibility = "listed",
+            Publisher = new RepositoryPublisherIdentity
+            {
+                RepositoryId = 1001,
+                OwnerId = 101
+            },
+            Generations =
+            [
+                CreateGenerationBinding(1, 1001, 101, "active")
+            ],
+            Releases = releases
+        };
+
+    private static RepositoryGenerationBinding CreateGenerationBinding(
+        int generation,
+        long repositoryId,
+        long ownerId,
+        string status) => new()
+    {
+        Generation = generation,
+        RepositoryUrl = "https://github.com/example/test-plugin",
+        Publisher = new RepositoryPublisherIdentity
+        {
+            RepositoryId = repositoryId,
+            OwnerId = ownerId
+        },
+        Status = status
+    };
+
     private static RepositoryRelease CreateRelease(
         byte[] payload,
         string version = "1.0.0",
@@ -1087,9 +1588,10 @@ internal static class Program
             : string.Empty;
         return $$"""
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "name": "NyaLauncher Plugins",
           "sourceUrl": "https://github.com/redstore-noob/NyaLauncher-Plugins",
+          "minimumLauncherVersion": "0.1.2",
           "plugins": [
             {
               "id": "dev.example.test",
@@ -1097,11 +1599,31 @@ internal static class Program
               "description": "Test",
               "authors": ["Tests"],
               "repositoryUrl": "https://github.com/example/test-plugin",
+              "lineageId": "{{TestLineageId}}",
+              "generation": 1,
+              "lifecycleStatus": "active",
+              "visibility": "listed",
+              "publisher": {
+                "repositoryId": 1001,
+                "ownerId": 101
+              },
+              "generations": [
+                {
+                  "generation": 1,
+                  "repositoryUrl": "https://github.com/example/test-plugin",
+                  "publisher": {
+                    "repositoryId": 1001,
+                    "ownerId": 101
+                  },
+                  "status": "active"
+                }
+              ],
               "maintainers": ["example"],
               "categories": ["utilities"],
               "license": "MIT",
               "releases": [
                 {
+                  "generation": 1,
                   "version": "{{release.Version}}",
                   "channel": "stable",
                   "publishedAt": "2026-08-13T00:00:00Z",
@@ -1127,10 +1649,52 @@ internal static class Program
         """;
     }
 
+    private static string CreateLegacyRepositoryIndexJson(RepositoryRelease release) => $$"""
+    {
+      "schemaVersion": 1,
+      "name": "NyaLauncher Plugins",
+      "sourceUrl": "https://github.com/redstore-noob/NyaLauncher-Plugins",
+      "plugins": [
+        {
+          "id": "dev.example.test",
+          "name": "Test Plugin",
+          "description": "Test",
+          "authors": ["Tests"],
+          "repositoryUrl": "https://github.com/example/test-plugin",
+          "maintainers": ["example"],
+          "categories": ["utilities"],
+          "license": "MIT",
+          "releases": [
+            {
+              "version": "{{release.Version}}",
+              "channel": "stable",
+              "publishedAt": "2026-08-13T00:00:00Z",
+              "releaseNotesUrl": "https://github.com/example/test-plugin/releases/tag/v1.0.0",
+              "download": {
+                "url": "{{release.Download.Url}}",
+                "sha256": "{{release.Download.Sha256}}",
+                "size": {{release.Download.Size}}
+              },
+              "compatibility": {
+                "manifestVersion": 1,
+                "apiVersion": "1.0",
+                "minimumLauncherVersion": "0.1.0"
+              },
+              "requiredCapabilities": [],
+              "optionalCapabilities": [],
+              "yanked": false
+            }
+          ]
+        }
+      ]
+    }
+    """;
+
     private static byte[] CreatePackage(
         bool includeTraversal,
         string version = "1.0.0",
-        string? extraEntry = null)
+        string? extraEntry = null,
+        bool includeOptionalNetwork = false)
     {
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
@@ -1149,10 +1713,15 @@ internal static class Program
               "entryAssembly": "TestPlugin.dll",
               "entryType": "Tests.PluginEntry",
               "requiredCapabilities": [],
-              "optionalCapabilities": [],
+              "optionalCapabilities": [{{OPTIONAL_CAPABILITIES}}],
               "settings": []
             }
-            """.Replace("{{VERSION}}", version, StringComparison.Ordinal));
+            """
+                .Replace("{{VERSION}}", version, StringComparison.Ordinal)
+                .Replace(
+                    "{{OPTIONAL_CAPABILITIES}}",
+                    includeOptionalNetwork ? "\"network.http\"" : string.Empty,
+                    StringComparison.Ordinal));
             WriteEntry(archive, "TestPlugin.dll", "not loaded during package validation");
             if (includeTraversal)
                 WriteEntry(archive, "../escape.txt", "must not escape");
@@ -1207,6 +1776,33 @@ internal static class Program
             {
                 RequestMessage = request,
                 Content = new ByteArrayContent(payload)
+            };
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class VersionedIndexHandler(
+        HttpStatusCode v2Status,
+        byte[]? v2Payload,
+        byte[] v1Payload) : HttpMessageHandler
+    {
+        public int V1RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var isV2 = request.RequestUri?.AbsolutePath.Contains(
+                "/public/v2/",
+                StringComparison.Ordinal) == true;
+            if (!isV2)
+                V1RequestCount++;
+            var payload = isV2 ? v2Payload : v1Payload;
+            var response = new HttpResponseMessage(isV2 ? v2Status : HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent(payload ?? [])
             };
             return Task.FromResult(response);
         }
