@@ -286,6 +286,18 @@
                 <TextBlock x:Name="RepositoryDetailsDescription"
                            Foreground="{DynamicResource BodyTextBrush}"
                            TextWrapping="Wrap" />
+                <Border x:Name="RepositoryIdentityWarningBorder"
+                        IsVisible="False"
+                        Background="{DynamicResource ErrorDarkBrush}"
+                        BorderBrush="{DynamicResource ErrorBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="12,9">
+                  <TextBlock x:Name="RepositoryIdentityWarningText"
+                             Foreground="{DynamicResource ErrorBrush}"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                </Border>
 
                 <Border Classes="DetailCard">
                   <StackPanel Spacing="8">
@@ -298,6 +310,15 @@
                       <TextBlock x:Name="RepositoryDetailsId"
                                  Grid.Column="1"
                                  Foreground="{DynamicResource SecondaryTextBrush}"
+                                 TextWrapping="Wrap" />
+                    </Grid>
+                    <Grid ColumnDefinitions="118,*">
+                      <TextBlock Text="发布身份" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="RepositoryDetailsIdentity"
+                                 Grid.Column="1"
+                                 Foreground="{DynamicResource SecondaryTextBrush}"
+                                 FontFamily="Consolas"
+                                 FontSize="10"
                                  TextWrapping="Wrap" />
                     </Grid>
                     <Grid ColumnDefinitions="118,*">

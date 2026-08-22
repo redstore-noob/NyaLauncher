@@ -36,6 +36,7 @@ public partial class PluginManagerPage : UserControl
     private string? _selectedPluginId;
     private bool _synchronizingSelection;
     private bool _refreshInProgress;
+    private bool _uninstallInProgress;
     private bool _isInitialized;
 
     public PluginManagerPage()
@@ -585,6 +586,15 @@ public partial class PluginManagerPage : UserControl
             : plugin.Description;
         DetailsIdText.Text = plugin.Id;
         DetailsVersionText.Text = plugin.Version;
+        DetailsOriginText.Text = plugin.InstallOrigin is { } origin
+            ? $"{origin.LineageId}\n第 {origin.Generation} 代 · " +
+              (origin.RepositoryId is long repositoryId && origin.OwnerId is long ownerId
+                  ? $"repository #{repositoryId} · owner #{ownerId}"
+                  : "旧版 v1 · 未绑定数字发布者")
+            : "未知 / 手动安装";
+        PluginOriginWarningPanel.IsVisible =
+            !string.IsNullOrWhiteSpace(plugin.InstallOriginWarning);
+        PluginOriginWarningText.Text = plugin.InstallOriginWarning ?? string.Empty;
         DetailsAuthorsText.Text = plugin.Authors.Count == 0
             ? "未提供"
             : string.Join("、", plugin.Authors);
@@ -594,6 +604,9 @@ public partial class PluginManagerPage : UserControl
             : string.Join("、", plugin.Capabilities);
         ManageCapabilitiesButton.IsVisible = plugin.OptionalCapabilities.Count > 0;
         ManageCapabilitiesButton.IsEnabled = !plugin.IsBusy &&
+            plugin.Status is not (PluginStatus.Invalid or PluginStatus.Incompatible or
+                PluginStatus.RestartRequired);
+        UninstallPluginButton.IsEnabled = !_uninstallInProgress && !plugin.IsBusy &&
             plugin.Status is not (PluginStatus.Invalid or PluginStatus.Incompatible or
                 PluginStatus.RestartRequired);
         DetailsDirectoryText.Text = plugin.PackageDirectory;
@@ -610,6 +623,7 @@ public partial class PluginManagerPage : UserControl
         SettingsEditorPanel.Children.Clear();
         SaveSettingsButton.IsEnabled = false;
         ManageCapabilitiesButton.IsVisible = false;
+        UninstallPluginButton.IsEnabled = false;
     }
 
     private void BuildSettingsEditor(PluginSnapshot plugin)
@@ -1015,6 +1029,129 @@ public partial class PluginManagerPage : UserControl
             _selectedPluginId,
             StringComparison.OrdinalIgnoreCase));
         OpenDirectory(selected?.Plugin.PackageDirectory, create: false);
+    }
+
+    private async void OnUninstallSelectedPluginClick(object? sender, RoutedEventArgs e)
+    {
+        if (_uninstallInProgress || _pluginManager is null)
+            return;
+        var selected = _allItems.FirstOrDefault(item => string.Equals(
+            item.Plugin.Id,
+            _selectedPluginId,
+            StringComparison.OrdinalIgnoreCase));
+        if (selected is null || !await ConfirmUninstallAsync(selected.Plugin))
+            return;
+
+        _uninstallInProgress = true;
+        UninstallPluginButton.IsEnabled = false;
+        RefreshButton.IsEnabled = false;
+        StatusText.Text = $"正在安全卸载 {selected.Plugin.Name}…";
+        try
+        {
+            var result = await _pluginManager.UninstallAsync(selected.Plugin.Id);
+            StatusText.Text = result.Message;
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"插件卸载失败：{exception.Message}";
+        }
+        finally
+        {
+            _uninstallInProgress = false;
+            RefreshButton.IsEnabled = !(_pluginManager.Current.IsScanning || _refreshInProgress);
+            var current = _pluginManager.Current.Plugins.FirstOrDefault(plugin => string.Equals(
+                plugin.Id,
+                selected.Plugin.Id,
+                StringComparison.OrdinalIgnoreCase));
+            UninstallPluginButton.IsEnabled = current is not null && !current.IsBusy &&
+                current.Status is not (PluginStatus.Invalid or PluginStatus.Incompatible or
+                    PluginStatus.RestartRequired);
+        }
+    }
+
+    private async Task<bool> ConfirmUninstallAsync(PluginSnapshot plugin)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            StatusText.Text = "无法显示卸载确认窗口。";
+            return false;
+        }
+
+        var cancel = new Button
+        {
+            Content = "取消",
+            MinWidth = 88,
+            Padding = new Thickness(14, 7)
+        };
+        var uninstall = new Button
+        {
+            Content = "确认卸载",
+            MinWidth = 104,
+            Padding = new Thickness(14, 7),
+            Background = ThemeBrushes.ErrorDark,
+            Foreground = ThemeBrushes.Error
+        };
+        var dialog = new Window
+        {
+            Title = "确认卸载插件",
+            Width = 620,
+            MinWidth = 500,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = ThemeBrushes.DialogBackground,
+            Content = new Border
+            {
+                Padding = new Thickness(22),
+                Child = new StackPanel
+                {
+                    Spacing = 14,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = $"卸载 {plugin.Name} {plugin.Version}？",
+                            FontSize = 18,
+                            FontWeight = FontWeight.SemiBold,
+                            Foreground = ThemeBrushes.Error
+                        },
+                        new TextBlock
+                        {
+                            Text =
+                                "启动器会先安全停止插件，再以可回滚事务删除安装包。" +
+                                "该安装的能力授权和来源快照会被撤销。",
+                            Foreground = ThemeBrushes.SecondaryText,
+                            TextWrapping = TextWrapping.Wrap
+                        },
+                        new Border
+                        {
+                            Background = ThemeBrushes.BadgeBackground,
+                            CornerRadius = new CornerRadius(9),
+                            Padding = new Thickness(13),
+                            Child = new TextBlock
+                            {
+                                Text =
+                                    "插件私有数据不会删除。不同 lineage 或 generation 使用隔离目录，" +
+                                    "保留旧数据便于手工恢复或审计，但新代不会自动继承。",
+                                Foreground = ThemeBrushes.Warning,
+                                TextWrapping = TextWrapping.Wrap
+                            }
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Orientation.Horizontal,
+                            HorizontalAlignment = HorizontalAlignment.Right,
+                            Spacing = 8,
+                            Children = { cancel, uninstall }
+                        }
+                    }
+                }
+            }
+        };
+        cancel.Click += (_, _) => dialog.Close(false);
+        uninstall.Click += (_, _) => dialog.Close(true);
+        return await dialog.ShowDialog<bool?>(owner) == true;
     }
 
     private void OpenDirectory(string? path, bool create)

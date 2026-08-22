@@ -210,8 +210,8 @@ window.FeatureAreas.RegisterPolygonComponents(
 `nyalauncher.builtin/game-launch` 使用整个多边形表面动作直接启动当前实例，并通过共享启动服务
 同步准备、运行、失败和退出状态；右下角圆形任务入口会在下载与启动并行时优先打开下载进度，
 详情窗口左侧可切换到有界保存的实时 Java 输出日志；
-`nyalauncher.builtin/skin-cape-editor` 使用两层图片裁剪显示玩家脸部与帽子层，并按正版或离线
-账号生成不同菜单。
+`nyalauncher.builtin/skin-cape-editor` 使用内缩的基础脸层与外扩的帽子层显示像素化
+双层立体头像，并按正版或离线账号生成不同菜单。
 
 也可以把 `provider.GetPolygonComponents()` 赋给 `FeatureAreaDefinition.PolygonComponents`，
 再通过普通的 `FeatureAreas.Register(...)` 注册。组件 ID 在全局按忽略大小写比较，第三方 ID

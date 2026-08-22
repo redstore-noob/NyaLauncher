@@ -45,7 +45,7 @@ namespace NyaLauncher.Core.Launch;
 
         public string LauncherName { get; init; } = "NyaLauncher";
 
-        public string LauncherVersion { get; init; } = "0.1.0";
+        public string LauncherVersion { get; init; } = "0.1.0-ppre2";
 
         public IReadOnlyList<string> AdditionalJvmArguments { get; init; } = [];
 

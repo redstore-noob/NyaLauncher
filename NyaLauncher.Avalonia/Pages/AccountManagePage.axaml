@@ -133,10 +133,10 @@
                           Padding="16,12"
                           Margin="0,0,0,10">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                      <!-- 头像：优先显示皮肤贴图，加载失败时回退到字母占位 -->
+                      <!-- 头像：基础脸层内缩，帽子层向外扩张，呈现像素化双层立体效果 -->
                       <Border Width="54"
                               Height="54"
-                              CornerRadius="10"
+                              CornerRadius="8"
                               Background="{DynamicResource BadgeBgBrush}"
                               ClipToBounds="True">
                         <Grid>
@@ -146,12 +146,25 @@
                                      Foreground="{DynamicResource SystemAccentColor}"
                                      HorizontalAlignment="Center"
                                      VerticalAlignment="Center" />
+                          <Border Width="40"
+                                  Height="40"
+                                  Margin="3,5,0,0"
+                                  Background="{DynamicResource StrongBorderBrush}"
+                                  Opacity="0.35" />
                           <controls:AsyncImage SourceUrl="{Binding AvatarSource}"
                                                CropRect="8,8,8,8"
                                                RenderOptions.BitmapInterpolationMode="None"
-                                               Width="54"
-                                               Height="54"
-                                               Stretch="Uniform" />
+                                               Width="40"
+                                               Height="40"
+                                               Margin="2,3,0,0"
+                                               Stretch="Fill" />
+                          <controls:AsyncImage SourceUrl="{Binding AvatarSource}"
+                                               CropRect="40,8,8,8"
+                                               RenderOptions.BitmapInterpolationMode="None"
+                                               Width="48"
+                                               Height="48"
+                                               Margin="-2,-3,2,3"
+                                               Stretch="Fill" />
                         </Grid>
                       </Border>
 

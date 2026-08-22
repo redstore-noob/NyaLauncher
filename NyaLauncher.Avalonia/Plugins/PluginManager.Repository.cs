@@ -48,7 +48,8 @@ internal sealed partial class PluginManager
                 .Where(candidate => string.Equals(
                     candidate.Version,
                     release.Version,
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal) &&
+                    candidate.Generation == release.Generation)
                 .Take(2)
                 .ToArray();
             if (matchingReleases.Length != 1)
@@ -59,7 +60,9 @@ internal sealed partial class PluginManager
             // This prevents a cloned DTO from changing yank, compatibility,
             // URL, size, or review-bound artifact metadata after selection.
             release = matchingReleases[0];
-            if (release.Yanked ||
+            if (release.Generation != plugin.Generation ||
+                !RepositoryCatalogPolicy.IsCurrentGenerationInstallable(plugin) ||
+                release.Yanked ||
                 release.Channel is not ("stable" or "preview") ||
                 !PluginRepositoryClient.IsCompatible(release))
             {
@@ -73,6 +76,16 @@ internal sealed partial class PluginManager
                 existing.Status is PluginStatus.Invalid or PluginStatus.Incompatible)
             {
                 return PluginOperationResult.Failed(existing.Error ?? "本地插件包不可更新。");
+            }
+
+            if (existing is not null)
+            {
+                var identityMatch = RepositoryIdentityPolicy.Compare(
+                    plugin,
+                    release,
+                    existing.InstallOrigin);
+                if (!RepositoryIdentityPolicy.IsSafeUpdate(identityMatch))
+                    return PluginOperationResult.Failed(CreateIdentityMismatchMessage(identityMatch));
             }
 
             var directTarget = Path.Combine(_catalog.PackagesDirectory, plugin.Id);
@@ -104,6 +117,15 @@ internal sealed partial class PluginManager
                         release.Version,
                         StringComparison.Ordinal))
                 {
+                    if (!string.Equals(
+                            existing.InstallOrigin?.Sha256,
+                            release.Download.Sha256,
+                            StringComparison.Ordinal))
+                    {
+                        return PluginOperationResult.Failed(
+                            "仓库中的同版本插件包哈希与已安装来源快照不同。为避免替换攻击，" +
+                            "请卸载旧插件后重新确认安装。");
+                    }
                     return PluginOperationResult.Completed(
                         $"插件 {plugin.Name} {release.Version} 已安装。");
                 }
@@ -126,29 +148,45 @@ internal sealed partial class PluginManager
             }
 
             var newInstallStateReset = false;
-            var result = await PluginPackageInstaller.InstallAsync(
-                _catalog,
-                repositoryClient,
-                plugin,
-                release,
-                existing?.PackageDirectory,
-                progress,
-                operationToken,
-                beforeCommit: existing is null
-                    ? () =>
+            var previousState = _catalog.GetState(plugin.Id);
+            var targetOrigin = PluginCatalog.CreateInstallOrigin(plugin, release);
+            PluginPackageInstallResult result;
+            try
+            {
+                result = await PluginPackageInstaller.InstallAsync(
+                    _catalog,
+                    repositoryClient,
+                    plugin,
+                    release,
+                    existing?.PackageDirectory,
+                    progress,
+                    operationToken,
+                    beforeCommit: () =>
                     {
-                        // Deleted plugins leave state records behind. Revoke
-                        // that old trust before the package can enter packages,
-                        // so neither a crash nor another scan can auto-start it.
                         _catalog.UpdateState(plugin.Id, entry =>
                         {
-                            entry.Enabled = false;
-                            entry.GrantedCapabilities.Clear();
-                            entry.LastError = null;
+                            // Deleted packages leave state records behind. A
+                            // new lineage/generation must never inherit runtime
+                            // trust or the old generation's data directory.
+                            if (existing is null)
+                            {
+                                entry.Enabled = false;
+                                entry.GrantedCapabilities.Clear();
+                                entry.LastError = null;
+                                newInstallStateReset = true;
+                            }
+                            entry.InstallOrigin = targetOrigin;
                         });
-                        newInstallStateReset = true;
-                    }
-            : null);
+                    });
+            }
+            catch
+            {
+                RestoreOriginAfterFailedInstall(
+                    plugin.Id,
+                    previousState,
+                    preserveRevokedTrust: existing is null && newInstallStateReset);
+                throw;
+            }
 
             // The directory transaction has committed. Refresh without caller
             // cancellation so the in-memory catalog cannot intentionally remain
@@ -165,6 +203,10 @@ internal sealed partial class PluginManager
                 var rollbackError = result.Rollback();
                 if (rollbackError is null)
                 {
+                    RestoreOriginAfterFailedInstall(
+                        plugin.Id,
+                        previousState,
+                        preserveRevokedTrust: existing is null && newInstallStateReset);
                     try
                     {
                         await RefreshCoreAsync(CancellationToken.None);
@@ -215,4 +257,48 @@ internal sealed partial class PluginManager
             _lifecycleGate.Release();
         }
     }
+
+    private void RestoreOriginAfterFailedInstall(
+        string pluginId,
+        PluginStateEntry previousState,
+        bool preserveRevokedTrust)
+    {
+        _catalog.UpdateState(pluginId, entry =>
+        {
+            entry.InstallOrigin = previousState.InstallOrigin;
+            if (preserveRevokedTrust)
+            {
+                entry.Enabled = false;
+                entry.GrantedCapabilities.Clear();
+                entry.LastError = null;
+                return;
+            }
+            entry.Enabled = previousState.Enabled;
+            entry.GrantedCapabilities = [.. previousState.GrantedCapabilities];
+            entry.LastError = previousState.LastError;
+        });
+    }
+
+    private static string CreateIdentityMismatchMessage(RepositoryIdentityMatch match) => match switch
+    {
+        RepositoryIdentityMatch.MissingInstalledOrigin =>
+            "已安装插件没有可信来源快照，可能来自手动安装或旧版启动器。为防止 ID 劫持，" +
+            "不能将仓库条目当作自动更新；请先卸载旧插件，再重新确认安装。",
+        RepositoryIdentityMatch.LegacyV1NeedsReinstall =>
+            "已安装插件来自不含数字发布者身份的旧版 v1 索引。当前仓库已启用 v2 身份绑定，" +
+            "不能仅凭相同 ID 或仓库地址自动认领；请卸载后重新安装以建立可信来源。",
+        RepositoryIdentityMatch.DifferentGeneration =>
+            "此插件 ID 已进入新的发布代际，不属于已安装插件的正常更新。旧插件不会被自动替换；" +
+            "请先卸载旧代，再单独确认安装新代。",
+        RepositoryIdentityMatch.DifferentLineage =>
+            "此插件 ID 已被释放并分配给新的插件谱系，不属于已安装插件。为防止供应链劫持，" +
+            "必须先卸载旧插件并重新确认安装。",
+        RepositoryIdentityMatch.DifferentPublisher =>
+            "仓库条目的 GitHub 数字发布者身份与已安装来源不一致，已阻止自动更新。" +
+            "请核对转让记录；如确需安装，请先卸载旧插件。",
+        RepositoryIdentityMatch.InvalidRepositoryHistory =>
+            "仓库条目的同代改名历史没有连续包含已安装来源，已阻止自动更新。" +
+            "请核对中心仓库的 repositoryUrlHistory；如确需安装，请先卸载旧插件。",
+        _ => "插件来源身份不一致，已阻止自动更新。"
+    };
 }

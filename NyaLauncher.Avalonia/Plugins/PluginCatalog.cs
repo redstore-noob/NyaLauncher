@@ -60,6 +60,14 @@ internal sealed record PluginSnapshot
 
     public IReadOnlyList<string> OptionalCapabilities { get; init; } = [];
 
+    /// <summary>
+    /// Launcher-owned origin bound atomically to the installed package. Null
+    /// means a manual or pre-origin installation and is never auto-updated.
+    /// </summary>
+    public PluginInstallOrigin? InstallOrigin { get; init; }
+
+    public string? InstallOriginWarning { get; init; }
+
     public IReadOnlyList<PluginSettingDefinition> SettingDefinitions { get; init; } = [];
 
     public IReadOnlyDictionary<string, string?> Settings { get; init; } =
@@ -120,12 +128,37 @@ internal sealed record PluginPackage(
     string ManifestPath,
     PluginManifest? Manifest,
     PluginStatus Status,
-    string? Error)
+    string? Error,
+    PluginInstallOrigin? InstallOrigin = null,
+    string? InstallOriginWarning = null)
 {
     public string CatalogKey =>
         Manifest is not null && Status is not PluginStatus.Invalid
             ? Manifest.Id
             : PackageDirectory;
+}
+
+internal sealed record PluginInstallOrigin
+{
+    public int SchemaVersion { get; init; } = 1;
+
+    public required int SourceIndexSchemaVersion { get; init; }
+
+    public required string Id { get; init; }
+
+    public required string LineageId { get; init; }
+
+    public required int Generation { get; init; }
+
+    public long? RepositoryId { get; init; }
+
+    public long? OwnerId { get; init; }
+
+    public required string RepositoryUrl { get; init; }
+
+    public required string Version { get; init; }
+
+    public required string Sha256 { get; init; }
 }
 
 internal sealed class PluginStateEntry
@@ -135,6 +168,13 @@ internal sealed class PluginStateEntry
     public List<string> GrantedCapabilities { get; set; } = [];
 
     public string? LastError { get; set; }
+
+    /// <summary>
+    /// Cache of the package-owned origin used only to choose an isolated data
+    /// directory. The metadata file inside the package is authoritative and is
+    /// synchronized here after every scan/recovery.
+    /// </summary>
+    public PluginInstallOrigin? InstallOrigin { get; set; }
 }
 
 /// <summary>
@@ -143,9 +183,12 @@ internal sealed class PluginStateEntry
 /// </summary>
 internal sealed class PluginCatalog
 {
+    internal const string InstallOriginFileName = ".nyalauncher-origin.json";
+
     private const int StateVersion = 1;
     private const int MaximumPackageCount = 256;
     private const int MaximumManifestBytes = 1024 * 1024;
+    private const int MaximumInstallOriginBytes = 16 * 1024;
     private const int MaximumStateBytes = 4 * 1024 * 1024;
     private const int MaximumRememberedPlugins = 4096;
     private const int MaximumCapabilityCount = 64;
@@ -155,6 +198,18 @@ internal sealed class PluginCatalog
         RegexOptions.CultureInvariant);
     private static readonly Regex SettingKeyPattern = new(
         "^[a-zA-Z][a-zA-Z0-9_.-]{0,127}$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex OriginLineagePattern = new(
+        "^(?:[a-z][a-z0-9]*(?:\\.[a-z0-9][a-z0-9-]*)+|" +
+        "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex GitHubRepositoryPattern = new(
+        "^https://github\\.com/" +
+        "[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/" +
+        "[A-Za-z0-9_.-]{1,100}/?$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex Sha256Pattern = new(
+        "^[0-9a-f]{64}$",
         RegexOptions.CultureInvariant);
     private static readonly HashSet<string> KnownCapabilities = new(
         [
@@ -170,8 +225,8 @@ internal sealed class PluginCatalog
             PluginCapabilities.MinecraftLaunchModify
         ],
         StringComparer.OrdinalIgnoreCase);
-    private static readonly Version LauncherVersion =
-        typeof(PluginCatalog).Assembly.GetName().Version ?? new Version(0, 1, 0);
+    private static readonly SemanticVersion LauncherVersion =
+        SemanticVersion.LauncherVersion;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -181,6 +236,14 @@ internal sealed class PluginCatalog
         {
             new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false)
         }
+    };
+    private static readonly JsonSerializerOptions InstallOriginJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = false,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        MaxDepth = 8,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
     private readonly object _stateGate = new();
@@ -293,9 +356,21 @@ internal sealed class PluginCatalog
                     };
                 }
                 var error = ValidateManifest(manifest, directory);
-                packages.Add(error is null
-                    ? new PluginPackage(directory, manifestPath, manifest, PluginStatus.Disabled, null)
-                    : new PluginPackage(
+                if (error is null)
+                {
+                    var (origin, originWarning) = ReadInstallOrigin(directory, manifest!);
+                    packages.Add(new PluginPackage(
+                        directory,
+                        manifestPath,
+                        manifest,
+                        PluginStatus.Disabled,
+                        null,
+                        origin,
+                        originWarning));
+                }
+                else
+                {
+                    packages.Add(new PluginPackage(
                         directory,
                         manifestPath,
                         null,
@@ -303,6 +378,7 @@ internal sealed class PluginCatalog
                             ? PluginStatus.Incompatible
                             : PluginStatus.Invalid,
                         error));
+                }
             }
             catch (JsonException exception)
             {
@@ -392,11 +468,155 @@ internal sealed class PluginCatalog
         }
     }
 
-    public string GetPluginDataDirectory(string pluginId) =>
-        Path.Combine(DataDirectory, SanitizeDirectoryName(pluginId));
+    internal bool TryGetState(string pluginId, out PluginStateEntry state)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        lock (_stateGate)
+        {
+            if (_state.Plugins.TryGetValue(pluginId, out var existing))
+            {
+                state = CloneState(existing);
+                return true;
+            }
+
+            state = new PluginStateEntry();
+            return false;
+        }
+    }
+
+    public void RemoveState(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        lock (_stateGate)
+        {
+            if (!_state.Plugins.ContainsKey(pluginId))
+                return;
+            var next = CloneStateDocument(_state);
+            next.Plugins.Remove(pluginId);
+            SaveJsonAtomically(StateFilePath, next, MaximumStateBytes);
+            _state = next;
+        }
+    }
+
+    internal void RestoreStateSnapshot(string pluginId, PluginStateEntry state)
+    {
+        var validated = CloneValidatedStateSnapshot(pluginId, state);
+        lock (_stateGate)
+        {
+            var next = CloneStateDocument(_state);
+            next.Plugins[pluginId] = validated;
+            if (next.Plugins.Count > MaximumRememberedPlugins)
+                throw new InvalidDataException(
+                    $"插件状态最多记录 {MaximumRememberedPlugins} 个插件。");
+            SaveJsonAtomically(StateFilePath, next, MaximumStateBytes);
+            _state = next;
+        }
+    }
+
+    internal static PluginStateEntry CloneValidatedStateSnapshot(
+        string pluginId,
+        PluginStateEntry state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (string.IsNullOrWhiteSpace(pluginId) ||
+            pluginId.Length > 128 ||
+            !PluginIdPattern.IsMatch(pluginId) ||
+            state.GrantedCapabilities is null ||
+            state.GrantedCapabilities.Count > MaximumCapabilityCount ||
+            state.GrantedCapabilities.Any(capability =>
+                string.IsNullOrWhiteSpace(capability) || capability.Length > 128) ||
+            state.GrantedCapabilities.Distinct(StringComparer.OrdinalIgnoreCase).Count() !=
+            state.GrantedCapabilities.Count ||
+            state.LastError?.Length > 8192)
+        {
+            throw new InvalidDataException("插件卸载状态快照无效或超过上限。");
+        }
+        if (state.InstallOrigin is not null)
+            ValidateInstallOrigin(state.InstallOrigin, pluginId, expectedVersion: null);
+        return CloneState(state);
+    }
+
+    public void SynchronizeInstallOrigin(string pluginId, PluginInstallOrigin? origin)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        if (origin is not null)
+            ValidateInstallOrigin(origin, pluginId, expectedVersion: null);
+        lock (_stateGate)
+        {
+            if (Equals(_state.Plugins.GetValueOrDefault(pluginId)?.InstallOrigin, origin))
+                return;
+            var next = CloneStateDocument(_state);
+            if (!next.Plugins.TryGetValue(pluginId, out var state))
+            {
+                state = new PluginStateEntry();
+                next.Plugins[pluginId] = state;
+            }
+            state.InstallOrigin = origin;
+            SaveJsonAtomically(StateFilePath, next, MaximumStateBytes);
+            _state = next;
+        }
+    }
+
+    public string GetPluginDataDirectory(string pluginId)
+    {
+        var state = GetState(pluginId);
+        var directoryName = SanitizeDirectoryName(pluginId);
+        if (state.InstallOrigin is { } origin &&
+            string.Equals(origin.Id, pluginId, StringComparison.OrdinalIgnoreCase))
+        {
+            var identityBytes = Encoding.UTF8.GetBytes(
+                $"{origin.LineageId}\n" +
+                $"{origin.Generation.ToString(CultureInfo.InvariantCulture)}\n" +
+                $"{origin.RepositoryId?.ToString(CultureInfo.InvariantCulture) ?? "unbound"}\n" +
+                $"{origin.OwnerId?.ToString(CultureInfo.InvariantCulture) ?? "unbound"}");
+            var identitySuffix = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(identityBytes))[..16]
+                .ToLowerInvariant();
+            directoryName += $"--g{origin.Generation}-{identitySuffix}";
+        }
+        return Path.Combine(DataDirectory, directoryName);
+    }
 
     public PluginSettingsStore OpenSettings(PluginManifest manifest) =>
         new(GetPluginDataDirectory(manifest.Id), manifest.Settings);
+
+    internal static PluginInstallOrigin CreateInstallOrigin(
+        RepositoryPlugin plugin,
+        RepositoryRelease release)
+    {
+        var binding = RepositoryCatalogPolicy.FindGeneration(plugin, release.Generation) ??
+                      throw new InvalidDataException("插件发行记录缺少发布者代际绑定。");
+        var hasNumericIdentity = binding.Publisher.RepositoryId > 0 &&
+                                 binding.Publisher.OwnerId > 0;
+        var origin = new PluginInstallOrigin
+        {
+            SourceIndexSchemaVersion = plugin.LineageId is null ? 1 : 2,
+            Id = plugin.Id,
+            LineageId = plugin.EffectiveLineageId,
+            Generation = release.Generation,
+            RepositoryId = hasNumericIdentity ? binding.Publisher.RepositoryId : null,
+            OwnerId = hasNumericIdentity ? binding.Publisher.OwnerId : null,
+            RepositoryUrl = binding.RepositoryUrl,
+            Version = release.Version,
+            Sha256 = release.Download.Sha256
+        };
+        ValidateInstallOrigin(origin, plugin.Id, release.Version);
+        return origin;
+    }
+
+    internal static void WriteInstallOrigin(
+        string packageDirectory,
+        PluginInstallOrigin origin)
+    {
+        ValidateInstallOrigin(origin, origin.Id, origin.Version);
+        if (!TryResolvePackagePath(packageDirectory, InstallOriginFileName, out var path))
+            throw new InvalidDataException("无法安全创建插件来源快照。");
+        SaveJsonAtomically(
+            path,
+            origin,
+            MaximumInstallOriginBytes,
+            InstallOriginJsonOptions);
+    }
 
     public void ReloadState()
     {
@@ -450,6 +670,8 @@ internal sealed class PluginCatalog
                     continue;
                 }
 
+                if (entry.InstallOrigin is not null)
+                    ValidateInstallOrigin(entry.InstallOrigin, pluginId, expectedVersion: null);
                 NormalizeStateEntry(entry);
             }
         }
@@ -530,7 +752,7 @@ internal sealed class PluginCatalog
         {
             if (!TryParseSemanticVersion(manifest.MinimumLauncherVersion, out var minimumVersion))
                 return "minimumLauncherVersion 必须是语义版本号。";
-            if (minimumVersion > LauncherVersion)
+            if (minimumVersion.CompareTo(LauncherVersion) > 0)
             {
                 return $"API 最低需要 NyaLauncher {minimumVersion}，当前为 {LauncherVersion}.";
             }
@@ -652,6 +874,84 @@ internal sealed class PluginCatalog
         return null;
     }
 
+    private static (PluginInstallOrigin? Origin, string? Warning) ReadInstallOrigin(
+        string packageDirectory,
+        PluginManifest manifest)
+    {
+        try
+        {
+            if (!TryResolvePackagePath(packageDirectory, InstallOriginFileName, out var path))
+                return (null, "插件来源快照路径不安全；已禁止仓库自动更新。");
+            if (!File.Exists(path))
+                return (null, "这是手动安装或旧版启动器安装的插件；来源身份未知，不能自动更新。");
+
+            var origin = JsonSerializer.Deserialize<PluginInstallOrigin>(
+                             ReadBoundedUtf8Text(
+                                 path,
+                                 MaximumInstallOriginBytes,
+                                 "插件来源快照"),
+                             InstallOriginJsonOptions) ??
+                         throw new InvalidDataException("插件来源快照不能为空。");
+            ValidateInstallOrigin(origin, manifest.Id, manifest.Version);
+            return (origin, null);
+        }
+        catch (Exception exception) when (exception is
+            JsonException or InvalidDataException or IOException or UnauthorizedAccessException or
+            ArgumentException)
+        {
+            return (null, $"插件来源快照无效，已禁止仓库自动更新：{exception.Message}");
+        }
+    }
+
+    private static void ValidateInstallOrigin(
+        PluginInstallOrigin origin,
+        string expectedId,
+        string? expectedVersion)
+    {
+        if (origin.SchemaVersion != 1 ||
+            origin.SourceIndexSchemaVersion is not (1 or 2) ||
+            string.IsNullOrWhiteSpace(origin.Id) ||
+            !PluginIdPattern.IsMatch(origin.Id) ||
+            !string.Equals(origin.Id, expectedId, StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(origin.LineageId) ||
+            !OriginLineagePattern.IsMatch(origin.LineageId) ||
+            origin.Generation < 1 ||
+            string.IsNullOrWhiteSpace(origin.RepositoryUrl) ||
+            origin.RepositoryUrl.Length > 2048 ||
+            !GitHubRepositoryPattern.IsMatch(origin.RepositoryUrl) ||
+            !Uri.TryCreate(origin.RepositoryUrl, UriKind.Absolute, out var repository) ||
+            !string.Equals(repository.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(repository.Host, "github.com", StringComparison.Ordinal) ||
+            repository.Port != 443 ||
+            !string.IsNullOrEmpty(repository.UserInfo) ||
+            repository.Segments.Length != 3 ||
+            repository.Query.Length != 0 ||
+            repository.Fragment.Length != 0 ||
+            repository.Segments[2].TrimEnd('/') is "." or ".." ||
+            repository.Segments[2].TrimEnd('/').EndsWith(".", StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(origin.Version) ||
+            !TryParseSemanticVersion(origin.Version, out _) ||
+            expectedVersion is not null &&
+            !string.Equals(origin.Version, expectedVersion, StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(origin.Sha256) ||
+            !Sha256Pattern.IsMatch(origin.Sha256) ||
+            (origin.RepositoryId is null) != (origin.OwnerId is null) ||
+            origin.RepositoryId is not null and <= 0 ||
+            origin.OwnerId is not null and <= 0 ||
+            origin.SourceIndexSchemaVersion == 1 &&
+            (origin.RepositoryId is not null ||
+             origin.OwnerId is not null ||
+             origin.Generation != 1 ||
+             !string.Equals(origin.LineageId, origin.Id, StringComparison.Ordinal)) ||
+            origin.SourceIndexSchemaVersion == 2 &&
+            (origin.RepositoryId is null ||
+             origin.OwnerId is null ||
+             !Guid.TryParseExact(origin.LineageId, "D", out _)))
+        {
+            throw new InvalidDataException("插件来源身份字段不一致。");
+        }
+    }
+
     internal static bool TryResolvePackagePath(
         string packageDirectory,
         string? relativePath,
@@ -721,7 +1021,8 @@ internal sealed class PluginCatalog
     internal static void SaveJsonAtomically<T>(
         string filePath,
         T value,
-        int? maximumBytes = null)
+        int? maximumBytes = null,
+        JsonSerializerOptions? serializerOptions = null)
     {
         var directory = Path.GetDirectoryName(filePath) ??
             throw new InvalidOperationException("文件路径缺少父目录。");
@@ -732,7 +1033,9 @@ internal sealed class PluginCatalog
             $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            var contents = JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions);
+            var contents = JsonSerializer.SerializeToUtf8Bytes(
+                value,
+                serializerOptions ?? JsonOptions);
             if (maximumBytes is int limit && contents.Length > limit)
                 throw new InvalidDataException($"JSON 文件不能超过 {limit} 字节。");
             File.WriteAllBytes(temporaryPath, contents);
@@ -778,23 +1081,8 @@ internal sealed class PluginCatalog
         return int.TryParse(first, NumberStyles.None, CultureInfo.InvariantCulture, out major);
     }
 
-    private static bool TryParseSemanticVersion(string value, out Version version)
-    {
-        var core = value.Split(['-', '+'], 2)[0];
-        var segments = core.Split('.');
-        if (segments.Length is < 2 or > 4 ||
-            segments.Any(segment => !int.TryParse(
-                segment,
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out _)))
-        {
-            version = new Version();
-            return false;
-        }
-
-        return Version.TryParse(core, out version!);
-    }
+    private static bool TryParseSemanticVersion(string value, out SemanticVersion version) =>
+        SemanticVersion.TryParse(value, out version);
 
     private static string SanitizeDirectoryName(string pluginId) =>
         string.Concat(pluginId.Select(character =>
@@ -859,7 +1147,8 @@ internal sealed class PluginCatalog
     {
         Enabled = state.Enabled,
         GrantedCapabilities = [.. state.GrantedCapabilities],
-        LastError = state.LastError
+        LastError = state.LastError,
+        InstallOrigin = state.InstallOrigin
     };
 
     private static PluginStateDocument CloneStateDocument(PluginStateDocument source) => new()

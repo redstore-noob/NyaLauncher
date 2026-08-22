@@ -108,7 +108,7 @@ public partial class MainWindow : Window
             _versionManagerPage.Activate();
             ShowPage(_versionManagerPage, "版本管理");
         };
-        _accountManagePage = new AccountManagePage();
+        _accountManagePage = new AccountManagePage(_minecraftProfileService);
         _musicPlayerPage = new MusicPlayerPage();
 
         AddHandler(

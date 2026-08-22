@@ -21,11 +21,17 @@ namespace NyaLauncher.Avalonia.Pages;
 /// </summary>
 public partial class AccountManagePage : UserControl
 {
-    private readonly MinecraftProfileService _profileService = new();
+    private readonly MinecraftProfileService _profileService;
     private CancellationTokenSource? _avatarCancellation;
 
-    public AccountManagePage()
+    public AccountManagePage() : this(new MinecraftProfileService())
     {
+    }
+
+    internal AccountManagePage(MinecraftProfileService profileService)
+    {
+        ArgumentNullException.ThrowIfNull(profileService);
+        _profileService = profileService;
         InitializeComponent();
         AccountStore.Changed += OnAccountsChanged;
         AccountLoginOverlay.AccountAdded += OnAccountAdded;
@@ -280,6 +286,8 @@ public partial class AccountManagePage : UserControl
             _profileService,
             account);
         StatusText.Text = result.Message;
+        if (result.Success)
+            RefreshAccountList();
     }
 
     /// <summary>同步工具栏与底部状态：当前选中账号、默认标记、披风按钮可用性。</summary>

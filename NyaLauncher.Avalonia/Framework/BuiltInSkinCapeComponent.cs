@@ -44,17 +44,17 @@ internal static class BuiltInSkinCapeComponent
             .AddAction(SelectOfflineSkinActionId)
             .AddImage(
                 "skin-face",
-                new ComponentRect(0.08, 0.08, 0.84, 0.84),
+                new ComponentRect(0.15, 0.17, 0.70, 0.70),
                 sourcePixelRect: new ComponentPixelRect(8, 8, 8, 8),
                 fallbackText: "?",
-                cornerRadius: 11,
+                cornerRadius: 0,
                 pixelated: true)
             .AddImage(
                 "skin-hat",
                 new ComponentRect(0.08, 0.08, 0.84, 0.84),
                 sourcePixelRect: new ComponentPixelRect(40, 8, 8, 8),
                 fallbackText: string.Empty,
-                cornerRadius: 11,
+                cornerRadius: 0,
                 pixelated: true)
             .AddDropdown(
                 "appearance-menu",
