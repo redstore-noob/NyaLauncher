@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Plugins;
+using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Plugin.Abstractions.Plugins;
 
 namespace NyaLauncher.Avalonia.Pages;
@@ -285,13 +286,13 @@ public partial class PluginManagerPage : UserControl
             {
                 Text = title,
                 FontWeight = FontWeight.SemiBold,
-                Foreground = Brush.Parse("#EEF1FF")
+                Foreground = ThemeBrushes.PrimaryText
             });
             header.Children.Add(new TextBlock
             {
                 Text = risk,
                 FontSize = 10,
-                Foreground = Brush.Parse("#FFB4A9"),
+                Foreground = ThemeBrushes.Error,
                 VerticalAlignment = VerticalAlignment.Center
             });
 
@@ -302,20 +303,20 @@ public partial class PluginManagerPage : UserControl
                 Text = capability,
                 FontFamily = "Consolas",
                 FontSize = 10,
-                Foreground = Brush.Parse("#AEB6FF")
+                Foreground = ThemeBrushes.AccentText
             });
             content.Children.Add(new TextBlock
             {
                 Text = description,
                 FontSize = 11,
-                Foreground = Brush.Parse("#AAB2C9"),
+                Foreground = ThemeBrushes.TertiaryText,
                 TextWrapping = TextWrapping.Wrap
             });
             capabilityList.Children.Add(new Border
             {
                 Padding = new Thickness(12),
-                Background = Brush.Parse("#1B2132"),
-                BorderBrush = Brush.Parse("#30384F"),
+                Background = ThemeBrushes.SurfaceBackground,
+                BorderBrush = ThemeBrushes.DefaultBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Child = content
@@ -327,8 +328,8 @@ public partial class PluginManagerPage : UserControl
         {
             Content = "同意并启用",
             Padding = new Thickness(16, 8),
-            Background = Brush.Parse("#A5525E"),
-            Foreground = Brushes.White
+            Background = ThemeBrushes.Error,
+            Foreground = ThemeBrushes.White
         };
         var actions = new StackPanel
         {
@@ -345,27 +346,27 @@ public partial class PluginManagerPage : UserControl
             Text = $"启用 {item.Plugin.Name} 前需要授权",
             FontSize = 21,
             FontWeight = FontWeight.Bold,
-            Foreground = Brush.Parse("#F6F7FF")
+            Foreground = ThemeBrushes.PrimaryText
         });
         body.Children.Add(new TextBlock
         {
             Text = "下面是插件运行必需的能力。授权会被记录，取消则不会修改任何状态。",
             FontSize = 12,
-            Foreground = Brush.Parse("#B7BED3"),
+            Foreground = ThemeBrushes.SecondaryText,
             TextWrapping = TextWrapping.Wrap
         });
         body.Children.Add(new Border
         {
             Padding = new Thickness(12),
-            Background = Brush.Parse("#3B282B"),
-            BorderBrush = Brush.Parse("#75434B"),
+            Background = ThemeBrushes.ErrorDark,
+            BorderBrush = ThemeBrushes.Error,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Child = new TextBlock
             {
                 Text = "重要：第三方插件代码会在启动器进程内执行。能力授权用于限制启动器提供的服务并记录你的同意，不是操作系统级安全沙箱。只启用你信任来源的插件。",
                 FontSize = 11,
-                Foreground = Brush.Parse("#FFD2CE"),
+                Foreground = ThemeBrushes.Error,
                 TextWrapping = TextWrapping.Wrap
             }
         });
@@ -386,7 +387,7 @@ public partial class PluginManagerPage : UserControl
             MaxHeight = 720,
             CanResize = false,
             ShowInTaskbar = false,
-            Background = Brush.Parse("#111522"),
+            Background = ThemeBrushes.DialogBackground,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = body
         };
@@ -480,7 +481,7 @@ public partial class PluginManagerPage : UserControl
                 IsChecked = item.Plugin.GrantedCapabilities.Contains(
                     capability,
                     StringComparer.OrdinalIgnoreCase),
-                Foreground = Brush.Parse("#EEF1FF")
+                Foreground = ThemeBrushes.PrimaryText
             };
             choices.Add((capability, checkBox));
             var content = new StackPanel { Spacing = 5 };
@@ -490,20 +491,20 @@ public partial class PluginManagerPage : UserControl
                 Text = capability,
                 FontFamily = "Consolas",
                 FontSize = 10,
-                Foreground = Brush.Parse("#AEB6FF")
+                Foreground = ThemeBrushes.AccentText
             });
             content.Children.Add(new TextBlock
             {
                 Text = description,
                 FontSize = 11,
-                Foreground = Brush.Parse("#AAB2C9"),
+                Foreground = ThemeBrushes.TertiaryText,
                 TextWrapping = TextWrapping.Wrap
             });
             list.Children.Add(new Border
             {
                 Padding = new Thickness(12),
-                Background = Brush.Parse("#1B2132"),
-                BorderBrush = Brush.Parse("#30384F"),
+                Background = ThemeBrushes.SurfaceBackground,
+                BorderBrush = ThemeBrushes.DefaultBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Child = content
@@ -515,8 +516,8 @@ public partial class PluginManagerPage : UserControl
         {
             Content = item.Plugin.IsEnabled ? "保存并重启插件" : "保存授权",
             Padding = new Thickness(16, 8),
-            Background = Brush.Parse("#566DDE"),
-            Foreground = Brushes.White
+            Background = ThemeBrushes.AccentDark,
+            Foreground = ThemeBrushes.White
         };
         var actions = new StackPanel
         {
@@ -533,13 +534,13 @@ public partial class PluginManagerPage : UserControl
             Text = $"管理 {item.Plugin.Name} 的可选能力",
             FontSize = 21,
             FontWeight = FontWeight.Bold,
-            Foreground = Brush.Parse("#F6F7FF")
+            Foreground = ThemeBrushes.PrimaryText
         });
         body.Children.Add(new TextBlock
         {
             Text = "未勾选的可选能力会被拒绝。已启用插件会先安全停止，再使用新授权重新启动。能力仅约束宿主 API，不是操作系统沙箱。",
             FontSize = 12,
-            Foreground = Brush.Parse("#B7BED3"),
+            Foreground = ThemeBrushes.SecondaryText,
             TextWrapping = TextWrapping.Wrap
         });
         body.Children.Add(new ScrollViewer
@@ -559,7 +560,7 @@ public partial class PluginManagerPage : UserControl
             MaxHeight = 760,
             CanResize = false,
             ShowInTaskbar = false,
-            Background = Brush.Parse("#111522"),
+            Background = ThemeBrushes.DialogBackground,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = body
         };
@@ -630,7 +631,7 @@ public partial class PluginManagerPage : UserControl
                 Text = instanceSettingCount > 0
                     ? "此插件只有 Minecraft 实例级设置；当前版本尚未自动生成实例设置界面。"
                     : "此插件没有可配置项。",
-                Foreground = Brush.Parse("#8F99B3"),
+                Foreground = ThemeBrushes.Subtext,
                 TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
@@ -664,7 +665,7 @@ public partial class PluginManagerPage : UserControl
             Text = definition.Required ? $"{definition.Title} *" : definition.Title,
             FontSize = 13,
             FontWeight = FontWeight.SemiBold,
-            Foreground = Brush.Parse("#DDE2F4")
+            Foreground = ThemeBrushes.BodyText
         };
         var descriptionText = CreateSettingDescription(definition, canReadUserDirectories);
         var description = new TextBlock
@@ -672,8 +673,8 @@ public partial class PluginManagerPage : UserControl
             Text = descriptionText,
             FontSize = 10,
             Foreground = definition.Kind == PluginSettingKind.Directory
-                ? Brush.Parse("#D9B978")
-                : Brush.Parse("#7E88A4"),
+                ? ThemeBrushes.Warning
+                : ThemeBrushes.HintText,
             TextWrapping = TextWrapping.Wrap,
             IsVisible = !string.IsNullOrWhiteSpace(descriptionText)
         };
@@ -733,7 +734,7 @@ public partial class PluginManagerPage : UserControl
                 var numericValueText = new TextBlock
                 {
                     Text = FormatNumericSettingValue(numericSlider.Value, definition.Kind),
-                    Foreground = Brush.Parse("#B8C3E5"),
+                    Foreground = ThemeBrushes.SecondaryText,
                     HorizontalAlignment = HorizontalAlignment.Right,
                     MinWidth = 54
                 };
@@ -1062,14 +1063,14 @@ public partial class PluginManagerPage : UserControl
 
     private sealed class PluginListItem
     {
-        private static readonly IBrush SuccessBackground = Brush.Parse("#264437");
-        private static readonly IBrush SuccessForeground = Brush.Parse("#8BE0B5");
-        private static readonly IBrush WarningBackground = Brush.Parse("#443B25");
-        private static readonly IBrush WarningForeground = Brush.Parse("#E8D59A");
-        private static readonly IBrush ErrorBackground = Brush.Parse("#4A2731");
-        private static readonly IBrush ErrorForeground = Brush.Parse("#F0A8B6");
-        private static readonly IBrush MutedBackground = Brush.Parse("#30364A");
-        private static readonly IBrush MutedForeground = Brush.Parse("#AAB2C9");
+        private static IBrush SuccessBackground => ThemeBrushes.BadgeBackground;
+        private static IBrush SuccessForeground => ThemeBrushes.Success;
+        private static IBrush WarningBackground => ThemeBrushes.BadgeBackground;
+        private static IBrush WarningForeground => ThemeBrushes.Warning;
+        private static IBrush ErrorBackground => ThemeBrushes.ErrorDark;
+        private static IBrush ErrorForeground => ThemeBrushes.Error;
+        private static IBrush MutedBackground => ThemeBrushes.BadgeBackground;
+        private static IBrush MutedForeground => ThemeBrushes.Muted;
 
         public PluginListItem(PluginSnapshot plugin)
         {

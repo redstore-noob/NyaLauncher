@@ -183,12 +183,31 @@ public sealed record ComponentActionDefinition
 }
 
 /// <summary>
-/// Theme fallbacks are expressed as #AARRGGBB/#RRGGBB strings so the public
-/// contract does not expose a specific UI framework. The host may replace them
-/// with semantic theme colors.
+/// Theme colors are expressed as #AARRGGBB/#RRGGBB strings so the public contract
+/// does not expose a specific UI framework. Empty values inherit the matching
+/// semantic color from the host and continue to follow theme changes. The public
+/// constructor retains its original palette for old definitions; launcher defaults
+/// use <see cref="InheritHost"/>. Explicit values remain fixed.
 /// </summary>
 public sealed record PolygonComponentTheme
 {
+    /// <summary>
+    /// A theme with every color slot delegated to launcher semantic resources.
+    /// Use a <c>with</c> expression to override selected slots.
+    /// </summary>
+    public static PolygonComponentTheme InheritHost { get; } = new()
+    {
+        Surface = string.Empty,
+        SurfaceHover = string.Empty,
+        Border = string.Empty,
+        BorderHover = string.Empty,
+        TextPrimary = string.Empty,
+        TextSecondary = string.Empty,
+        Accent = string.Empty,
+        AccentForeground = string.Empty,
+        ProgressTrack = string.Empty
+    };
+
     public string Surface { get; init; } = "#22283A";
 
     public string SurfaceHover { get; init; } = "#2D354D";
@@ -235,7 +254,7 @@ public sealed class PolygonComponentDefinition
 
     public ComponentRect DragHandleBounds { get; init; } = new(0.44, 0.035, 0.12, 0.13);
 
-    public PolygonComponentTheme Theme { get; init; } = new();
+    public PolygonComponentTheme Theme { get; init; } = PolygonComponentTheme.InheritHost;
 
     public IReadOnlyList<ComponentElementDefinition> Elements { get; init; } = [];
 

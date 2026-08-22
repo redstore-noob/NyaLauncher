@@ -2,19 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="NyaLauncher.Avalonia.Pages.PluginManagerPage"
              x:CompileBindings="False"
-             Background="#151826">
+             Background="{DynamicResource WindowBgBrush}">
   <UserControl.Styles>
     <Style Selector="Border.PluginRow">
-      <Setter Property="Background" Value="#22283A" />
-      <Setter Property="BorderBrush" Value="#30384F" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DefaultBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="11" />
       <Setter Property="Margin" Value="0,0,0,7" />
     </Style>
     <Style Selector="Border.PluginRow:pointerover">
-      <Setter Property="Background" Value="#29314A" />
-      <Setter Property="BorderBrush" Value="#465377" />
+      <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
     </Style>
     <Style Selector="ListBoxItem">
       <Setter Property="Padding" Value="0" />
@@ -23,12 +23,12 @@
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     </Style>
     <Style Selector="ListBoxItem:selected Border.PluginRow">
-      <Setter Property="Background" Value="#303959" />
-      <Setter Property="BorderBrush" Value="#7C8CFF" />
+      <Setter Property="Background" Value="{DynamicResource BadgeBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
     </Style>
     <Style Selector="Button.Primary">
-      <Setter Property="Background" Value="#5968E8" />
-      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Background" Value="{DynamicResource AccentDarkerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource WhiteBrush}" />
       <Setter Property="Padding" Value="16,8" />
     </Style>
   </UserControl.Styles>
@@ -39,12 +39,12 @@
         <TextBlock Text="插件列表"
                    FontSize="23"
                    FontWeight="SemiBold"
-                   Foreground="#F4F6FF" />
+                   Foreground="{DynamicResource PrimaryTextBrush}" />
         <TextBlock x:Name="PackagesDirectoryText"
                    Text="正在解析插件目录…"
                    FontFamily="Consolas"
                    FontSize="10"
-                   Foreground="#838DA8"
+                   Foreground="{DynamicResource MutedTextBrush}"
                    TextTrimming="CharacterEllipsis"
                    ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
       </StackPanel>
@@ -72,8 +72,8 @@
     <Border x:Name="CatalogErrorBanner"
             Grid.Row="1"
             IsVisible="False"
-            Background="#38232C"
-            BorderBrush="#764052"
+            Background="{DynamicResource ErrorDarkBrush}"
+            BorderBrush="{DynamicResource ErrorBrush}"
             BorderThickness="1"
             CornerRadius="9"
             Padding="13,10"
@@ -82,15 +82,15 @@
         <TextBlock Text="!"
                    Width="24"
                    Height="24"
-                   Background="#B64A5A"
-                   Foreground="White"
+                   Background="{DynamicResource ErrorBrush}"
+                   Foreground="{DynamicResource WhiteBrush}"
                    FontWeight="Bold"
                    TextAlignment="Center"
                    VerticalAlignment="Center" />
         <TextBlock x:Name="CatalogErrorText"
                    Grid.Column="1"
                    Margin="10,0"
-                   Foreground="#F1BBC5"
+                   Foreground="{DynamicResource ErrorBrush}"
                    TextWrapping="Wrap"
                    VerticalAlignment="Center" />
         <Button Grid.Column="2"
@@ -101,8 +101,8 @@
     </Border>
 
     <Grid Grid.Row="2" ColumnDefinitions="310,16,*">
-      <Border Background="#1D2233"
-              BorderBrush="#30384F"
+      <Border Background="{DynamicResource PanelBgBrush}"
+              BorderBrush="{DynamicResource DefaultBorderBrush}"
               BorderThickness="1"
               CornerRadius="13"
               Padding="12">
@@ -124,12 +124,12 @@
             <TextBlock Text="已发现插件"
                        FontSize="12"
                        FontWeight="SemiBold"
-                       Foreground="#DDE2F4" />
+                       Foreground="{DynamicResource BodyTextBrush}" />
             <TextBlock x:Name="PluginCountText"
                        Grid.Column="1"
                        Text="0"
                        FontSize="10"
-                       Foreground="#7E88A4" />
+                       Foreground="{DynamicResource HintTextBrush}" />
           </Grid>
 
           <Grid Grid.Row="3">
@@ -144,11 +144,11 @@
                       <Border Width="38"
                               Height="38"
                               CornerRadius="10"
-                              Background="#303958">
+                              Background="{DynamicResource IconBoxBgBrush}">
                         <TextBlock Text="{Binding Initial}"
                                    FontSize="14"
                                    FontWeight="SemiBold"
-                                   Foreground="#C8CEFF"
+                                   Foreground="{DynamicResource AccentTextBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
                       </Border>
@@ -156,11 +156,11 @@
                         <TextBlock Text="{Binding Name}"
                                    FontSize="13"
                                    FontWeight="SemiBold"
-                                   Foreground="#F2F4FF"
+                                   Foreground="{DynamicResource PrimaryTextBrush}"
                                    TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Metadata}"
                                    FontSize="9"
-                                   Foreground="#7E88A4"
+                                   Foreground="{DynamicResource HintTextBrush}"
                                    TextTrimming="CharacterEllipsis" />
                         <Border Background="{Binding StatusBackground}"
                                 CornerRadius="6"
@@ -190,26 +190,26 @@
                         VerticalAlignment="Center">
               <TextBlock Text="◇"
                          FontSize="30"
-                         Foreground="#6674DB"
+                         Foreground="{DynamicResource AccentBrush}"
                          HorizontalAlignment="Center" />
               <TextBlock x:Name="EmptyPluginListTitle"
                          Text="插件目录为空"
                          FontSize="14"
                          FontWeight="SemiBold"
-                         Foreground="#DDE2F4"
+                         Foreground="{DynamicResource BodyTextBrush}"
                          HorizontalAlignment="Center" />
               <TextBlock x:Name="EmptyPluginListHint"
                          Text="把完整插件文件夹放入上方目录后重新扫描"
                          Width="230"
                          FontSize="10"
-                         Foreground="#7E88A4"
+                         Foreground="{DynamicResource HintTextBrush}"
                          TextAlignment="Center"
                          TextWrapping="Wrap" />
             </StackPanel>
 
             <Border x:Name="ScanningOverlay"
                     IsVisible="False"
-                    Background="#B31D2233"
+                    Background="{DynamicResource OverlayBgBrush}"
                     CornerRadius="10">
               <StackPanel Spacing="10"
                           HorizontalAlignment="Center"
@@ -217,7 +217,7 @@
                 <ProgressBar Width="150" IsIndeterminate="True" />
                 <TextBlock Text="正在扫描插件目录…"
                            FontSize="11"
-                           Foreground="#C8CEFF" />
+                           Foreground="{DynamicResource AccentTextBrush}" />
               </StackPanel>
             </Border>
           </Grid>
@@ -225,8 +225,8 @@
       </Border>
 
       <Border Grid.Column="2"
-              Background="#1A1F2F"
-              BorderBrush="#30384F"
+              Background="{DynamicResource CardBgBrush}"
+              BorderBrush="{DynamicResource DefaultBorderBrush}"
               BorderThickness="1"
               CornerRadius="13"
               Padding="20">
@@ -237,26 +237,26 @@
                       Spacing="8">
             <TextBlock Text="＋"
                        FontSize="36"
-                       Foreground="#6674DB"
+                       Foreground="{DynamicResource AccentBrush}"
                        HorizontalAlignment="Center" />
             <TextBlock Text="请选择一个插件"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="#DDE2F4"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        HorizontalAlignment="Center" />
             <TextBlock Text="选择后可以查看详情、诊断和插件设置"
                        FontSize="11"
-                       Foreground="#7E88A4" />
+                       Foreground="{DynamicResource HintTextBrush}" />
           </StackPanel>
 
           <Grid x:Name="DetailsView" IsVisible="False" RowDefinitions="Auto,*">
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,14">
-              <Border Width="48" Height="48" CornerRadius="13" Background="#303958">
+              <Border Width="48" Height="48" CornerRadius="13" Background="{DynamicResource IconBoxBgBrush}">
                 <TextBlock x:Name="DetailsInitialText"
                            Text="P"
                            FontSize="18"
                            FontWeight="SemiBold"
-                           Foreground="#C8CEFF"
+                           Foreground="{DynamicResource AccentTextBrush}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center" />
               </Border>
@@ -264,10 +264,10 @@
                 <TextBlock x:Name="DetailsNameText"
                            FontSize="20"
                            FontWeight="SemiBold"
-                           Foreground="#F4F6FF" />
+                           Foreground="{DynamicResource PrimaryTextBrush}" />
                 <TextBlock x:Name="DetailsSummaryText"
                            FontSize="10"
-                           Foreground="#838DA8"
+                           Foreground="{DynamicResource MutedTextBrush}"
                            TextTrimming="CharacterEllipsis" />
               </StackPanel>
               <Button Grid.Column="2"
@@ -282,27 +282,27 @@
                 <ScrollViewer>
                   <StackPanel Margin="14" Spacing="12">
                     <TextBlock x:Name="DetailsDescriptionText"
-                               Foreground="#DDE2F4"
+                               Foreground="{DynamicResource BodyTextBrush}"
                                TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="130,*">
-                      <TextBlock Text="插件 ID" Foreground="#8F99B3" />
-                      <TextBlock x:Name="DetailsIdText" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                      <TextBlock Text="插件 ID" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsIdText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
                     </Grid>
                     <Grid ColumnDefinitions="130,*">
-                      <TextBlock Text="版本" Foreground="#8F99B3" />
-                      <TextBlock x:Name="DetailsVersionText" Grid.Column="1" Foreground="#E7EAF7" />
+                      <TextBlock Text="版本" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsVersionText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" />
                     </Grid>
                     <Grid ColumnDefinitions="130,*">
-                      <TextBlock Text="作者" Foreground="#8F99B3" />
-                      <TextBlock x:Name="DetailsAuthorsText" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                      <TextBlock Text="作者" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsAuthorsText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
                     </Grid>
                     <Grid ColumnDefinitions="130,*">
-                      <TextBlock Text="运行状态" Foreground="#8F99B3" />
-                      <TextBlock x:Name="DetailsStatusText" Grid.Column="1" Foreground="#E7EAF7" />
+                      <TextBlock Text="运行状态" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsStatusText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" />
                     </Grid>
                     <Grid ColumnDefinitions="130,*,Auto">
-                      <TextBlock Text="声明能力" Foreground="#8F99B3" />
-                      <TextBlock x:Name="DetailsCapabilitiesText" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                      <TextBlock Text="声明能力" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsCapabilitiesText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
                       <Button x:Name="ManageCapabilitiesButton"
                               Grid.Column="2"
                               Margin="10,0,0,0"
@@ -312,24 +312,24 @@
                               Click="OnManageCapabilitiesClick" />
                     </Grid>
                     <Grid ColumnDefinitions="130,*">
-                      <TextBlock Text="安装目录" Foreground="#8F99B3" />
-                      <TextBlock x:Name="DetailsDirectoryText" Grid.Column="1" Foreground="#E7EAF7" TextWrapping="Wrap" />
+                      <TextBlock Text="安装目录" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsDirectoryText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
                     </Grid>
                     <Border x:Name="PluginErrorPanel"
                             IsVisible="False"
-                            Background="#38232C"
-                            BorderBrush="#764052"
+                            Background="{DynamicResource ErrorDarkBrush}"
+                            BorderBrush="{DynamicResource ErrorBrush}"
                             BorderThickness="1"
                             CornerRadius="9"
                             Padding="12">
                       <StackPanel Spacing="5">
                         <TextBlock Text="插件诊断"
                                    FontWeight="SemiBold"
-                                   Foreground="#F1BBC5" />
+                                   Foreground="{DynamicResource ErrorBrush}" />
                         <TextBlock x:Name="PluginErrorText"
                                    FontFamily="Consolas"
                                    FontSize="10"
-                                   Foreground="#E6A7B3"
+                                   Foreground="{DynamicResource ErrorBrush}"
                                    TextWrapping="Wrap" />
                       </StackPanel>
                     </Border>
@@ -346,7 +346,7 @@
                     <TextBlock x:Name="SettingsHintText"
                                Text="设置由启动器验证并存储。"
                                FontSize="10"
-                               Foreground="#7E88A4"
+                               Foreground="{DynamicResource HintTextBrush}"
                                TextWrapping="Wrap"
                                VerticalAlignment="Center" />
                     <Button x:Name="SaveSettingsButton"
@@ -368,7 +368,7 @@
                Grid.Row="3"
                Text="插件页面已就绪"
                FontSize="11"
-               Foreground="#838DA8"
+               Foreground="{DynamicResource MutedTextBrush}"
                Margin="2,13,0,0"
                TextWrapping="Wrap" />
   </Grid>

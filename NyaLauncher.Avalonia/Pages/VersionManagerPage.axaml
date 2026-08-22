@@ -381,13 +381,13 @@
                 <TextBlock Text="由已启用插件提供的实例操作"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="#DDE2F4" />
+                           Foreground="{DynamicResource BodyTextBrush}" />
                 <TextBlock x:Name="PluginActionsEmptyText"
                            Grid.Row="1"
                            Text="当前没有可用的插件操作。可在插件列表中启用支持实例修改的插件。"
                            Margin="0,10,0,0"
                            FontSize="11"
-                           Foreground="#7E88A4"
+                           Foreground="{DynamicResource HintTextBrush}"
                            TextWrapping="Wrap" />
                 <ListBox x:Name="PluginActionsList"
                          Grid.Row="2"
@@ -398,34 +398,34 @@
                     <DataTemplate x:CompileBindings="False">
                       <Border Margin="0,0,0,9"
                               Padding="13"
-                              Background="#1D2233"
-                              BorderBrush="#30384F"
+                              Background="{DynamicResource SurfaceBgBrush}"
+                              BorderBrush="{DynamicResource DefaultBorderBrush}"
                               BorderThickness="1"
                               CornerRadius="9">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                           <Border Width="38"
                                   Height="38"
                                   Margin="0,0,12,0"
-                                  Background="#272E49"
+                                  Background="{DynamicResource IconBoxBgBrush}"
                                   CornerRadius="8">
                             <TextBlock Text="{Binding Glyph}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        FontSize="17"
-                                       Foreground="#AEB6FF" />
+                                       Foreground="{DynamicResource AccentTextBrush}" />
                           </Border>
                           <StackPanel Grid.Column="1" Spacing="3">
                             <TextBlock Text="{Binding Title}"
                                        FontSize="13"
                                        FontWeight="SemiBold"
-                                       Foreground="#EDF0FF" />
+                                       Foreground="{DynamicResource PrimaryTextBrush}" />
                             <TextBlock Text="{Binding PluginLabel}"
                                        FontSize="10"
-                                       Foreground="#8D98B5" />
+                                       Foreground="{DynamicResource MutedTextBrush}" />
                             <TextBlock Text="{Binding Description}"
                                        MaxWidth="560"
                                        FontSize="11"
-                                       Foreground="#AAB2C9"
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
                                        TextWrapping="Wrap" />
                           </StackPanel>
                           <StackPanel Grid.Column="2"
@@ -436,7 +436,7 @@
                             <TextBlock Text="{Binding RiskLabel}"
                                        HorizontalAlignment="Center"
                                        FontSize="9"
-                                       Foreground="#D4A7A2" />
+                                       Foreground="{DynamicResource WarningBrush}" />
                             <Button Content="执行"
                                     Padding="15,7"
                                     Click="OnPluginActionClick" />

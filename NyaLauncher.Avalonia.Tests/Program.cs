@@ -41,6 +41,7 @@ internal static class Program
             ("Repository preview release installation", TestRepositoryPreviewInstallAsync),
             ("Repository install uses canonical release", TestCanonicalRepositoryReleaseAsync),
             ("Plugin components start in library", TestPluginComponentsStartInLibraryAsync),
+            ("Polygon component host theme inheritance", TestPolygonComponentThemeInheritanceAsync),
             ("Plugin area removal persists", TestPluginAreaRemovalAsync),
             ("All workspace areas can be removed", TestAllWorkspaceAreasCanBeRemovedAsync),
             ("Component scale snapshot validation", TestComponentScaleSnapshotAsync),
@@ -103,6 +104,89 @@ internal static class Program
             registry.Areas.Single(area => area.Id == "area-001").Actions.Any(action =>
                 action.Id == "io.github.touristh.clock/digital-clock"),
             "placed plugin component appears in the chosen workspace");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestPolygonComponentThemeInheritanceAsync()
+    {
+        var inherited = new PolygonComponentBuilder(
+                "io.github.example/inherited-theme",
+                "Inherited theme")
+            .Build()
+            .Theme;
+
+        Assert(string.IsNullOrEmpty(inherited.Surface), "default surface inherits the host theme");
+        Assert(string.IsNullOrEmpty(inherited.TextPrimary), "default text inherits the host theme");
+        Assert(string.IsNullOrEmpty(inherited.Accent), "default accent inherits the host theme");
+
+        var customizedDefinition = new PolygonComponentBuilder(
+                "io.github.example/custom-theme",
+                "Custom theme")
+            .WithTheme(new PolygonComponentTheme
+            {
+                Surface = "#112233",
+                Accent = "#445566"
+            })
+            .Build();
+        var customized = customizedDefinition.Theme;
+
+        Assert(customized.Surface == "#112233", "explicit surface color is preserved");
+        Assert(customized.Accent == "#445566", "explicit accent color is preserved");
+        Assert(
+            customized.TextPrimary == "#F6F7FF",
+            "explicit legacy themes retain their original defaults");
+
+        var partial = PolygonComponentTheme.InheritHost with { Accent = "#778899" };
+        Assert(partial.Accent == "#778899", "host theme can be selectively overridden");
+        Assert(
+            string.IsNullOrEmpty(partial.TextPrimary),
+            "unmodified host-theme slots continue to inherit");
+
+        var applyThemeBrush = typeof(PolygonComponentView).GetMethod(
+            "ApplyThemeBrush",
+            System.Reflection.BindingFlags.NonPublic |
+            System.Reflection.BindingFlags.Static);
+        Assert(applyThemeBrush is not null, "theme resource bridge remains available");
+
+        var inheritedTarget = new global::Avalonia.Controls.Border();
+        applyThemeBrush!.Invoke(
+            null,
+            [
+                inheritedTarget,
+                global::Avalonia.Controls.Border.BackgroundProperty,
+                null,
+                "ComponentBgBrush",
+                "#1B2822"
+            ]);
+        var firstHostSurface = new global::Avalonia.Media.SolidColorBrush(
+            global::Avalonia.Media.Color.Parse("#123456"));
+        inheritedTarget.Resources["ComponentBgBrush"] = firstHostSurface;
+        Assert(
+            ReferenceEquals(inheritedTarget.Background, firstHostSurface),
+            "inherited surface resolves the host resource");
+
+        var secondHostSurface = new global::Avalonia.Media.SolidColorBrush(
+            global::Avalonia.Media.Color.Parse("#654321"));
+        inheritedTarget.Resources["ComponentBgBrush"] = secondHostSurface;
+        Assert(
+            ReferenceEquals(inheritedTarget.Background, secondHostSurface),
+            "inherited surface follows host resource changes");
+
+        var customizedTarget = new global::Avalonia.Controls.Border();
+        applyThemeBrush.Invoke(
+            null,
+            [
+                customizedTarget,
+                global::Avalonia.Controls.Border.BackgroundProperty,
+                customized.Surface,
+                "ComponentBgBrush",
+                "#1B2822"
+            ]);
+        customizedTarget.Resources["ComponentBgBrush"] = firstHostSurface;
+        Assert(
+            customizedTarget.Background is global::Avalonia.Media.ISolidColorBrush customBrush &&
+            customBrush.Color == global::Avalonia.Media.Color.Parse("#112233"),
+            "explicit surface color does not follow host resource changes");
         return Task.CompletedTask;
     }
 

@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Plugins;
+using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Content;
 using NyaLauncher.Core.Launch;
@@ -352,8 +353,8 @@ public partial class VersionManagerPage : UserControl
         {
             Content = action.IsDestructive ? "确认执行" : "继续",
             Padding = new Thickness(16, 8),
-            Background = Brush.Parse("#A5525E"),
-            Foreground = Brushes.White
+            Background = action.IsDestructive ? ThemeBrushes.Error : ThemeBrushes.AccentDark,
+            Foreground = ThemeBrushes.White
         };
         var buttons = new StackPanel
         {
@@ -373,27 +374,33 @@ public partial class VersionManagerPage : UserControl
             Text = action.IsDestructive ? "确认破坏性插件操作" : "确认插件操作",
             FontSize = 20,
             FontWeight = FontWeight.Bold,
-            Foreground = Brush.Parse("#F6F7FF")
+            Foreground = ThemeBrushes.PrimaryText
         });
         body.Children.Add(new TextBlock
         {
             Text = $"{action.PluginName} · {action.Title}",
             FontSize = 12,
-            Foreground = Brush.Parse("#AEB6FF"),
+            Foreground = ThemeBrushes.AccentText,
             TextWrapping = TextWrapping.Wrap
         });
         body.Children.Add(new Border
         {
             Padding = new Thickness(12),
-            Background = Brush.Parse(action.IsDestructive ? "#3B282B" : "#272E49"),
-            BorderBrush = Brush.Parse(action.IsDestructive ? "#75434B" : "#46527A"),
+            Background = action.IsDestructive
+                ? ThemeBrushes.ErrorDark
+                : ThemeBrushes.HighlightBackground,
+            BorderBrush = action.IsDestructive
+                ? ThemeBrushes.Error
+                : ThemeBrushes.StrongBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Child = new TextBlock
             {
                 Text = message,
                 FontSize = 11,
-                Foreground = Brush.Parse(action.IsDestructive ? "#FFD2CE" : "#DDE2F4"),
+                Foreground = action.IsDestructive
+                    ? ThemeBrushes.Error
+                    : ThemeBrushes.BodyText,
                 TextWrapping = TextWrapping.Wrap
             }
         });
@@ -407,7 +414,7 @@ public partial class VersionManagerPage : UserControl
             MaxHeight = 620,
             CanResize = false,
             ShowInTaskbar = false,
-            Background = Brush.Parse("#111522"),
+            Background = ThemeBrushes.DialogBackground,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = body
         };

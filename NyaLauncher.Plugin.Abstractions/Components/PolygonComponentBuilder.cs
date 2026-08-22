@@ -14,7 +14,7 @@ public sealed class PolygonComponentBuilder
     private ComponentSize? _maximumSize;
     private PolygonShapeDefinition _shape = PolygonShapeDefinition.Rectangle();
     private ComponentRect _dragHandleBounds = new(0.44, 0.035, 0.12, 0.13);
-    private PolygonComponentTheme _theme = new();
+    private PolygonComponentTheme _theme = PolygonComponentTheme.InheritHost;
     private string? _surfaceActionId;
 
     public PolygonComponentBuilder(string id, string title)

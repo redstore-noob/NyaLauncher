@@ -31,15 +31,6 @@ internal static class BuiltInPluginListComponent
             .WithSizeLimits(180, 68, 310, 112)
             .WithShape(PolygonShapeDefinition.Rectangle())
             .WithDragHandle(new ComponentRect(0.025, 0.24, 0.075, 0.52))
-            .WithTheme(new PolygonComponentTheme
-            {
-                Surface = "#252D47",
-                SurfaceHover = "#303A59",
-                Border = "#3A4563",
-                BorderHover = "#91A0FF",
-                Accent = "#91A0FF",
-                ProgressTrack = "#30384F"
-            })
             .AddAction(OpenActionId)
             .UseSurfaceAction(OpenActionId)
             .AddText(
