@@ -10,23 +10,23 @@
         <TextBlock Text="关于"
                    FontSize="28"
                    FontWeight="Bold"
-                   Foreground="{StaticResource PrimaryTextBrush}" />
+                   Foreground="{DynamicResource PrimaryTextBrush}" />
         <TextBlock Text="NyaLauncher 开发团队、第三方组件与项目信息"
                    FontSize="13"
-                   Foreground="{StaticResource HintTextBrush}" />
+                   Foreground="{DynamicResource HintTextBrush}" />
       </StackPanel>
 
       <!-- 开发者名单 -->
-      <Border Background="{StaticResource PanelBgBrush}"
+      <Border Background="{DynamicResource PanelBgBrush}"
               CornerRadius="16"
               Padding="24,20">
         <StackPanel Spacing="12">
           <TextBlock Text="开发者名单"
                      FontSize="18"
                      FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
           <TextBlock FontSize="13"
-                     Foreground="{StaticResource BodyTextBrush}"
+                     Foreground="{DynamicResource BodyTextBrush}"
                      TextWrapping="Wrap">
             <Run Text="redstore_noob" FontWeight="SemiBold" /><LineBreak />
             <Run Text="TouristH" FontWeight="SemiBold" /><LineBreak />
@@ -36,24 +36,24 @@
       </Border>
 
       <!-- 引用的库与资源 -->
-      <Border Background="{StaticResource PanelBgBrush}"
+      <Border Background="{DynamicResource PanelBgBrush}"
               CornerRadius="16"
               Padding="24,20">
         <StackPanel Spacing="12">
           <TextBlock Text="引用的库与资源"
                      FontSize="18"
                      FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
           <Grid ColumnDefinitions="160,*"
                 RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                 ColumnSpacing="8"
                 RowSpacing="6">
             <TextBlock Text="Avalonia UI"
                        Grid.Row="0" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Row="0" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               12.1.1 · 跨平台 UI 框架（MIT License）
               https://github.com/AvaloniaUI/Avalonia
@@ -61,10 +61,10 @@
 
             <TextBlock Text="CommunityToolkit"
                        Grid.Row="1" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               Mvvm 8.4.2 · MVVM 组件库（MIT License）
               
@@ -72,10 +72,10 @@
 
             <TextBlock Text="HarmonyOS Sans"
                        Grid.Row="2" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               Regular · 界面正文字体（Huawei License）
               https://developer.huawei.com/consumer/cn/design/resource-V1/
@@ -83,10 +83,10 @@
 
             <TextBlock Text="Noto Color Emoji"
                        Grid.Row="3" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               表情符号字体（Apache-2.0 License）
               https://github.com/googlefonts/noto-emoji
@@ -96,32 +96,32 @@
       </Border>
 
       <!-- 项目信息 -->
-      <Border Background="{StaticResource PanelBgBrush}"
+      <Border Background="{DynamicResource PanelBgBrush}"
               CornerRadius="16"
               Padding="24,20">
         <StackPanel Spacing="12">
           <TextBlock Text="项目信息"
                      FontSize="18"
                      FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
           <TextBlock Text="NyaLauncher"
                      FontSize="14"
                      x:Name="LauncherText"
-                     Foreground="{StaticResource BodyTextBrush}" />
+                     Foreground="{DynamicResource BodyTextBrush}" />
           <TextBlock FontSize="14"
                      x:Name="LatestDate"
-                     Foreground="{StaticResource BodyTextBrush}">
+                     Foreground="{DynamicResource BodyTextBrush}">
             最后补丁日期:
           </TextBlock>
           <TextBlock FontSize="14"
-                     Foreground="{StaticResource BodyTextBrush}"
+                     Foreground="{DynamicResource BodyTextBrush}"
                      TextWrapping="Wrap">
             除闭源模块外，该软件基于 Apache License 2.0 分发。
           </TextBlock>
           <TextBlock Text="https://github.com/redstore-noob/NyaLauncher"
                      FontSize="13"
                      x:Name="VersionText"
-                     Foreground="{StaticResource HintTextBrush}" />
+                     Foreground="{DynamicResource HintTextBrush}" />
           <HyperlinkButton NavigateUri="https://github.com/redstore-noob/NyaLauncher"
                            Content="为我们的项目点上 Star✨" />
         </StackPanel>

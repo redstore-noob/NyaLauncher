@@ -4,39 +4,38 @@
   <UserControl.Styles>
     <!-- 卡片通用样式 -->
     <Style Selector="Border.card">
-      <Setter Property="Background" Value="{StaticResource PanelBgBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PanelBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="14" />
       <Setter Property="ClipToBounds" Value="True" />
-      <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
     </Style>
     <!-- 卡片标题 -->
     <Style Selector="TextBlock.card-title">
       <Setter Property="FontSize" Value="17" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     </Style>
     <!-- 卡片副标题 -->
     <Style Selector="TextBlock.card-subtitle">
       <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="{StaticResource HintTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource HintTextBrush}" />
     </Style>
     <!-- 设置项标签 -->
     <Style Selector="TextBlock.field-label">
       <Setter Property="FontSize" Value="14" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
     </Style>
     <!-- 提示文字 -->
     <Style Selector="TextBlock.hint">
       <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="{StaticResource HintTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource HintTextBrush}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <!-- 内嵌卡片（子面板） -->
     <Style Selector="Border.sub-card">
-      <Setter Property="Background" Value="{StaticResource CardBgBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="18,14" />
     </Style>
@@ -55,22 +54,21 @@
       <TextBlock Text="设置"
                  FontSize="28"
                  FontWeight="Bold"
-                 Foreground="{StaticResource PrimaryTextBrush}" />
+                 Foreground="{DynamicResource PrimaryTextBrush}" />
       <TextBlock Text="自定义启动器与游戏配置"
                  FontSize="13"
-                 Foreground="{StaticResource HintTextBrush}" />
+                 Foreground="{DynamicResource HintTextBrush}" />
     </StackPanel>
 
     <!-- 设置内容 -->
     <ScrollViewer x:Name="SettingsScroller"
-                  Grid.Row="1"
-                  ScrollChanged="OnSettingsScrollChanged">
+                  Grid.Row="1">
       <StackPanel x:Name="CardsStack" Spacing="20">
 
         <!-- ==================== 游戏设置 ==================== -->
         <Border x:Name="CardGame" Classes="card">
           <Grid>
-            <Border Classes="accent-bar" Background="{StaticResource AccentBrush}" />
+            <Border Classes="accent-bar" Background="{DynamicResource AccentBrush}" />
             <StackPanel Margin="28,22" Spacing="22">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
@@ -83,10 +81,10 @@
                         CornerRadius="8"
                         FontSize="12"
                         FontWeight="SemiBold"
-                        Background="{StaticResource ButtonBgBrush}"
-                        BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                        Background="{DynamicResource ButtonBgBrush}"
+                        BorderBrush="{DynamicResource EmphasizedBorderBrush}"
                         BorderThickness="1"
-                        Foreground="{StaticResource LinkTextColor}"
+                        Foreground="{DynamicResource LinkTextColor}"
                         Cursor="Hand"
                         VerticalAlignment="Center"
                         Click="OnOpenInstanceManagerClick" />
@@ -98,13 +96,13 @@
                             Content="版本隔离"
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Foreground="{DynamicResource SecondaryTextBrush}"
                             IsCheckedChanged="OnVersionSeparateChanged" />
                   <TextBlock Text="开启后新实例默认使用独立内容目录（存档、Mod、资源包、光影等各自隔离）"
                              Classes="hint" Margin="26,0,0,0" />
                   <TextBlock x:Name="VersionSeparateHintText"
                              FontSize="11"
-                             Foreground="{StaticResource AccentTextColor}"
+                             Foreground="{DynamicResource AccentTextColor}"
                              TextWrapping="Wrap"
                              Margin="26,0,0,0" />
                 </StackPanel>
@@ -116,7 +114,7 @@
                             Content="启动前校验文件完整性"
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Foreground="{DynamicResource SecondaryTextBrush}"
                             IsCheckedChanged="OnVerifyFilesChanged" />
                   <TextBlock Text="每次启动游戏前检查关键文件是否齐全，缺失时自动补全下载"
                              Classes="hint" Margin="26,0,0,0" />
@@ -128,7 +126,7 @@
                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                   <ComboBox x:Name="GameDirectorySelector"
                             PlaceholderText="选择 Minecraft 游戏目录"
-                            Background="{StaticResource ControlBgBrush}"
+                            Background="{DynamicResource ControlBgBrush}"
                             BorderThickness="0"
                             CornerRadius="8"
                             Padding="12,6"
@@ -140,8 +138,8 @@
                           Padding="14,6"
                           CornerRadius="8"
                           FontSize="12"
-                          Background="{StaticResource ButtonBgBrush}"
-                          BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                          Background="{DynamicResource ButtonBgBrush}"
+                          BorderBrush="{DynamicResource EmphasizedBorderBrush}"
                           BorderThickness="1"
                           Click="OnAddGameDirectoryClick" />
                   <Button Grid.Column="2"
@@ -161,16 +159,16 @@
                     <TextBlock x:Name="MemoryRangeText"
                                Text="系统总内存"
                                FontSize="11"
-                               Foreground="{StaticResource HintTextBrush}"
+                               Foreground="{DynamicResource HintTextBrush}"
                                VerticalAlignment="Center" />
-                    <Border Background="{StaticResource BadgeBgBrush}"
+                    <Border Background="{DynamicResource BadgeBgBrush}"
                             CornerRadius="6"
                             Padding="10,3">
                       <TextBlock x:Name="MaximumMemoryValueText"
                                  Text="4096 MiB"
                                  FontSize="13"
                                  FontWeight="Bold"
-                                 Foreground="{StaticResource AccentTextColor}" />
+                                 Foreground="{DynamicResource AccentTextColor}" />
                     </Border>
                   </StackPanel>
                 </Grid>
@@ -184,7 +182,7 @@
                 <CheckBox x:Name="AutomaticMemoryCheckBox"
                           Content="启动时根据可用内存自动调整"
                           FontSize="12"
-                          Foreground="{StaticResource BodyTextBrush}"
+                          Foreground="{DynamicResource BodyTextBrush}"
                           IsCheckedChanged="OnAutomaticMemoryChanged" />
                 <TextBlock x:Name="AutomaticMemoryHintText" Classes="hint" />
               </StackPanel>
@@ -195,7 +193,7 @@
         <!-- ==================== Java 设置 ==================== -->
         <Border x:Name="CardJava" Classes="card">
           <Grid>
-            <Border Classes="accent-bar" Background="{StaticResource AccentDarkerBrush}" />
+            <Border Classes="accent-bar" Background="{DynamicResource AccentDarkerBrush}" />
             <StackPanel Margin="28,22" Spacing="22">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
@@ -208,10 +206,10 @@
                         CornerRadius="8"
                         FontSize="12"
                         FontWeight="SemiBold"
-                        Background="{StaticResource ButtonBgBrush}"
-                        BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                        Background="{DynamicResource ButtonBgBrush}"
+                        BorderBrush="{DynamicResource EmphasizedBorderBrush}"
                         BorderThickness="1"
-                        Foreground="{StaticResource LinkTextColor}"
+                        Foreground="{DynamicResource LinkTextColor}"
                         Cursor="Hand"
                         Click="OnAutoDetectJavaClick" />
               </Grid>
@@ -223,7 +221,7 @@
                            Classes="hint" />
                 <TextBox x:Name="JavaPathBox"
                          PlaceholderText="自动检测"
-                         Background="{StaticResource ControlBgBrush}"
+                         Background="{DynamicResource ControlBgBrush}"
                          BorderThickness="0"
                          CornerRadius="8"
                          Padding="12,8"
@@ -238,7 +236,7 @@
                            Classes="hint" />
                 <TextBox x:Name="JvmArgsBox"
                          PlaceholderText="-XX:+UseG1GC&#x0a;-XX:MaxGCPauseMillis=50"
-                         Background="{StaticResource ControlBgBrush}"
+                         Background="{DynamicResource ControlBgBrush}"
                          BorderThickness="0"
                          CornerRadius="8"
                          Padding="12,8"
@@ -254,8 +252,8 @@
                       CornerRadius="8"
                       FontSize="13"
                       FontWeight="SemiBold"
-                      Background="{StaticResource SystemAccentColor}"
-                      Foreground="{StaticResource WhiteBrush}"
+                      Background="{DynamicResource SystemAccentColor}"
+                      Foreground="{DynamicResource WhiteBrush}"
                       HorizontalAlignment="Left"
                       Click="OnSaveJavaSettingsClick" />
             </StackPanel>
@@ -265,7 +263,7 @@
         <!-- ==================== 下载设置 ==================== -->
         <Border x:Name="CardDownload" Classes="card">
           <Grid>
-            <Border Classes="accent-bar" Background="{StaticResource AccentDeepBrush}" />
+            <Border Classes="accent-bar" Background="{DynamicResource AccentDeepBrush}" />
             <StackPanel Margin="28,22" Spacing="22">
               <StackPanel Spacing="2">
                 <TextBlock Text="下载设置" Classes="card-title" />
@@ -275,7 +273,7 @@
               <StackPanel Spacing="6">
                 <TextBlock Text="下载源" Classes="field-label" />
                 <ComboBox x:Name="DownloadSourceComboBox"
-                          Background="{StaticResource ControlBgBrush}"
+                          Background="{DynamicResource ControlBgBrush}"
                           BorderThickness="0"
                           CornerRadius="8"
                           Padding="12,6"
@@ -289,14 +287,14 @@
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Text="并行下载线程数" Classes="field-label" />
                   <Border Grid.Column="1"
-                          Background="{StaticResource BadgeBgBrush}"
+                          Background="{DynamicResource BadgeBgBrush}"
                           CornerRadius="6"
                           Padding="10,3">
                     <TextBlock x:Name="ParallelDownloadsText"
                                Text="8"
                                FontSize="13"
                                FontWeight="Bold"
-                               Foreground="{StaticResource AccentTextColor}" />
+                               Foreground="{DynamicResource AccentTextColor}" />
                   </Border>
                 </Grid>
                 <Slider x:Name="ParallelDownloadsSlider"
@@ -315,7 +313,7 @@
         <!-- ==================== 启动器设置 ==================== -->
         <Border x:Name="CardLauncher" Classes="card">
           <Grid>
-            <Border Classes="accent-bar" Background="{StaticResource MutedTextBrush}" />
+            <Border Classes="accent-bar" Background="{DynamicResource MutedTextBrush}" />
             <StackPanel Margin="28,22" Spacing="22">
               <StackPanel Spacing="2">
                 <TextBlock Text="启动器设置" Classes="card-title" />
@@ -325,12 +323,12 @@
               <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" RowSpacing="12">
                 <TextBlock Text="主题风格"
                            FontSize="14"
-                           Foreground="{StaticResource BodyTextBrush}"
+                           Foreground="{DynamicResource BodyTextBrush}"
                            VerticalAlignment="Center" />
                 <ComboBox x:Name="ThemeFamilyComboBox"
                           Grid.Column="1"
                           PlaceholderText="初音未来"
-                          Background="{StaticResource ControlBgBrush}"
+                          Background="{DynamicResource ControlBgBrush}"
                           BorderThickness="0"
                           CornerRadius="8"
                           SelectionChanged="OnThemeFamilyChanged"
@@ -340,13 +338,13 @@
                 <TextBlock Text="明暗模式"
                            Grid.Row="1"
                            FontSize="14"
-                           Foreground="{StaticResource BodyTextBrush}"
+                           Foreground="{DynamicResource BodyTextBrush}"
                            VerticalAlignment="Center" />
                 <ComboBox x:Name="ThemeModeComboBox"
                           Grid.Row="1"
                           Grid.Column="1"
                           PlaceholderText="暗色"
-                          Background="{StaticResource ControlBgBrush}"
+                          Background="{DynamicResource ControlBgBrush}"
                           BorderThickness="0"
                           CornerRadius="8"
                           SelectionChanged="OnThemeModeChanged"
@@ -355,9 +353,9 @@
                           FontSize="13" />
               </Grid>
               <Border Classes="sub-card">
-                <TextBlock Text="选择后可能需要重启才能生效。"
+                <TextBlock Text="选择后立即生效，并自动保存。"
                            FontSize="11"
-                           Foreground="{StaticResource MutedTextBrush}" />
+                           Foreground="{DynamicResource MutedTextBrush}" />
               </Border>
             </StackPanel>
           </Grid>
@@ -366,7 +364,7 @@
         <!-- ==================== 账户管理入口 ==================== -->
         <Border x:Name="CardAccount" Classes="card">
           <Grid>
-            <Border Classes="accent-bar" Background="{StaticResource SuccessBrush}" />
+            <Border Classes="accent-bar" Background="{DynamicResource SuccessBrush}" />
             <Grid Margin="28,22" ColumnDefinitions="*,Auto">
               <StackPanel Spacing="4" VerticalAlignment="Center">
                 <TextBlock Text="账户管理" Classes="card-title" />
@@ -374,8 +372,8 @@
               </StackPanel>
               <Button Grid.Column="1"
                       Content="打开账户管理"
-                      Background="{StaticResource SystemAccentColor}"
-                      Foreground="{StaticResource WhiteBrush}"
+                      Background="{DynamicResource SystemAccentColor}"
+                      Foreground="{DynamicResource WhiteBrush}"
                       CornerRadius="8"
                       Padding="18,9"
                       FontSize="13"

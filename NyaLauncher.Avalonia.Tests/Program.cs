@@ -6,6 +6,7 @@ using System.Text;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Controls;
+using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Plugin.Abstractions.Components;
 using NyaLauncher.Plugin.Abstractions.Plugins;
 
@@ -41,6 +42,7 @@ internal static class Program
             ("Repository preview release installation", TestRepositoryPreviewInstallAsync),
             ("Repository install uses canonical release", TestCanonicalRepositoryReleaseAsync),
             ("Plugin components start in library", TestPluginComponentsStartInLibraryAsync),
+            ("Theme resources reload in place", TestThemeResourceHotReloadAsync),
             ("Polygon component host theme inheritance", TestPolygonComponentThemeInheritanceAsync),
             ("Plugin area removal persists", TestPluginAreaRemovalAsync),
             ("All workspace areas can be removed", TestAllWorkspaceAreasCanBeRemovedAsync),
@@ -104,6 +106,49 @@ internal static class Program
             registry.Areas.Single(area => area.Id == "area-001").Actions.Any(action =>
                 action.Id == "io.github.touristh.clock/digital-clock"),
             "placed plugin component appears in the chosen workspace");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestThemeResourceHotReloadAsync()
+    {
+        var mergeResources = typeof(StyleAlter).GetMethod(
+            "MergeResources",
+            System.Reflection.BindingFlags.NonPublic |
+            System.Reflection.BindingFlags.Static);
+        Assert(mergeResources is not null, "theme merge helper remains available");
+
+        var oldColor = global::Avalonia.Media.Color.Parse("#112233");
+        var newColor = global::Avalonia.Media.Color.Parse("#778899");
+        var retainedBrush = new global::Avalonia.Media.SolidColorBrush(oldColor)
+        {
+            Opacity = 0.4
+        };
+        var target = new global::Avalonia.Controls.ResourceDictionary
+        {
+            ["AccentBrush"] = retainedBrush,
+            ["AccentColor"] = oldColor
+        };
+        var source = new global::Avalonia.Controls.ResourceDictionary
+        {
+            ["AccentBrush"] = new global::Avalonia.Media.SolidColorBrush(newColor)
+            {
+                Opacity = 0.75
+            },
+            ["AccentColor"] = newColor
+        };
+
+        mergeResources!.Invoke(null, [target, source]);
+
+        Assert(
+            ReferenceEquals(target["AccentBrush"], retainedBrush),
+            "existing brush identity is retained for StaticResource consumers");
+        Assert(retainedBrush.Color == newColor, "existing brush receives the new theme color");
+        Assert(
+            Math.Abs(retainedBrush.Opacity - 0.75) < 0.001,
+            "existing brush receives the new theme opacity");
+        Assert(
+            target["AccentColor"] is global::Avalonia.Media.Color color && color == newColor,
+            "non-brush resources are replaced for DynamicResource consumers");
         return Task.CompletedTask;
     }
 
@@ -171,6 +216,25 @@ internal static class Program
         Assert(
             ReferenceEquals(inheritedTarget.Background, secondHostSurface),
             "inherited surface follows host resource changes");
+
+        var semanticTarget = new global::Avalonia.Controls.Border();
+        applyThemeBrush.Invoke(
+            null,
+            [
+                semanticTarget,
+                global::Avalonia.Controls.Border.BackgroundProperty,
+                "$theme:AccentBrush",
+                "ComponentBgBrush",
+                "#1B2822"
+            ]);
+        semanticTarget.Resources["AccentBrush"] = firstHostSurface;
+        Assert(
+            ReferenceEquals(semanticTarget.Background, firstHostSurface),
+            "built-in semantic override resolves its requested host resource");
+        semanticTarget.Resources["AccentBrush"] = secondHostSurface;
+        Assert(
+            ReferenceEquals(semanticTarget.Background, secondHostSurface),
+            "built-in semantic override follows host theme changes");
 
         var customizedTarget = new global::Avalonia.Controls.Border();
         applyThemeBrush.Invoke(

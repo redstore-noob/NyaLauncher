@@ -5,7 +5,7 @@
 
 | 适用项 | 当前值 |
 | --- | --- |
-| SDK | `NyaLauncher.Plugin.Abstractions` `0.1.1-ppre.1` |
+| SDK | `NyaLauncher.Plugin.Abstractions` `0.1.0-ppre2` |
 | 目标框架 | `.NET 10` / `net10.0` |
 | CLR 程序集版本 | `1.0.0.0`（API v1 内保持稳定） |
 | 运行时清单 | `manifestVersion: 1` |

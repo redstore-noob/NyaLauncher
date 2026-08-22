@@ -7,14 +7,14 @@
         SizeToContent="Height"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="{StaticResource BaseBgBrush}"
+        Background="{DynamicResource BaseBgBrush}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,Auto,Auto" Margin="28">
 
     <!-- 标题区：Mod 信息 -->
     <Grid ColumnDefinitions="52,*,Auto" ColumnSpacing="14">
       <Border Width="52" Height="52" CornerRadius="10"
-              Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+              Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
         <Grid>
           <Image Source="avares://NyaLauncher.Avalonia/Resources/Icons/ic_fluent_app_store_24_filled.png"
                  Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -23,17 +23,17 @@
       </Border>
       <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
         <TextBlock x:Name="ModTitle" FontSize="16" FontWeight="Bold"
-                   Foreground="{StaticResource PrimaryTextBrush}"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
                    TextTrimming="CharacterEllipsis" />
         <TextBlock x:Name="ModDescription" FontSize="11"
-                   Foreground="{StaticResource HintTextBrush}"
+                   Foreground="{DynamicResource HintTextBrush}"
                    TextTrimming="CharacterEllipsis" MaxLines="2" />
       </StackPanel>
       <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
         <TextBlock x:Name="ModDownloads" FontSize="11"
-                   Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right" />
+                   Foreground="{DynamicResource MutedTextBrush}" HorizontalAlignment="Right" />
         <TextBlock x:Name="ModFollows" FontSize="11"
-                   Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
+                   Foreground="{DynamicResource DisabledTextBrush}" HorizontalAlignment="Right" />
       </StackPanel>
     </Grid>
 
@@ -43,10 +43,10 @@
       <!-- MC 版本 -->
       <StackPanel Spacing="4">
         <TextBlock Text="Minecraft 版本" FontSize="13" FontWeight="SemiBold"
-                   Foreground="{StaticResource SecondaryTextBrush}" />
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
         <ComboBox x:Name="GameVersionBox"
                   PlaceholderText="选择 Minecraft 版本"
-                  Background="{StaticResource ControlBgBrush}"
+                  Background="{DynamicResource ControlBgBrush}"
                   BorderThickness="0" CornerRadius="8" Padding="12,6"
                   HorizontalAlignment="Stretch" FontSize="13"
                   SelectionChanged="OnGameVersionChanged" />
@@ -54,64 +54,64 @@
 
       <!-- Fabric API 选项 -->
       <Border x:Name="FabricApiPanel" IsVisible="False"
-              Background="{StaticResource CardBgBrush}" CornerRadius="10"
+              Background="{DynamicResource CardBgBrush}" CornerRadius="10"
               Padding="16,12">
         <StackPanel Spacing="4">
           <CheckBox x:Name="FabricApiCheckBox"
                     Content="同时安装 Fabric API"
                     FontSize="13" FontWeight="SemiBold"
-                    Foreground="{StaticResource SecondaryTextBrush}"
+                    Foreground="{DynamicResource SecondaryTextBrush}"
                     IsChecked="True" />
           <TextBlock Text="Fabric API 是大多数 Fabric Mod 的前置依赖。"
-                     FontSize="11" Foreground="{StaticResource HintTextBrush}" />
+                     FontSize="11" Foreground="{DynamicResource HintTextBrush}" />
         </StackPanel>
       </Border>
 
       <!-- Mod 版本列表 -->
       <StackPanel Spacing="4">
         <TextBlock Text="Mod 版本" FontSize="13" FontWeight="SemiBold"
-                   Foreground="{StaticResource SecondaryTextBrush}" />
-        <Border Background="{StaticResource CardBgBrush}" CornerRadius="10"
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
+        <Border Background="{DynamicResource CardBgBrush}" CornerRadius="10"
                 MaxHeight="220">
           <ListBox x:Name="ModVersionList"
-                   Background="{StaticResource TransparentBrush}"
+                   Background="{DynamicResource TransparentBrush}"
                    BorderThickness="0"
                    SelectionChanged="OnModVersionSelected" />
         </Border>
         <TextBlock x:Name="ModVersionHint" FontSize="11"
-                   Foreground="{StaticResource HintTextBrush}" />
+                   Foreground="{DynamicResource HintTextBrush}" />
       </StackPanel>
 
       <!-- 选中版本详情 -->
       <Border x:Name="SelectedVersionPanel" IsVisible="False"
-              Background="{StaticResource CardBgBrush}" CornerRadius="10"
+              Background="{DynamicResource CardBgBrush}" CornerRadius="10"
               Padding="16,12">
         <StackPanel Spacing="6">
           <TextBlock x:Name="SelectedVersionInfo" FontSize="13"
-                     Foreground="{StaticResource BodyTextBrush}"
+                     Foreground="{DynamicResource BodyTextBrush}"
                      TextWrapping="Wrap" />
           <TextBlock x:Name="ChangelogText" FontSize="11"
-                     Foreground="{StaticResource HintTextBrush}"
+                     Foreground="{DynamicResource HintTextBrush}"
                      TextWrapping="Wrap" MaxLines="4" />
         </StackPanel>
       </Border>
 
       <!-- 前置依赖提示 -->
       <Border x:Name="DependencyPanel" IsVisible="False"
-              Background="{StaticResource CardBgBrush}" CornerRadius="10"
+              Background="{DynamicResource CardBgBrush}" CornerRadius="10"
               Padding="16,12">
         <StackPanel Spacing="6">
           <TextBlock Text="⚠ 此 Mod 有前置依赖" FontSize="13" FontWeight="SemiBold"
-                     Foreground="{StaticResource WarningBrush}" />
+                     Foreground="{DynamicResource WarningBrush}" />
           <TextBlock x:Name="DependencyList" FontSize="12"
-                     Foreground="{StaticResource BodyTextBrush}"
+                     Foreground="{DynamicResource BodyTextBrush}"
                      TextWrapping="Wrap" />
         </StackPanel>
       </Border>
 
       <!-- 状态 -->
       <TextBlock x:Name="StatusText" FontSize="12"
-                 Foreground="{StaticResource ErrorBrush}"
+                 Foreground="{DynamicResource ErrorBrush}"
                  TextWrapping="Wrap" IsVisible="False" />
     </StackPanel>
 
@@ -123,8 +123,8 @@
       <Button Grid.Column="2" x:Name="DownloadButton"
               Content="下载" Padding="24,8"
               CornerRadius="8" FontSize="13" FontWeight="SemiBold"
-              Background="{StaticResource SystemAccentColor}"
-              Foreground="{StaticResource WhiteBrush}"
+              Background="{DynamicResource SystemAccentColor}"
+              Foreground="{DynamicResource WhiteBrush}"
               IsEnabled="False"
               Click="OnDownloadClick" />
     </Grid>

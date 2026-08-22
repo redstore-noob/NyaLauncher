@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Models;
@@ -240,7 +241,7 @@ public partial class ModDetailDialog : Window
 
         DownloadButton.IsEnabled = false;
         StatusText.Text = $"正在下载 {file.Filename}…";
-        StatusText.Foreground = Brushes.Gray;
+        StatusText.Foreground = ThemeBrushes.Muted;
         StatusText.IsVisible = true;
 
         _downloadCts?.Cancel();
@@ -259,7 +260,7 @@ public partial class ModDetailDialog : Window
             });
             await ModDownloadService.DownloadAsync(file.Url, savePath, progressBar, ct);
             StatusText.Text = $"下载完成：{savePath}";
-            StatusText.Foreground = Brushes.Green;
+            StatusText.Foreground = ThemeBrushes.Success;
 
             // Fabric API 自动安装
             if (FabricApiPanel.IsVisible &&
@@ -273,13 +274,13 @@ public partial class ModDetailDialog : Window
         catch (OperationCanceledException)
         {
             StatusText.Text = "下载已取消。";
-            StatusText.Foreground = Brushes.Gray;
+            StatusText.Foreground = ThemeBrushes.Muted;
             DownloadButton.IsEnabled = true;
         }
         catch (Exception ex)
         {
             StatusText.Text = $"下载失败：{ex.Message}";
-            StatusText.Foreground = Brushes.Red;
+            StatusText.Foreground = ThemeBrushes.Error;
             DownloadButton.IsEnabled = true;
         }
     }

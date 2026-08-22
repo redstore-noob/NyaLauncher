@@ -345,20 +345,20 @@ AccentBright    →  最亮
 
 ```xml
 <Style Selector="TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource BodyTextBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}"/>
 </Style>
 <Style Selector="Window">
-    <Setter Property="Background" Value="{StaticResource WindowBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource WindowBgBrush}"/>
 </Style>
 <Style Selector="Button">
-    <Setter Property="Background" Value="{StaticResource 主题按钮色}"/>
-    <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource 主题按钮色}"/>
+    <Setter Property="Background" Value="{DynamicResource 主题按钮色}"/>
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource 主题按钮色}"/>
 </Style>
 <Style Selector="TextBox">
-    <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
-    <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource MediumBorderBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ControlBgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource MediumBorderBrush}"/>
 </Style>
 ```
 
@@ -370,7 +370,7 @@ AccentBright    →  最亮
 
 ## 页面内自定义样式（SettingsPage 示例）
 
-设置页使用 `UserControl.Styles` 定义了页面级的样式类，新主题会自动继承这些类的颜色，因为它们全部引用 `{StaticResource ...Brush}`。
+设置页使用 `UserControl.Styles` 定义了页面级的样式类，新主题会自动继承并热更新这些类的颜色，因为它们全部引用 `{DynamicResource ...Brush}`。
 
 | Style Selector | 用途 |
 |---|---|

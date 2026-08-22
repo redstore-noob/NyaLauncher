@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using Avalonia.Styling;
 
 namespace NyaLauncher.Avalonia.Themes;
@@ -56,6 +57,9 @@ public class StyleAlter
             }
         }
 
+        // FluentTheme 的标准控件与自定义资源使用同一套明暗模式。
+        // 放在资源合并完成后切换，避免界面短暂显示新模式配旧配色。
+        app.RequestedThemeVariant = variant;
         ThemeChanged?.Invoke();
     }
 
@@ -71,13 +75,46 @@ public class StyleAlter
         if (dict.ThemeDictionaries.TryGetValue(variant, out var provider) &&
             provider is ResourceDictionary variantDict)
         {
-            foreach (var entry in variantDict)
-                app.Resources[entry.Key] = entry.Value;
+            MergeResources(app.Resources, variantDict);
         }
         else
         {
-            foreach (var entry in dict)
-                app.Resources[entry.Key] = entry.Value;
+            MergeResources(app.Resources, dict);
+        }
+    }
+
+    /// <summary>
+    /// 将新主题合并到应用资源。已有画笔会原位改色，让通过 StaticResource
+    /// 或代码持有该画笔的现有控件也能立即刷新；其他资源则正常替换，供
+    /// DynamicResource 与后续创建的控件使用。
+    /// </summary>
+    private static void MergeResources(IResourceDictionary target, ResourceDictionary source)
+    {
+        foreach (var entry in source)
+        {
+            if (entry.Value is ISolidColorBrush incomingBrush)
+            {
+                if (target.TryGetValue(entry.Key, out var current) &&
+                    current is SolidColorBrush currentBrush)
+                {
+                    currentBrush.Color = incomingBrush.Color;
+                    currentBrush.Opacity = incomingBrush.Opacity;
+                    // 重新写入同一对象以广播资源变更，同时保留被代码或旧
+                    // StaticResource 持有的画笔身份。
+                    target[entry.Key] = currentBrush;
+                }
+                else
+                {
+                    target[entry.Key] = new SolidColorBrush(incomingBrush.Color)
+                    {
+                        Opacity = incomingBrush.Opacity
+                    };
+                }
+
+                continue;
+            }
+
+            target[entry.Key] = entry.Value;
         }
     }
 }

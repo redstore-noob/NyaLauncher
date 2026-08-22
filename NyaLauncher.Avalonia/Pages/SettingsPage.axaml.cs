@@ -1,14 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Config;
@@ -28,7 +25,8 @@ public partial class SettingsPage : UserControl
     {
         { "HatsuneMiku", "初音未来" },
         { "DeepSeekPurple", "DeepSeek紫" },
-        { "ZhiShuBlue", "植树蓝" }
+        { "ZhiShuBlue", "植树蓝" },
+        { "CodexBlue", "Codex蓝" }
     };
     private readonly Dictionary<string, string> _themeModes = new()
     {
@@ -52,37 +50,6 @@ public partial class SettingsPage : UserControl
         ReloadJavaSettings();
         ReloadDownloadSettings();
         InitializeThemeSettings();
-    }
-
-    // ------------------------------------------------------------------
-    // 滚动焦点效果：视口中心的卡片略微放大，边缘的卡片缩小
-    // ------------------------------------------------------------------
-
-    private Border[]? _cards;
-
-    private void OnSettingsScrollChanged(object? sender, ScrollChangedEventArgs e)
-    {
-        _cards ??= [CardGame, CardDownload, CardLauncher, CardAccount];
-
-        var scroller = SettingsScroller;
-        if (scroller is null) return;
-
-        var viewportCenter = scroller.Offset.Y + scroller.Viewport.Height / 2.0;
-
-        foreach (var card in _cards)
-        {
-            // 卡片在滚动容器中的垂直中心位置
-            var cardTop = card.Bounds.Top;
-            var cardCenter = cardTop + card.Bounds.Height / 2.0;
-            var distance = Math.Abs(cardCenter - viewportCenter);
-
-            // 距离越近越大，最大 1.0，最小 0.92
-            var maxDistance = scroller.Viewport.Height * 0.6;
-            var t = Math.Clamp(distance / maxDistance, 0, 1);
-            var scale = 1.0 - 0.08 * t;
-
-            card.RenderTransform = new ScaleTransform(scale, scale);
-        }
     }
 
     public void ReloadMemorySettings()
@@ -506,7 +473,7 @@ public partial class SettingsPage : UserControl
         if (ThemeFamilyComboBox.SelectedItem is ComboBoxItem item && item.Tag?.ToString() is string family)
         {
             ThemeSettings.SaveThemeFamily(family);
-            RestartApplication();
+            StyleAlter.ApplyTheme(family, ThemeSettings.LoadThemeMode());
         }
     }
 
@@ -516,42 +483,7 @@ public partial class SettingsPage : UserControl
         if (ThemeModeComboBox.SelectedItem is ComboBoxItem item && item.Tag?.ToString() is string mode)
         {
             ThemeSettings.SaveThemeMode(mode);
-            RestartApplication();
-        }
-    }
-
-    private static void RestartApplication()
-    {
-        try
-        {
-            var exe = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(exe))
-                return;
-
-            var psi = new ProcessStartInfo
-            {
-                WorkingDirectory = Environment.CurrentDirectory,
-                UseShellExecute = false
-            };
-
-            if (Path.GetFileNameWithoutExtension(exe) is "dotnet" or "dotnet.exe")
-            {
-                var dll = System.Reflection.Assembly.GetEntryAssembly()?.Location;
-                if (string.IsNullOrWhiteSpace(dll))
-                    return;
-                psi.FileName = exe;
-                psi.Arguments = $"\"{dll}\"";
-            }
-            else
-            {
-                psi.FileName = exe;
-            }
-
-            Process.Start(psi);
-            Environment.Exit(0);
-        }
-        catch
-        {
+            StyleAlter.ApplyTheme(ThemeSettings.LoadThemeFamily(), mode);
         }
     }
 }

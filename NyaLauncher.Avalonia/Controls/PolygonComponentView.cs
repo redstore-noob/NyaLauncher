@@ -34,6 +34,8 @@ public enum PolygonComponentVisualState
 /// </summary>
 public sealed class PolygonComponentView : UserControl
 {
+    private const string HostThemeResourcePrefix = "$theme:";
+
     private readonly PolygonComponentDefinition _definition;
     private readonly IPolygonComponentInstance? _instance;
     private readonly ComponentStateSnapshotter _stateSnapshotter;
@@ -1358,7 +1360,8 @@ public sealed class PolygonComponentView : UserControl
     /// <summary>
     /// Uses a valid plugin override as a fixed value. Empty or invalid overrides
     /// bind to a launcher semantic resource so existing views update in place
-    /// when the active host theme changes.
+    /// when the active host theme changes. Built-in components can explicitly
+    /// select another semantic slot with the internal "$theme:ResourceKey" form.
     /// </summary>
     private static void ApplyThemeBrush(
         StyledElement target,
@@ -1367,6 +1370,16 @@ public sealed class PolygonComponentView : UserControl
         string resourceKey,
         string fallback)
     {
+        if (customValue?.StartsWith(
+                HostThemeResourcePrefix,
+                StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var requestedResourceKey = customValue[HostThemeResourcePrefix.Length..].Trim();
+            if (!string.IsNullOrWhiteSpace(requestedResourceKey))
+                resourceKey = requestedResourceKey;
+            customValue = null;
+        }
+
         if (!string.IsNullOrWhiteSpace(customValue))
         {
             try

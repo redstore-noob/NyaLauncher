@@ -13,13 +13,7 @@ namespace NyaLauncher.Avalonia.Themes;
 /// </summary>
 internal static class ThemePolygonHelper
 {
-    private static string GetColor(string key, string fallback)
-    {
-        var app = Application.Current;
-        if (app?.Resources.TryGetValue(key, out var value) == true && value is Color color)
-            return color.ToString();
-        return fallback;
-    }
+    private const string HostResourcePrefix = "$theme:";
 
     private static IBrush GetBrush(string key, string fallback)
     {
@@ -29,33 +23,24 @@ internal static class ThemePolygonHelper
         return Brush.Parse(fallback);
     }
 
-    public static PolygonComponentTheme CreateDefaultTheme() => new()
-    {
-        Surface = GetColor("SurfaceBgColor", "#192520"),
-        SurfaceHover = GetColor("HighlightBgColor", "#1B2822"),
-        Border = GetColor("StrongBorderColor", "#2C3E35"),
-        BorderHover = GetColor("AccentColor", "#3EC9A0"),
-        TextPrimary = GetColor("PrimaryTextColor", "#F6F7FF"),
-        TextSecondary = GetColor("TertiaryTextColor", "#A5AEC7"),
-        Accent = GetColor("AccentColor", "#3EC9A0"),
-        AccentForeground = GetColor("WhiteColor", "#FFFFFF"),
-        ProgressTrack = GetColor("MediumBorderColor", "#273830")
-    };
+    public static PolygonComponentTheme CreateDefaultTheme() =>
+        PolygonComponentTheme.InheritHost;
 
     /// <summary>
     /// 创建启动按钮专用主题（强调底+白字），颜色从当前主题的标准强调色梯度读取。
     /// </summary>
-    public static PolygonComponentTheme CreateLaunchTheme() => new()
+    public static PolygonComponentTheme CreateLaunchTheme() =>
+        PolygonComponentTheme.InheritHost with
     {
-        Surface = GetColor("AccentColor", "#3EC9A0"),
-        SurfaceHover = GetColor("AccentLightColor", "#5CDCBA"),
-        Border = GetColor("AccentBrightColor", "#60E2C0"),
-        BorderHover = GetColor("AccentBrightColor", "#60E2C0"),
-        TextPrimary = GetColor("WhiteColor", "#FFFFFF"),
-        TextSecondary = GetColor("TertiaryTextColor", "#D6E6DE"),
-        Accent = GetColor("WhiteColor", "#FFFFFF"),
-        AccentForeground = GetColor("AccentDeepDarkColor", "#1E8868"),
-        ProgressTrack = GetColor("AccentDeepColor", "#28A07A"),
+        Surface = $"{HostResourcePrefix}AccentBrush",
+        SurfaceHover = $"{HostResourcePrefix}AccentLightBrush",
+        Border = $"{HostResourcePrefix}AccentBrightBrush",
+        BorderHover = $"{HostResourcePrefix}AccentBrightBrush",
+        TextPrimary = $"{HostResourcePrefix}WhiteBrush",
+        TextSecondary = $"{HostResourcePrefix}TertiaryTextBrush",
+        Accent = $"{HostResourcePrefix}WhiteBrush",
+        AccentForeground = $"{HostResourcePrefix}AccentDeepDarkBrush",
+        ProgressTrack = $"{HostResourcePrefix}AccentDeepBrush",
         BorderThickness = 1.5
     };
 

@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="NyaLauncher.Avalonia.Pages.SettingsHubPage"
-             Background="{StaticResource WindowBgBrush}">
+             Background="{DynamicResource WindowBgBrush}">
   <UserControl.Styles>
   </UserControl.Styles>
 
@@ -9,8 +9,8 @@
 
     <!-- 顶部标题栏 -->
     <Border Grid.Row="0"
-            Background="{StaticResource BaseBgBrush}"
-            BorderBrush="{StaticResource SubtleBorderBrush}"
+            Background="{DynamicResource BaseBgBrush}"
+            BorderBrush="{DynamicResource SubtleBorderBrush}"
             BorderThickness="0,0,0,1"
             Padding="28,15,28,12">
       <Grid ColumnDefinitions="*,Auto">
@@ -18,10 +18,10 @@
           <TextBlock Text="设置"
                      FontSize="21"
                      FontWeight="Bold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
           <TextBlock Text="启动器配置、运行环境与工作区个性化"
                      FontSize="11"
-                     Foreground="{StaticResource HintTextBrush}" />
+                     Foreground="{DynamicResource HintTextBrush}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -30,21 +30,21 @@
     <Grid Grid.Row="1" ColumnDefinitions="220,*">
 
       <!-- 左侧标签栏 -->
-      <Border Background="{StaticResource BaseBgBrush}"
-              BorderBrush="{StaticResource SubtleBorderBrush}"
+      <Border Background="{DynamicResource BaseBgBrush}"
+              BorderBrush="{DynamicResource SubtleBorderBrush}"
               BorderThickness="0,0,1,0">
         <StackPanel Spacing="0">
           <!-- 搜索 / 标签标题 -->
           <TextBlock Text="分类"
                      FontSize="10"
                      FontWeight="Bold"
-                     Foreground="{StaticResource DisabledTextBrush}"
+                     Foreground="{DynamicResource DisabledTextBrush}"
                      Margin="20,16,20,10"
                      LetterSpacing="1" />
 
           <!-- 游戏设置 -->
           <Border x:Name="TabGame"
-                  Background="{StaticResource TransparentBrush}"
+                  Background="{DynamicResource TransparentBrush}"
                   CornerRadius="8"
                   Margin="8,2"
                   Padding="16,12"
@@ -57,18 +57,18 @@
                 <TextBlock Text="游戏设置"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource PrimaryTextBrush}"
+                           Foreground="{DynamicResource PrimaryTextBrush}"
                            VerticalAlignment="Center" />
               </StackPanel>
               <TextBlock Text="实例、目录与内存"
                          FontSize="10"
-                         Foreground="{StaticResource HintTextBrush}" />
+                         Foreground="{DynamicResource HintTextBrush}" />
             </StackPanel>
           </Border>
 
           <!-- 工作区设置 -->
           <Border x:Name="TabWorkspace"
-                  Background="{StaticResource TransparentBrush}"
+                  Background="{DynamicResource TransparentBrush}"
                   CornerRadius="8"
                   Margin="8,2"
                   Padding="16,12"
@@ -81,18 +81,18 @@
                 <TextBlock Text="工作区设置"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource SubtextTextBrush}"
+                           Foreground="{DynamicResource SubtextTextBrush}"
                            VerticalAlignment="Center" />
               </StackPanel>
               <TextBlock Text="布局、组件与个性化"
                          FontSize="10"
-                         Foreground="{StaticResource HintTextBrush}" />
+                         Foreground="{DynamicResource HintTextBrush}" />
             </StackPanel>
           </Border>
 
           <!-- 关于 -->
           <Border x:Name="TabAbout"
-                  Background="{StaticResource TransparentBrush}"
+                  Background="{DynamicResource TransparentBrush}"
                   CornerRadius="8"
                   Margin="8,2"
                   Padding="16,12"
@@ -105,12 +105,12 @@
                 <TextBlock Text="关于"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource SubtextTextBrush}"
+                           Foreground="{DynamicResource SubtextTextBrush}"
                            VerticalAlignment="Center" />
               </StackPanel>
               <TextBlock Text="团队、依赖与项目信息"
                          FontSize="10"
-                         Foreground="{StaticResource HintTextBrush}" />
+                         Foreground="{DynamicResource HintTextBrush}" />
             </StackPanel>
           </Border>
         </StackPanel>
@@ -119,7 +119,7 @@
       <!-- 右侧内容区 -->
       <Border Grid.Column="1"
               x:Name="ContentArea"
-              Background="{StaticResource WindowBgBrush}">
+              Background="{DynamicResource WindowBgBrush}">
         <Grid>
           <ContentControl x:Name="LegacySettingsHost" />
           <ContentControl x:Name="PersonalizationHost" IsVisible="False" />

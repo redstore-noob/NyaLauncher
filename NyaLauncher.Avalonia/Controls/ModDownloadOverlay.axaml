@@ -2,19 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="NyaLauncher.Avalonia.Controls.ModDownloadOverlay"
              IsVisible="False"
-             Background="#C0000000">
+             Background="{DynamicResource OverlayBgBrush}">
   <Grid ColumnDefinitions="240,*" HorizontalAlignment="Center" VerticalAlignment="Center"
         MaxWidth="700" MaxHeight="500">
-    <Border Background="{StaticResource PanelBgBrush}" CornerRadius="14,0,0,14"
+    <Border Background="{DynamicResource PanelBgBrush}" CornerRadius="14,0,0,14"
             Padding="16" ClipToBounds="True">
       <Grid RowDefinitions="Auto,*,Auto">
         <TextBlock Text="Minecraft 版本"
                    FontSize="14" FontWeight="SemiBold"
-                   Foreground="{StaticResource SecondaryTextBrush}"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
                    Margin="0,0,0,10" />
         <TextBox x:Name="VersionFilterBox"
                  PlaceholderText="筛选版本..."
-                 Background="{StaticResource ControlBgBrush}"
+                 Background="{DynamicResource ControlBgBrush}"
                  BorderThickness="0"
                  CornerRadius="8"
                  Padding="10,6"
@@ -23,20 +23,20 @@
                  TextChanged="OnVersionFilterChanged" />
         <ListBox x:Name="GameVersionList"
                  Grid.Row="1"
-                 Background="{StaticResource TransparentBrush}"
+                 Background="{DynamicResource TransparentBrush}"
                  BorderThickness="0"
                  SelectionChanged="OnGameVersionSelected" />
         <TextBlock x:Name="VersionCountText"
                    Grid.Row="2"
                    FontSize="11"
-                   Foreground="{StaticResource HintTextBrush}"
+                   Foreground="{DynamicResource HintTextBrush}"
                    Margin="0,8,0,0" />
       </Grid>
     </Border>
 
     <!-- 右侧：Loader 版本选择 -->
     <Border Grid.Column="1"
-            Background="{StaticResource BaseBgBrush}"
+            Background="{DynamicResource BaseBgBrush}"
             CornerRadius="0,14,14,0"
             Padding="20"
             ClipToBounds="True">
@@ -46,10 +46,10 @@
           <StackPanel Spacing="4">
             <TextBlock x:Name="ModTitleText"
                        FontSize="16" FontWeight="Bold"
-                       Foreground="{StaticResource PrimaryTextBrush}" />
+                       Foreground="{DynamicResource PrimaryTextBrush}" />
             <TextBlock x:Name="ModDescText"
                        FontSize="11"
-                       Foreground="{StaticResource HintTextBrush}"
+                       Foreground="{DynamicResource HintTextBrush}"
                        TextTrimming="CharacterEllipsis" MaxLines="1" />
           </StackPanel>
           <Button Grid.Column="1"
@@ -57,7 +57,7 @@
                   Padding="12,6"
                   CornerRadius="8"
                   FontSize="12"
-                  Background="{StaticResource ButtonBgBrush}"
+                  Background="{DynamicResource ButtonBgBrush}"
                   BorderThickness="0"
                   Click="OnCloseClick"
                   VerticalAlignment="Top" />
@@ -72,7 +72,7 @@
         <TextBlock x:Name="StatusText"
                    Grid.Row="2"
                    FontSize="12"
-                   Foreground="{StaticResource AccentTextColor}"
+                   Foreground="{DynamicResource AccentTextColor}"
                    Margin="0,12,0,0"
                    TextWrapping="Wrap" />
       </Grid>

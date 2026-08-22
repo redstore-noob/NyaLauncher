@@ -53,12 +53,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        // [诊断] 在标题栏显示当前主题，确认主题加载是否正确
-        var loadedTheme = Pages.ThemeSettings.LoadTheme();
-        var accent = Application.Current?.Resources.TryGetValue("AccentBrush", out var a) == true ? a : "null";
-        var bg = Application.Current?.Resources.TryGetValue("WindowBgBrush", out var b) == true ? b : "null";
-        Title = $"NyaLauncher [{loadedTheme}] Accent={accent} Bg={bg}";
-
         // 让 config.json 与 workspace.json 存放在同一目录（含自定义存储目录）。
         LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
         try { DownloadSettings.ApplySavedSettings(); }

@@ -6,7 +6,7 @@
         SizeToContent="Height"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="{StaticResource BaseBgBrush}"
+        Background="{DynamicResource BaseBgBrush}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,Auto,Auto" Margin="28">
 
@@ -15,10 +15,10 @@
       <TextBlock Text="下载 Minecraft"
                  FontSize="21"
                  FontWeight="Bold"
-                 Foreground="{StaticResource PrimaryTextBrush}" />
+                 Foreground="{DynamicResource PrimaryTextBrush}" />
       <TextBlock x:Name="VersionLabel"
                  FontSize="13"
-                 Foreground="{StaticResource MutedTextBrush}" />
+                 Foreground="{DynamicResource MutedTextBrush}" />
     </StackPanel>
 
     <!-- 选项区 -->
@@ -29,32 +29,32 @@
         <TextBlock Text="选择加载器"
                    FontSize="13"
                    FontWeight="SemiBold"
-                   Foreground="{StaticResource SecondaryTextBrush}" />
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
         <StackPanel Orientation="Horizontal" Spacing="8">
           <RadioButton x:Name="RadioVanilla"
                        Content="原版"
                        GroupName="Loader"
                        IsChecked="True"
                        IsCheckedChanged="OnLoaderTypeChanged"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        FontSize="13" />
           <RadioButton x:Name="RadioFabric"
                        Content="Fabric"
                        GroupName="Loader"
                        IsCheckedChanged="OnLoaderTypeChanged"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        FontSize="13" />
           <RadioButton x:Name="RadioNeoForge"
                        Content="NeoForge"
                        GroupName="Loader"
                        IsCheckedChanged="OnLoaderTypeChanged"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        FontSize="13" />
           <RadioButton x:Name="RadioForge"
                        Content="Forge"
                        GroupName="Loader"
                        IsCheckedChanged="OnLoaderTypeChanged"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        FontSize="13" />
         </StackPanel>
       </StackPanel>
@@ -64,10 +64,10 @@
         <TextBlock Text="加载器版本"
                    FontSize="13"
                    FontWeight="SemiBold"
-                   Foreground="{StaticResource SecondaryTextBrush}" />
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
         <ComboBox x:Name="LoaderVersionComboBox"
                   PlaceholderText="选择加载器版本"
-                  Background="{StaticResource ControlBgBrush}"
+                  Background="{DynamicResource ControlBgBrush}"
                   BorderThickness="0"
                   CornerRadius="8"
                   Padding="12,6"
@@ -76,7 +76,7 @@
                   SelectionChanged="OnLoaderVersionSelectionChanged" />
         <TextBlock x:Name="LoaderVersionHint"
                    FontSize="11"
-                   Foreground="{StaticResource HintTextBrush}"
+                   Foreground="{DynamicResource HintTextBrush}"
                    TextWrapping="Wrap" />
       </StackPanel>
 
@@ -85,24 +85,24 @@
         <TextBlock Text="实例名称"
                    FontSize="13"
                    FontWeight="SemiBold"
-                   Foreground="{StaticResource SecondaryTextBrush}" />
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
         <TextBox x:Name="InstanceNameBox"
                  PlaceholderText="留空则使用默认名称"
-                 Background="{StaticResource ControlBgBrush}"
+                 Background="{DynamicResource ControlBgBrush}"
                  BorderThickness="0"
                  CornerRadius="8"
                  Padding="12,8"
                  FontSize="13" />
         <TextBlock x:Name="InstanceNameHint"
                    FontSize="11"
-                   Foreground="{StaticResource HintTextBrush}"
+                   Foreground="{DynamicResource HintTextBrush}"
                    TextWrapping="Wrap" />
       </StackPanel>
 
       <!-- 状态提示 -->
       <TextBlock x:Name="StatusText"
                  FontSize="12"
-                 Foreground="{StaticResource ErrorBrush}"
+                 Foreground="{DynamicResource ErrorBrush}"
                  TextWrapping="Wrap"
                  IsVisible="False" />
     </StackPanel>
@@ -122,8 +122,8 @@
               CornerRadius="8"
               FontSize="13"
               FontWeight="SemiBold"
-              Background="{StaticResource SystemAccentColor}"
-              Foreground="{StaticResource WhiteBrush}"
+              Background="{DynamicResource SystemAccentColor}"
+              Foreground="{DynamicResource WhiteBrush}"
               Click="OnDownloadClick" />
     </Grid>
   </Grid>

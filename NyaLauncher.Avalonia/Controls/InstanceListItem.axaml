@@ -8,10 +8,10 @@
             <ContextMenu>
                 <MenuItem Header="重命名版本" Click="OnRenameClick" />
                 <Separator />
-                <MenuItem Header="删除实例" Foreground="Red" Click="OnDeleteClick" />
+                <MenuItem Header="删除实例" Foreground="{DynamicResource ErrorBrush}" Click="OnDeleteClick" />
             </ContextMenu>
         </Grid.ContextMenu>
-        <Border Width="38" Height="38" CornerRadius="7" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+        <Border Width="38" Height="38" CornerRadius="7" Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
       <Grid>
         <TextBlock Text="{Binding IconGlyph, FallbackValue=▦}"
                    FontSize="19"
@@ -27,11 +27,11 @@
       <TextBlock Text="{Binding Name}"
                  FontSize="13"
                  FontWeight="SemiBold"
-                 Foreground="{StaticResource PrimaryTextBrush}"
+                 Foreground="{DynamicResource PrimaryTextBrush}"
                  TextTrimming="CharacterEllipsis" />
       <TextBlock Text="{Binding DirectoryMode}"
                  FontSize="10"
-                 Foreground="{StaticResource SubtextTextBrush}"
+                 Foreground="{DynamicResource SubtextTextBrush}"
                  TextTrimming="CharacterEllipsis" />
     </StackPanel>
   </Grid>

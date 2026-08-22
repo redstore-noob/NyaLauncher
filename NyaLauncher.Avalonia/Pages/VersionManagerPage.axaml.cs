@@ -715,7 +715,7 @@ public partial class VersionManagerPage : UserControl
                 : "此操作将永久删除该版本的所有文件（包括存档、Mod、资源包等），且无法恢复。",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
-            Foreground = Brushes.Gray
+            Foreground = ThemeBrushes.Muted
         });
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         var cancelBtn = new Button { Content = "取消", Padding = new Thickness(18, 8) };
@@ -724,8 +724,8 @@ public partial class VersionManagerPage : UserControl
         {
             Content = "删除",
             Padding = new Thickness(18, 8),
-            Background = Brushes.Red,
-            Foreground = Brushes.White
+            Background = ThemeBrushes.Error,
+            Foreground = ThemeBrushes.White
         };
         deleteBtn.Click += (_, _) => dialog.Close(true);
         buttons.Children.Add(cancelBtn);

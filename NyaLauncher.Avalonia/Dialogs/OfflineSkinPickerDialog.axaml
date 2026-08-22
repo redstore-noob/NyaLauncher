@@ -6,21 +6,21 @@
         SizeToContent="Height"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="{StaticResource BaseBgBrush}"
+        Background="{DynamicResource BaseBgBrush}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,Auto,Auto" Margin="26">
     <StackPanel Spacing="9">
       <TextBlock Text="选择离线默认皮肤"
                  FontSize="21"
                  FontWeight="Bold"
-                 Foreground="{StaticResource PrimaryTextBrush}" />
+                 Foreground="{DynamicResource PrimaryTextBrush}" />
       <TextBlock Text="离线账号无法使用 Mojang 皮肤；这里提供 9 款启动器内置的默认皮肤，"
                  FontSize="12"
-                 Foreground="{StaticResource MutedTextBrush}"
+                 Foreground="{DynamicResource MutedTextBrush}"
                  TextWrapping="Wrap" />
       <TextBlock Text="已安装的 Minecraft 客户端会被优先复用其中的原始贴图，"
                  FontSize="12"
-                 Foreground="{StaticResource MutedTextBrush}"
+                 Foreground="{DynamicResource MutedTextBrush}"
                  TextWrapping="Wrap" />
     </StackPanel>
 
