@@ -301,7 +301,7 @@ internal static class RepositoryIdentityPolicy
                     .Count() != binding.RepositoryUrlHistory.Count ||
                 !binding.RepositoryUrlHistory.Contains(
                     installedOrigin.RepositoryUrl,
-                    StringComparer.Ordinal))
+                    StringComparer.OrdinalIgnoreCase))
             {
                 return RepositoryIdentityMatch.InvalidRepositoryHistory;
             }
@@ -410,13 +410,11 @@ internal readonly record struct SemanticVersion(
             return left.Count == right.Count ? 0 : left.Count == 0 ? 1 : -1;
         for (var index = 0; index < Math.Min(left.Count, right.Count); index++)
         {
-            var leftNumeric = int.TryParse(
-                left[index], NumberStyles.None, CultureInfo.InvariantCulture, out var leftNumber);
-            var rightNumeric = int.TryParse(
-                right[index], NumberStyles.None, CultureInfo.InvariantCulture, out var rightNumber);
+            var leftNumeric = IsNumericPrereleaseIdentifier(left[index]);
+            var rightNumeric = IsNumericPrereleaseIdentifier(right[index]);
             int comparison;
             if (leftNumeric && rightNumeric)
-                comparison = leftNumber.CompareTo(rightNumber);
+                comparison = CompareNumericPrereleaseIdentifiers(left[index], right[index]);
             else if (leftNumeric != rightNumeric)
                 comparison = leftNumeric ? -1 : 1;
             else
@@ -426,6 +424,20 @@ internal readonly record struct SemanticVersion(
         }
 
         return left.Count.CompareTo(right.Count);
+    }
+
+    private static bool IsNumericPrereleaseIdentifier(string value) =>
+        value.All(character => character is >= '0' and <= '9');
+
+    private static int CompareNumericPrereleaseIdentifiers(string left, string right)
+    {
+        // SemVer numeric identifiers are not bounded by Int32. The parser has
+        // already rejected leading zeroes, so digit count followed by ordinal
+        // comparison gives exact arbitrary-precision ordering without allocation.
+        var lengthComparison = left.Length.CompareTo(right.Length);
+        return lengthComparison != 0
+            ? lengthComparison
+            : string.CompareOrdinal(left, right);
     }
 
     public override string ToString() =>
@@ -1329,9 +1341,8 @@ internal sealed class PluginRepositoryClient : IDisposable
             .FirstOrDefault(repository =>
                 repository is not null &&
                 MatchesGitHubRepositoryPath(repository, notes) &&
-                notes.AbsolutePath.StartsWith(
-                    repository.AbsolutePath.TrimEnd('/') + "/releases/tag/",
-                    StringComparison.Ordinal));
+                notes.AbsolutePath.AsSpan(repository.AbsolutePath.TrimEnd('/').Length)
+                    .StartsWith("/releases/tag/", StringComparison.Ordinal));
         if (matchedRepository is null)
             return false;
         var prefix = matchedRepository.AbsolutePath.TrimEnd('/') + "/releases/tag/";
@@ -1359,11 +1370,11 @@ internal sealed class PluginRepositoryClient : IDisposable
         string.Equals(
             repository.Segments[1].TrimEnd('/'),
             candidate.Segments[1].TrimEnd('/'),
-            StringComparison.Ordinal) &&
+            StringComparison.OrdinalIgnoreCase) &&
         string.Equals(
             repository.Segments[2].TrimEnd('/'),
             candidate.Segments[2].TrimEnd('/'),
-            StringComparison.Ordinal);
+            StringComparison.OrdinalIgnoreCase);
 
     private static bool TryDecodeReleasePathSegment(string value, out string decoded)
     {

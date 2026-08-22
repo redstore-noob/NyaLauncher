@@ -618,7 +618,8 @@ internal static class PluginPackageInstaller
                                 transactionsRoot,
                                 transactionDirectory,
                                 targetDirectory,
-                                backupDirectory);
+                                backupDirectory,
+                                oldMoved);
                         }
                         finally
                         {
@@ -1052,14 +1053,31 @@ internal static class PluginPackageInstaller
         string transactionsRoot,
         string transactionDirectory,
         string targetDirectory,
-        string backupDirectory)
+        string backupDirectory,
+        bool hadExistingTarget)
     {
         try
         {
-            if (Directory.Exists(targetDirectory))
-                DeleteTreeWithoutFollowingLinks(new DirectoryInfo(targetDirectory));
-            if (Directory.Exists(backupDirectory))
+            if (hadExistingTarget && !Directory.Exists(backupDirectory))
+            {
+                return "更新回滚所需的旧插件备份不存在；新包和事务记录已保留供恢复。";
+            }
+            if (!hadExistingTarget && Directory.Exists(backupDirectory))
+            {
+                return "新安装事务意外包含旧包备份；目标包和事务记录已保留供检查。";
+            }
+
+            if (hadExistingTarget)
+            {
+                if (Directory.Exists(targetDirectory))
+                    DeleteTreeWithoutFollowingLinks(new DirectoryInfo(targetDirectory));
                 Directory.Move(backupDirectory, targetDirectory);
+            }
+            else if (Directory.Exists(targetDirectory))
+            {
+                DeleteTreeWithoutFollowingLinks(new DirectoryInfo(targetDirectory));
+            }
+
             TryDeleteTransactionDirectory(transactionsRoot, transactionDirectory);
             return null;
         }

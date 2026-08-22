@@ -39,6 +39,7 @@ internal static class Program
             ("Download cancellation cleanup", TestDownloadCancellationAsync),
             ("Valid package installation", TestValidInstallationAsync),
             ("Committed package rollback", TestInstallationRollbackAsync),
+            ("Update rollback requires old backup", TestUpdateRollbackRequiresBackupAsync),
             ("Interrupted update recovery", TestInterruptedUpdateRecoveryAsync),
             ("Prepared update recovery prefers backup", TestPreparedUpdateRecoveryAsync),
             ("Prepared update before move keeps target", TestPreparedUpdateBeforeMoveAsync),
@@ -109,6 +110,16 @@ internal static class Program
             "runtime launcher version comes from strict informational SemVer");
         Assert(!SemanticVersion.TryParse("1.2", out _), "two-part version is rejected");
         Assert(!SemanticVersion.TryParse("1.2.3-01", out _), "numeric prerelease leading zero is rejected");
+        Assert(
+            SemanticVersion.TryParse("1.2.3-2147483648", out var largeNumericPreview) &&
+            SemanticVersion.TryParse("1.2.3-10000000000", out var largerNumericPreview) &&
+            largeNumericPreview.CompareTo(largerNumericPreview) < 0,
+            "numeric prerelease identifiers retain arbitrary-precision SemVer ordering");
+        Assert(
+            SemanticVersion.TryParse("1.2.3-999999999999", out var numericPreview) &&
+            SemanticVersion.TryParse("1.2.3-0alpha", out var alphanumericPreview) &&
+            numericPreview.CompareTo(alphanumericPreview) < 0,
+            "numeric prerelease identifiers sort before alphanumeric identifiers regardless of size");
         return Task.CompletedTask;
     }
 
@@ -325,6 +336,20 @@ internal static class Program
                     [oldRepositoryUrl, renamedRepositoryUrl],
                     StringComparer.Ordinal),
                 "old release URLs remain valid after an identity-preserving rename");
+        }
+
+        var differentlyCasedReleaseUrls = Mutate(original, (_, _, releaseNode) =>
+        {
+            releaseNode["releaseNotesUrl"] =
+                "https://github.com/EXAMPLE/TEST-PLUGIN/releases/tag/v1.0.0";
+            releaseNode["download"]!.AsObject()["url"] =
+                "https://github.com/EXAMPLE/TEST-PLUGIN/releases/download/v1.0.0/test-plugin.zip";
+        });
+        using (var http = new HttpClient(
+                   new PayloadHandler(Encoding.UTF8.GetBytes(differentlyCasedReleaseUrls))))
+        using (var client = new PluginRepositoryClient(http))
+        {
+            _ = await client.LoadIndexAsync();
         }
 
         var invalidCases = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -951,6 +976,69 @@ internal static class Program
             Assert(result.Rollback() is null, "rollback succeeds");
             Assert(!Directory.Exists(result.PackageDirectory), "new package removed by rollback");
             Assert(catalog.Scan().Count == 0, "catalog returned to pre-install state");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestUpdateRollbackRequiresBackupAsync()
+    {
+        var oldPayload = CreatePackage(includeTraversal: false, version: "1.0.0");
+        var newPayload = CreatePackage(includeTraversal: false, version: "2.0.0");
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            var catalog = new PluginCatalog(storage);
+            using var oldHttp = new HttpClient(new PayloadHandler(oldPayload));
+            using var oldClient = new PluginRepositoryClient(oldHttp);
+            var oldInstall = await PluginPackageInstaller.InstallAsync(
+                catalog,
+                oldClient,
+                CreatePlugin(),
+                CreateRelease(oldPayload, "1.0.0"),
+                null,
+                null,
+                CancellationToken.None);
+            Assert(oldInstall.Complete() is null, "initial package transaction commits");
+
+            using var firstUpdateHttp = new HttpClient(new PayloadHandler(newPayload));
+            using var firstUpdateClient = new PluginRepositoryClient(firstUpdateHttp);
+            var firstUpdate = await PluginPackageInstaller.InstallAsync(
+                catalog,
+                firstUpdateClient,
+                CreatePlugin(),
+                CreateRelease(newPayload, "2.0.0"),
+                oldInstall.PackageDirectory,
+                null,
+                CancellationToken.None);
+            Assert(firstUpdate.Rollback() is null, "update rollback restores an available old backup");
+            Assert(
+                catalog.Scan().Single().Manifest?.Version == "1.0.0",
+                "successful update rollback restores the old package");
+
+            using var missingBackupHttp = new HttpClient(new PayloadHandler(newPayload));
+            using var missingBackupClient = new PluginRepositoryClient(missingBackupHttp);
+            var missingBackupUpdate = await PluginPackageInstaller.InstallAsync(
+                catalog,
+                missingBackupClient,
+                CreatePlugin(),
+                CreateRelease(newPayload, "2.0.0"),
+                oldInstall.PackageDirectory,
+                null,
+                CancellationToken.None);
+            var transaction = Directory.EnumerateDirectories(
+                    Path.Combine(catalog.RootDirectory, "repository", "transactions"))
+                .Single();
+            Directory.Delete(Path.Combine(transaction, "backup"), recursive: true);
+
+            var rollbackError = missingBackupUpdate.Rollback();
+            Assert(rollbackError is not null, "missing old backup makes update rollback fail closed");
+            Assert(
+                catalog.Scan().Single().Manifest?.Version == "2.0.0",
+                "failed rollback preserves the only remaining package instead of deleting it");
+            Assert(Directory.Exists(transaction), "failed rollback preserves its recovery journal");
         }
         finally
         {
@@ -1596,6 +1684,23 @@ internal static class Program
             RepositoryIdentityPolicy.Compare(afterRename, newRelease, installedOrigin) ==
             RepositoryIdentityMatch.Match,
             "same numeric publisher and generation remains a safe update after a GitHub rename");
+        var caseOnlyRename = beforeRename with
+        {
+            RepositoryUrl = "https://github.com/EXAMPLE/TEST-PLUGIN",
+            Generations =
+            [
+                CreateGenerationBinding(
+                    1,
+                    1001,
+                    101,
+                    "active",
+                    "https://github.com/EXAMPLE/TEST-PLUGIN")
+            ]
+        };
+        Assert(
+            RepositoryIdentityPolicy.Compare(caseOnlyRename, oldRelease, installedOrigin) ==
+            RepositoryIdentityMatch.Match,
+            "GitHub path casing does not break numeric repository identity continuity");
         var rewrittenHistory = afterRename with
         {
             Generations =
