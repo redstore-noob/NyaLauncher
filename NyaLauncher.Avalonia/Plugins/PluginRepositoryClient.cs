@@ -87,6 +87,12 @@ internal sealed record RepositoryGenerationBinding
 
     public required string RepositoryUrl { get; init; }
 
+    /// <summary>
+    /// Append-only canonical GitHub repository paths used by this numeric
+    /// repository identity. The final entry is always RepositoryUrl.
+    /// </summary>
+    public IReadOnlyList<string> RepositoryUrlHistory { get; init; } = [];
+
     public required RepositoryPublisherIdentity Publisher { get; init; }
 
     public required string Status { get; init; }
@@ -215,6 +221,7 @@ internal static class RepositoryCatalogPolicy
             {
                 Generation = 1,
                 RepositoryUrl = plugin.RepositoryUrl,
+                RepositoryUrlHistory = [plugin.RepositoryUrl],
                 Publisher = new RepositoryPublisherIdentity
                 {
                     RepositoryId = 0,
@@ -233,7 +240,8 @@ internal enum RepositoryIdentityMatch
     MissingInstalledOrigin,
     DifferentLineage,
     DifferentGeneration,
-    DifferentPublisher
+    DifferentPublisher,
+    InvalidRepositoryHistory
 }
 
 internal static class RepositoryIdentityPolicy
@@ -275,6 +283,27 @@ internal static class RepositoryIdentityPolicy
                 installedOrigin.OwnerId != binding.Publisher.OwnerId)
             {
                 return RepositoryIdentityMatch.DifferentPublisher;
+            }
+
+            // A same-generation GitHub rename is safe only when the new index
+            // keeps the repository URL recorded by the launcher in that
+            // generation's append-only history. Numeric IDs remain the primary
+            // identity; this continuity check prevents a malformed history from
+            // silently rewriting the installed provenance.
+            if (binding.RepositoryUrlHistory is null ||
+                binding.RepositoryUrlHistory.Count == 0 ||
+                !string.Equals(
+                    binding.RepositoryUrlHistory[^1],
+                    binding.RepositoryUrl,
+                    StringComparison.Ordinal) ||
+                binding.RepositoryUrlHistory
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count() != binding.RepositoryUrlHistory.Count ||
+                !binding.RepositoryUrlHistory.Contains(
+                    installedOrigin.RepositoryUrl,
+                    StringComparer.Ordinal))
+            {
+                return RepositoryIdentityMatch.InvalidRepositoryHistory;
             }
         }
         else if (!SameRepositoryUrl(installedOrigin.RepositoryUrl, binding.RepositoryUrl))
@@ -422,6 +451,7 @@ internal sealed class PluginRepositoryClient : IDisposable
     private const int MaximumPluginCount = 2048;
     private const int MaximumReleaseCount = 128;
     private const int MaximumGenerationCount = 64;
+    private const int MaximumRepositoryUrlHistoryCount = 64;
     private const long MaximumPackageBytes = 256L * 1024 * 1024;
     private const int MaximumRedirects = 5;
     private static readonly Regex PluginIdPattern = new(
@@ -629,7 +659,7 @@ internal sealed class PluginRepositoryClient : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
         var binding = RepositoryCatalogPolicy.FindGeneration(plugin, release.Generation) ??
                       throw new InvalidDataException("插件版本没有对应的发布者代际绑定。");
-        ValidateDownloadSource(binding.RepositoryUrl, release.Download);
+        ValidateDownloadSource(binding, release.Download);
         ValidateReleaseReview(plugin.Id, release);
         if (release.Download.Size is <= 0 or > MaximumPackageBytes)
             throw new InvalidDataException("插件包大小不在允许范围内。");
@@ -858,6 +888,7 @@ internal sealed class PluginRepositoryClient : IDisposable
                     if (binding.ValueKind != JsonValueKind.Object ||
                         !binding.TryGetProperty("generation", out _) ||
                         !binding.TryGetProperty("repositoryUrl", out _) ||
+                        !binding.TryGetProperty("repositoryUrlHistory", out _) ||
                         !binding.TryGetProperty("publisher", out _) ||
                         !binding.TryGetProperty("status", out _))
                     {
@@ -1050,14 +1081,14 @@ internal sealed class PluginRepositoryClient : IDisposable
                 throw new InvalidDataException($"插件 {plugin.Id} 的版本 {release.Version} 无效。");
             }
 
-            ValidateDownloadSource(binding.RepositoryUrl, release.Download);
+            ValidateDownloadSource(binding, release.Download);
             ValidateReleaseReview(plugin.Id, release);
             if (!TryValidatePublicHttpsUrl(
                     release.ReleaseNotesUrl,
                     schemaVersion,
                     maximumLength: 2048,
                     out _) ||
-                !ValidateReleaseNotesSource(binding.RepositoryUrl, release.ReleaseNotesUrl))
+                !ValidateReleaseNotesSource(binding, release.ReleaseNotesUrl))
             {
                 throw new InvalidDataException($"插件 {plugin.Id} 的发行说明地址无效。");
             }
@@ -1089,7 +1120,16 @@ internal sealed class PluginRepositoryClient : IDisposable
                 binding.Status is not ("active" or "retired" or "transferred") ||
                 binding.Generation < plugin.Generation && binding.Status != "transferred" ||
                 binding.Publisher is null || !IsValidPublisher(binding.Publisher) ||
-                !TryValidateGitHubRepositoryUrl(binding.RepositoryUrl, out _))
+                !TryValidateCanonicalGitHubRepositoryUrl(binding.RepositoryUrl, out _) ||
+                binding.RepositoryUrlHistory is null ||
+                binding.RepositoryUrlHistory.Count is < 1 or > MaximumRepositoryUrlHistoryCount ||
+                binding.RepositoryUrlHistory.Any(repositoryUrl =>
+                    !TryValidateCanonicalGitHubRepositoryUrl(repositoryUrl, out _)) ||
+                HasDuplicateGitHubRepositories(binding.RepositoryUrlHistory) ||
+                !string.Equals(
+                    binding.RepositoryUrlHistory[^1],
+                    binding.RepositoryUrl,
+                    StringComparison.Ordinal))
             {
                 throw new InvalidDataException($"插件 {plugin.Id} 的代际绑定无效。");
             }
@@ -1104,9 +1144,9 @@ internal sealed class PluginRepositoryClient : IDisposable
         var expectedCurrentStatus = plugin.LifecycleStatus == "retired" ? "retired" : "active";
         if (current is null ||
             !string.Equals(
-                current.RepositoryUrl.TrimEnd('/'),
-                plugin.RepositoryUrl.TrimEnd('/'),
-                StringComparison.OrdinalIgnoreCase) ||
+                current.RepositoryUrl,
+                plugin.RepositoryUrl,
+                StringComparison.Ordinal) ||
             current.Publisher.RepositoryId != plugin.Publisher.RepositoryId ||
             current.Publisher.OwnerId != plugin.Publisher.OwnerId ||
             !string.Equals(current.Status, expectedCurrentStatus, StringComparison.Ordinal) ||
@@ -1128,6 +1168,23 @@ internal sealed class PluginRepositoryClient : IDisposable
         IEnumerable<string> values,
         StringComparer comparer) =>
         values.Distinct(comparer).Count() != values.Count();
+
+    private static bool HasDuplicateGitHubRepositories(IEnumerable<string> values) =>
+        values
+            .Select(NormalizeGitHubRepositoryIdentity)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count() != values.Count();
+
+    private static string NormalizeGitHubRepositoryIdentity(string value)
+    {
+        if (!TryValidateGitHubRepositoryUrl(value, out var repository))
+            return value;
+        var owner = repository.Segments[1].TrimEnd('/');
+        var name = repository.Segments[2].TrimEnd('/');
+        if (name.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+            name = name[..^4];
+        return $"{owner}/{name}";
+    }
 
     private static bool TryValidatePublicHttpsUrl(
         string? value,
@@ -1178,6 +1235,22 @@ internal sealed class PluginRepositoryClient : IDisposable
         return true;
     }
 
+    private static bool TryValidateCanonicalGitHubRepositoryUrl(
+        string? value,
+        out Uri repositoryUri)
+    {
+        if (!TryValidateGitHubRepositoryUrl(value, out repositoryUri))
+            return false;
+
+        var owner = repositoryUri.Segments[1].TrimEnd('/');
+        var repository = repositoryUri.Segments[2].TrimEnd('/');
+        return !repository.EndsWith(".git", StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(
+                   value,
+                   $"https://github.com/{owner}/{repository}",
+                   StringComparison.Ordinal);
+    }
+
     private static void ValidateReleaseReview(string pluginId, RepositoryRelease release)
     {
         if (release.Review is not { } review)
@@ -1207,39 +1280,35 @@ internal sealed class PluginRepositoryClient : IDisposable
     }
 
     private static void ValidateDownloadSource(
-        string repositoryUrl,
+        RepositoryGenerationBinding binding,
         RepositoryDownload download)
     {
-        if (!TryValidateGitHubRepositoryUrl(repositoryUrl, out var repository) ||
+        if (binding.RepositoryUrlHistory is null ||
             download is null ||
             !TryValidatePublicHttpsUrl(download.Url, 2, maximumLength: 2048, out var asset) ||
             !string.Equals(asset.Host, "github.com", StringComparison.Ordinal) ||
             asset.Query.Length != 0 ||
             asset.Fragment.Length != 0 ||
             asset.Segments.Length != 7 ||
-            !string.Equals(
-                asset.Segments[1].TrimEnd('/'),
-                repository.Segments[1].TrimEnd('/'),
-                StringComparison.Ordinal) ||
-            !string.Equals(
-                asset.Segments[2].TrimEnd('/'),
-                repository.Segments[2].TrimEnd('/'),
-                StringComparison.Ordinal) ||
             !string.Equals(asset.Segments[3], "releases/", StringComparison.Ordinal) ||
             !string.Equals(asset.Segments[4], "download/", StringComparison.Ordinal) ||
             !TryDecodeReleasePathSegment(asset.Segments[5].TrimEnd('/'), out var tag) ||
             !TryDecodeReleasePathSegment(asset.Segments[6], out var assetName) ||
             tag is "." or ".." ||
             assetName.Length <= 4 ||
-            !assetName.EndsWith(".zip", StringComparison.Ordinal))
+            !assetName.EndsWith(".zip", StringComparison.Ordinal) ||
+            !binding.RepositoryUrlHistory.Any(repositoryUrl =>
+                MatchesGitHubRepositoryPath(repositoryUrl, asset)))
         {
             throw new InvalidDataException("插件包必须来自插件自己的 GitHub Release。");
         }
     }
 
-    private static bool ValidateReleaseNotesSource(string repositoryUrl, string releaseNotesUrl)
+    private static bool ValidateReleaseNotesSource(
+        RepositoryGenerationBinding binding,
+        string releaseNotesUrl)
     {
-        if (!TryValidateGitHubRepositoryUrl(repositoryUrl, out var repository) ||
+        if (binding.RepositoryUrlHistory is null ||
             !TryValidatePublicHttpsUrl(
                 releaseNotesUrl,
                 schemaVersion: 2,
@@ -1252,9 +1321,20 @@ internal sealed class PluginRepositoryClient : IDisposable
             return false;
         }
 
-        var prefix = repository.AbsolutePath.TrimEnd('/') + "/releases/tag/";
-        if (!notes.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal))
+        var matchedRepository = binding.RepositoryUrlHistory
+            .Select(repositoryUrl =>
+                TryValidateGitHubRepositoryUrl(repositoryUrl, out var repository)
+                    ? repository
+                    : null)
+            .FirstOrDefault(repository =>
+                repository is not null &&
+                MatchesGitHubRepositoryPath(repository, notes) &&
+                notes.AbsolutePath.StartsWith(
+                    repository.AbsolutePath.TrimEnd('/') + "/releases/tag/",
+                    StringComparison.Ordinal));
+        if (matchedRepository is null)
             return false;
+        var prefix = matchedRepository.AbsolutePath.TrimEnd('/') + "/releases/tag/";
         try
         {
             var decodedTag = Uri.UnescapeDataString(notes.AbsolutePath[prefix.Length..]);
@@ -1269,6 +1349,21 @@ internal sealed class PluginRepositoryClient : IDisposable
             return false;
         }
     }
+
+    private static bool MatchesGitHubRepositoryPath(string repositoryUrl, Uri candidate) =>
+        TryValidateGitHubRepositoryUrl(repositoryUrl, out var repository) &&
+        MatchesGitHubRepositoryPath(repository, candidate);
+
+    private static bool MatchesGitHubRepositoryPath(Uri repository, Uri candidate) =>
+        candidate.Segments.Length >= 3 &&
+        string.Equals(
+            repository.Segments[1].TrimEnd('/'),
+            candidate.Segments[1].TrimEnd('/'),
+            StringComparison.Ordinal) &&
+        string.Equals(
+            repository.Segments[2].TrimEnd('/'),
+            candidate.Segments[2].TrimEnd('/'),
+            StringComparison.Ordinal);
 
     private static bool TryDecodeReleasePathSegment(string value, out string decoded)
     {

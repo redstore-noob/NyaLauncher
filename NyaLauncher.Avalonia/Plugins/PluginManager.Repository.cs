@@ -296,6 +296,9 @@ internal sealed partial class PluginManager
         RepositoryIdentityMatch.DifferentPublisher =>
             "仓库条目的 GitHub 数字发布者身份与已安装来源不一致，已阻止自动更新。" +
             "请核对转让记录；如确需安装，请先卸载旧插件。",
+        RepositoryIdentityMatch.InvalidRepositoryHistory =>
+            "仓库条目的同代改名历史没有连续包含已安装来源，已阻止自动更新。" +
+            "请核对中心仓库的 repositoryUrlHistory；如确需安装，请先卸载旧插件。",
         _ => "插件来源身份不一致，已阻止自动更新。"
     };
 }

@@ -1641,13 +1641,18 @@ sha256sum plugin.zip
 普通作者**无需 Fork 或给插件中心提交 PR**：
 
 1. 完成固定 Release 和作者仓库根 `_manifest.json`。
-2. 创建 [Add Plugin Issue](https://github.com/TouristH/NyaLauncher-Plugins/issues/new?template=add-plugin.yml)，
-   填写一致的插件 ID 和公开仓库。
-3. Issue 为 pending-validation；可信维护者输入 `/validate` 才下载并验证固定 ZIP。
-4. validated 仅代表技术验证通过；维护者 `/approve` 收录或 `/reject 原因` 拒绝。
+2. 插件 ID 使用 `io.github.<仓库所有者小写>.<名称>`，并给公开、非 Fork 的作者仓库添加
+   `nyalauncher-plugin` Topic。
+3. 定时机器人会自动发现仓库，验证 `_manifest.json`、固定 Release ZIP、SHA-256 和包内
+   `plugin.json`，再通过受保护的机器人 PR 自动收录；不需要管理员输入 `/validate` 或 `/approve`。
+4. GitHub Topic 索引尚未更新时，可以创建
+   [Plugin Queue Issue](https://github.com/TouristH/NyaLauncher-Plugins/issues/new?template=add-plugin.yml)
+   立即进入同一自动队列。Issue 不会绕过任何验证。
 
 后续版本只需创建新 Release 并向 releases 追加；同步约每 6 小时运行。不可覆盖旧资产；需要修复就升版。
-listed 不等于 verified。审核绑定 ID、版本、ZIP SHA-256；未经审核版本会警告并二次确认。
+listed 只表示技术验证通过，不等于 verified。审核员检查代码和行为后使用中心给出的完整
+`/verify <id>@gN:<version> sha256:<hash>` 命令进行人工审核；审核绑定代际、版本和固定 ZIP
+SHA-256，未经审核版本会警告并二次确认。
 安全下架通过 Remove/Yank Issue，历史保留且 yanked 版本不可安装。当前代全部版本撤回后，未安装
 用户的仓库列表会隐藏该插件；已经安装的用户仍会看到醒目的撤回提示，以便及时禁用或卸载。
 
@@ -1655,6 +1660,11 @@ listed 不等于 verified。审核绑定 ID、版本、ZIP SHA-256；未经审�
 `repositoryId` / `ownerId`。仓库或账号改名不会改变数字身份。正常同代发布不改变 generation；原作者
 废弃后若由管理员定向转让，中心会创建新 generation。若 ID 被永久释放后重新使用，则创建新的
 lineageId。作者仓库的 `_manifest.json` 不得自行指定或修改这些中心身份字段。
+
+同代仓库改名时，中心只会在 GitHub API 证明 `repositoryId + ownerId` 均未变化后，把新地址追加到
+该代不可改写的 `repositoryUrlHistory`。历史 Release ZIP 和发行说明可以继续使用该代任一旧地址；
+启动器同时要求历史连续包含已安装来源，缺项、重复、伪造子路径或当前地址不在末项都会失败关闭。
+旧 v1 来源不能借地址相同自动取得 v2 数字身份，仍需卸载后重装；发生过改名的条目也不会写入 v1。
 
 完整规则见中心 [README](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/README.md) 和
 [CONTRIBUTING](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/CONTRIBUTING.md)。身份索引

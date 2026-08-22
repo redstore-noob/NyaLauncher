@@ -4,6 +4,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Controls;
@@ -25,6 +26,7 @@ internal static class Program
         {
             ("SemanticVersion ordering", TestSemanticVersionAsync),
             ("Repository index validation", TestRepositoryIndexAsync),
+            ("Repository rename history validation", TestRepositoryRenameHistoryValidationAsync),
             ("Repository v1 fallback is 404-only", TestRepositoryV1FallbackAsync),
             ("Malformed repository v2 fails closed", TestMalformedV2DoesNotFallbackAsync),
             ("Repository historical release selection", TestRepositoryHistoricalReleasesAsync),
@@ -51,6 +53,7 @@ internal static class Program
             ("Repository preview release installation", TestRepositoryPreviewInstallAsync),
             ("Repository install uses canonical release", TestCanonicalRepositoryReleaseAsync),
             ("Repository origin blocks identity replacement", TestRepositoryIdentityReplacementAsync),
+            ("Repository rename preserves numeric identity", TestRepositoryRenameIdentityAsync),
             ("Repository generation replacement isolates data", TestRepositoryGenerationIsolationAsync),
             ("Legacy local plugin cannot auto-bind", TestLegacyLocalPluginCannotAutoBindAsync),
             ("Legacy v1 origin cannot auto-bind v2", TestLegacyV1OriginCannotAutoBindV2Async),
@@ -278,6 +281,105 @@ internal static class Program
         Assert(plugin.LineageId == TestLineageId, "v2 lineage UUID parsed");
         Assert(plugin.Publisher?.RepositoryId == 1001, "v2 numeric repository identity parsed");
         Assert(parsedRelease?.Generation == 1, "release generation parsed");
+    }
+
+    private static async Task TestRepositoryRenameHistoryValidationAsync()
+    {
+        const string oldRepositoryUrl = "https://github.com/example/test-plugin";
+        const string renamedRepositoryUrl = "https://github.com/example/renamed-plugin";
+        var release = CreateRelease(CreatePackage(includeTraversal: false));
+        var original = CreateRepositoryIndexJson(release);
+
+        static string Mutate(
+            string json,
+            Action<JsonObject, JsonObject, JsonObject> mutation)
+        {
+            var root = JsonNode.Parse(json)?.AsObject() ??
+                       throw new InvalidOperationException("test registry JSON did not parse");
+            var plugin = root["plugins"]?.AsArray()[0]?.AsObject() ??
+                         throw new InvalidOperationException("test plugin was missing");
+            var binding = plugin["generations"]?.AsArray()[0]?.AsObject() ??
+                          throw new InvalidOperationException("test generation was missing");
+            var releaseNode = plugin["releases"]?.AsArray()[0]?.AsObject() ??
+                              throw new InvalidOperationException("test release was missing");
+            mutation(plugin, binding, releaseNode);
+            return root.ToJsonString();
+        }
+
+        var renamed = Mutate(original, (plugin, binding, _) =>
+        {
+            plugin["repositoryUrl"] = renamedRepositoryUrl;
+            binding["repositoryUrl"] = renamedRepositoryUrl;
+            binding["repositoryUrlHistory"] = new JsonArray(
+                JsonValue.Create(oldRepositoryUrl),
+                JsonValue.Create(renamedRepositoryUrl));
+        });
+        using (var http = new HttpClient(
+                   new PayloadHandler(Encoding.UTF8.GetBytes(renamed))))
+        using (var client = new PluginRepositoryClient(http))
+        {
+            var index = await client.LoadIndexAsync();
+            var binding = index.Plugins.Single().Generations.Single();
+            Assert(
+                binding.RepositoryUrlHistory.SequenceEqual(
+                    [oldRepositoryUrl, renamedRepositoryUrl],
+                    StringComparer.Ordinal),
+                "old release URLs remain valid after an identity-preserving rename");
+        }
+
+        var invalidCases = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["missing history"] = Mutate(original, (_, binding, _) =>
+                binding.Remove("repositoryUrlHistory")),
+            ["empty history"] = Mutate(original, (_, binding, _) =>
+                binding["repositoryUrlHistory"] = new JsonArray()),
+            ["case-insensitive duplicate"] = Mutate(original, (_, binding, _) =>
+                binding["repositoryUrlHistory"] = new JsonArray(
+                    JsonValue.Create("https://github.com/EXAMPLE/TEST-PLUGIN"),
+                    JsonValue.Create(oldRepositoryUrl))),
+            ["current URL is not last"] = Mutate(original, (_, binding, _) =>
+                binding["repositoryUrlHistory"] = new JsonArray(
+                    JsonValue.Create(oldRepositoryUrl),
+                    JsonValue.Create(renamedRepositoryUrl))),
+            ["non-canonical trailing slash"] = Mutate(original, (plugin, binding, _) =>
+            {
+                plugin["repositoryUrl"] = oldRepositoryUrl + "/";
+                binding["repositoryUrl"] = oldRepositoryUrl + "/";
+                binding["repositoryUrlHistory"] = new JsonArray(
+                    JsonValue.Create(oldRepositoryUrl + "/"));
+            }),
+            ["child path alias in history"] = Mutate(original, (_, binding, _) =>
+                binding["repositoryUrlHistory"] = new JsonArray(
+                    JsonValue.Create("https://github.com/example/test-plugin/issues"),
+                    JsonValue.Create(oldRepositoryUrl))),
+            ["download repository alias"] = Mutate(original, (_, _, releaseNode) =>
+                releaseNode["download"]!.AsObject()["url"] =
+                    "https://github.com/example/test-plugin-evil/releases/download/" +
+                    "v1.0.0/test-plugin.zip"),
+            ["notes repository alias"] = Mutate(original, (_, _, releaseNode) =>
+                releaseNode["releaseNotesUrl"] =
+                    "https://github.com/example/test-plugin-evil/releases/tag/v1.0.0"),
+            ["notes route alias"] = Mutate(original, (_, _, releaseNode) =>
+                releaseNode["releaseNotesUrl"] =
+                    oldRepositoryUrl + "/releases/compare/v1.0.0")
+        };
+
+        foreach (var (name, invalid) in invalidCases)
+        {
+            using var http = new HttpClient(
+                new PayloadHandler(Encoding.UTF8.GetBytes(invalid)));
+            using var client = new PluginRepositoryClient(http);
+            try
+            {
+                await AssertThrowsAsync<InvalidDataException>(() => client.LoadIndexAsync());
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException(
+                    $"repository history case '{name}' was accepted",
+                    exception);
+            }
+        }
     }
 
     private static async Task TestRepositoryV1FallbackAsync()
@@ -1458,6 +1560,99 @@ internal static class Program
         }
     }
 
+    private static async Task TestRepositoryRenameIdentityAsync()
+    {
+        const string oldRepositoryUrl = "https://github.com/example/test-plugin";
+        const string renamedRepositoryUrl = "https://github.com/example/renamed-plugin";
+        var oldPayload = CreatePackage(includeTraversal: false, version: "1.0.0");
+        var newPayload = CreatePackage(includeTraversal: false, version: "1.1.0");
+        var oldRelease = CreateRelease(oldPayload, "1.0.0");
+        var newRelease = CreateRelease(newPayload, "1.1.0") with
+        {
+            ReleaseNotesUrl = renamedRepositoryUrl + "/releases/tag/v1.1.0",
+            Download = new RepositoryDownload
+            {
+                Url = renamedRepositoryUrl + "/releases/download/v1.1.0/test-plugin.zip",
+                Sha256 = Convert.ToHexString(SHA256.HashData(newPayload)).ToLowerInvariant(),
+                Size = newPayload.Length
+            }
+        };
+        var beforeRename = CreateV2Plugin(oldRelease);
+        var installedOrigin = PluginCatalog.CreateInstallOrigin(beforeRename, oldRelease);
+        var renamedBinding = CreateGenerationBinding(
+            1,
+            1001,
+            101,
+            "active",
+            renamedRepositoryUrl,
+            [oldRepositoryUrl, renamedRepositoryUrl]);
+        var afterRename = CreateV2Plugin(oldRelease, newRelease) with
+        {
+            RepositoryUrl = renamedRepositoryUrl,
+            Generations = [renamedBinding]
+        };
+
+        Assert(
+            RepositoryIdentityPolicy.Compare(afterRename, newRelease, installedOrigin) ==
+            RepositoryIdentityMatch.Match,
+            "same numeric publisher and generation remains a safe update after a GitHub rename");
+        var rewrittenHistory = afterRename with
+        {
+            Generations =
+            [
+                renamedBinding with
+                {
+                    RepositoryUrlHistory = [renamedRepositoryUrl]
+                }
+            ]
+        };
+        Assert(
+            RepositoryIdentityPolicy.Compare(rewrittenHistory, newRelease, installedOrigin) ==
+            RepositoryIdentityMatch.InvalidRepositoryHistory,
+            "a rename that erases the installed repository URL fails closed");
+        Assert(
+            RepositoryIdentityPolicy.Compare(
+                afterRename,
+                newRelease,
+                installedOrigin with { SourceIndexSchemaVersion = 1 }) ==
+            RepositoryIdentityMatch.LegacyV1NeedsReinstall,
+            "legacy v1 provenance cannot use repository history to acquire numeric identity");
+
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            using var oldHttp = new HttpClient(new PayloadHandler(oldPayload));
+            using var oldClient = new PluginRepositoryClient(oldHttp);
+            using var newHttp = new HttpClient(new PayloadHandler(newPayload));
+            using var newClient = new PluginRepositoryClient(newHttp);
+            await using var manager = new PluginManager(storage, new FeatureAreaRegistry());
+            await manager.InitializeAsync();
+
+            var installed = await manager.InstallFromRepositoryAsync(
+                oldClient,
+                beforeRename,
+                oldRelease);
+            Assert(installed.Success, $"pre-rename package installs: {installed.Message}");
+            var updated = await manager.InstallFromRepositoryAsync(
+                newClient,
+                afterRename,
+                newRelease);
+
+            Assert(updated.Success, $"same numeric repository updates after rename: {updated.Message}");
+            var snapshot = manager.Current.Plugins.Single();
+            Assert(snapshot.Version == "1.1.0", "renamed repository update replaces the package");
+            Assert(snapshot.InstallOrigin?.RepositoryUrl == renamedRepositoryUrl,
+                "successful rename update snapshots the new canonical repository URL");
+            Assert(snapshot.InstallOrigin?.RepositoryId == 1001 &&
+                   snapshot.InstallOrigin.OwnerId == 101,
+                "successful rename update preserves numeric publisher identity");
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
     private static async Task TestRepositoryGenerationIsolationAsync()
     {
         var firstPayload = CreatePackage(
@@ -1848,10 +2043,13 @@ internal static class Program
         int generation,
         long repositoryId,
         long ownerId,
-        string status) => new()
+        string status,
+        string repositoryUrl = "https://github.com/example/test-plugin",
+        IReadOnlyList<string>? repositoryUrlHistory = null) => new()
     {
         Generation = generation,
-        RepositoryUrl = "https://github.com/example/test-plugin",
+        RepositoryUrl = repositoryUrl,
+        RepositoryUrlHistory = repositoryUrlHistory ?? [repositoryUrl],
         Publisher = new RepositoryPublisherIdentity
         {
             RepositoryId = repositoryId,
@@ -1932,6 +2130,9 @@ internal static class Program
                 {
                   "generation": 1,
                   "repositoryUrl": "https://github.com/example/test-plugin",
+                  "repositoryUrlHistory": [
+                    "https://github.com/example/test-plugin"
+                  ],
                   "publisher": {
                     "repositoryId": 1001,
                     "ownerId": 101

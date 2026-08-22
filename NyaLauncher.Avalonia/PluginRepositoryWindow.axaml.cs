@@ -1034,6 +1034,8 @@ public partial class PluginRepositoryWindow : Window
                 "此 ID 已分配给新的插件谱系。为防止供应链劫持，必须卸载旧插件后重新确认。",
             RepositoryIdentityMatch.DifferentPublisher =>
                 "GitHub 数字仓库或发布者身份与已安装来源不同，已阻止自动替换。",
+            RepositoryIdentityMatch.InvalidRepositoryHistory =>
+                "仓库改名历史没有连续包含已安装来源，已阻止自动替换。请核对中心仓库记录。",
             _ => "插件发布身份不一致，已阻止自动替换。"
         };
 
