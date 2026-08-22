@@ -47,7 +47,6 @@ public static class WorkspaceDefaultProfile
                     IconPath = null,
                     ActionIds =
                     [
-                        "downloads",
                         "settings",
                         BuiltInPluginListComponent.ComponentId
                     ]
@@ -114,14 +113,6 @@ public static class WorkspaceDefaultProfile
                     RelativeX = 0.5,
                     RelativeY = 0.38,
                     ZIndex = 89
-                },
-                new ComponentPlacementProfile
-                {
-                    AreaId = "area-003",
-                    ComponentId = "downloads",
-                    RelativeX = 0.5,
-                    RelativeY = 0,
-                    ZIndex = 23
                 },
                 new ComponentPlacementProfile
                 {
