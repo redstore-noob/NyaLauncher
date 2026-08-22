@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Controls;
@@ -43,6 +44,8 @@ internal static class Program
             ("Committed update recovery keeps target", TestCommittedUpdateRecoveryAsync),
             ("Prepared uninstall recovery restores package", TestPreparedUninstallRecoveryAsync),
             ("Committed uninstall recovery removes backup", TestCommittedUninstallRecoveryAsync),
+            ("Staged uninstall rollback restores state", TestStagedUninstallRollbackAsync),
+            ("Invalid uninstall state journals fail closed", TestInvalidUninstallStateJournalAsync),
             ("New install clears stale plugin trust", TestNewInstallClearsStaleStateAsync),
             ("Repository downgrade requires confirmation", TestRepositoryDowngradeAsync),
             ("Repository preview release installation", TestRepositoryPreviewInstallAsync),
@@ -89,6 +92,18 @@ internal static class Program
         Assert(SemanticVersion.TryParse("1.3.0", out var next), "next parses");
         Assert(preview.CompareTo(stable) < 0, "preview sorts before stable");
         Assert(stable.CompareTo(next) < 0, "minor version ordering");
+        Assert(SemanticVersion.TryParse("0.1.2-testplug.1+commit", out var launcherPreview),
+            "launcher informational version with build metadata parses");
+        Assert(SemanticVersion.TryParse("0.1.2-testplug.1", out var previewMinimum),
+            "matching preview minimum parses");
+        Assert(SemanticVersion.TryParse("0.1.2", out var stableMinimum),
+            "stable minimum parses");
+        Assert(launcherPreview.CompareTo(previewMinimum) == 0,
+            "matching prerelease minimum is accepted regardless of build metadata");
+        Assert(launcherPreview.CompareTo(stableMinimum) < 0,
+            "prerelease launcher is lower than the stable version with the same core");
+        Assert(SemanticVersion.LauncherVersion.CompareTo(previewMinimum) == 0,
+            "runtime launcher version comes from strict informational SemVer");
         Assert(!SemanticVersion.TryParse("1.2", out _), "two-part version is rejected");
         Assert(!SemanticVersion.TryParse("1.2.3-01", out _), "numeric prerelease leading zero is rejected");
         return Task.CompletedTask;
@@ -408,8 +423,12 @@ internal static class Program
                           "2026-08-13T00:00:00+08:00",
                           StringComparison.Ordinal),
                      valid.Replace(
-                         "\"minimumLauncherVersion\": \"0.1.2\"",
+                         "\"minimumLauncherVersion\": \"0.1.2-testplug.1\"",
                          "\"minimumLauncherVersion\": \"999.0.0\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"minimumLauncherVersion\": \"0.1.2-testplug.1\"",
+                         "\"minimumLauncherVersion\": \"0.1.2\"",
                          StringComparison.Ordinal),
                      valid.Replace(
                          TestLineageId,
@@ -418,6 +437,88 @@ internal static class Program
                      valid.Replace(
                          "\"visibility\": \"listed\"",
                          "\"visibility\": \"hidden\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"description\": \"Test\"",
+                         "\"description\": \" \"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"authors\": [\"Tests\"]",
+                         "\"authors\": [\"Tests\", \"tests\"]",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"authors\": [\"Tests\"]",
+                         "\"authors\": null",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"authors\": [\"Tests\"]",
+                         "\"authors\": []",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"maintainers\": [\"example\"]",
+                         "\"maintainers\": [\"example\", \"EXAMPLE\"]",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"maintainers\": [\"example\"]",
+                         "\"maintainers\": [\"-invalid\"]",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"categories\": [\"utilities\"]",
+                         "\"categories\": [\"utilities\", \"UTILITIES\"]",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"categories\": [\"utilities\"]",
+                         "\"categories\": [\"unknown\"]",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"license\": \"MIT\"",
+                         "\"license\": \"\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"repositoryUrl\": \"https://github.com/example/test-plugin\"",
+                         "\"repositoryUrl\": \"https://github.com/example/test-plugin/issues\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"repositoryUrl\": \"https://github.com/example/test-plugin\"",
+                         "\"repositoryUrl\": \"https://github.com/example/test-plugin?owner=other\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"repositoryUrl\": \"https://github.com/example/test-plugin\"",
+                         "\"repositoryUrl\": \"https://github.com/bad_owner/test-plugin\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"sourceUrl\": \"https://github.com/redstore-noob/NyaLauncher-Plugins\"",
+                         "\"sourceUrl\": \"https://example.com/registry\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "test-plugin.zip\"",
+                         "test-plugin.exe\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "test-plugin.zip\"",
+                         "test-plugin.zip?token=secret\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "test-plugin.zip\"",
+                         "nested/test-plugin.zip\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"requiredCapabilities\": []",
+                         "\"requiredCapabilities\": null",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"yanked\": false",
+                         "\"yanked\": false, \"yankReason\": \"not actually withdrawn\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"yanked\": false",
+                         "\"yanked\": true, \"yankReason\": \"" +
+                         new string('x', 1025) + "\"",
+                         StringComparison.Ordinal),
+                     valid.Replace(
+                         "\"minimumLauncherVersion\": \"0.1.0\"",
+                         "\"minimumLauncherVersion\": \"0.1.0\", " +
+                         "\"maximumLauncherVersionExclusive\": \"0.1.0\"",
                          StringComparison.Ordinal)
                   };
         for (var index = 0; index < invalidCases.Length; index++)
@@ -433,6 +534,62 @@ internal static class Program
             {
                 throw new InvalidOperationException(
                     $"strict repository contract case {index} was accepted",
+                    exception);
+            }
+        }
+
+        var legacy = CreateLegacyRepositoryIndexJson(release);
+        var invalidLegacyCases = new[]
+        {
+            legacy.Replace(
+                "\"authors\": [\"Tests\"]",
+                "\"authors\": [\"Tests\", \"tests\"]",
+                StringComparison.Ordinal),
+            legacy.Replace(
+                "\"authors\": [\"Tests\"]",
+                "\"authors\": []",
+                StringComparison.Ordinal),
+            legacy.Replace(
+                "\"maintainers\": [\"example\"]",
+                "\"maintainers\": [\"bad login\"]",
+                StringComparison.Ordinal),
+            legacy.Replace(
+                "\"categories\": [\"utilities\"]",
+                "\"categories\": [\"unknown\"]",
+                StringComparison.Ordinal),
+            legacy.Replace(
+                "\"license\": \"MIT\"",
+                "\"license\": \" \"",
+                StringComparison.Ordinal),
+            legacy.Replace(
+                "\"repositoryUrl\": \"https://github.com/example/test-plugin\"",
+                "\"repositoryUrl\": \"https://github.com/example/test-plugin/releases\"",
+                StringComparison.Ordinal),
+            legacy.Replace(
+                "\"optionalCapabilities\": []",
+                "\"optionalCapabilities\": null",
+                StringComparison.Ordinal),
+            legacy.Replace(
+                "\"yanked\": false",
+                "\"yanked\": null",
+                StringComparison.Ordinal)
+        };
+        for (var index = 0; index < invalidLegacyCases.Length; index++)
+        {
+            var handler = new VersionedIndexHandler(
+                HttpStatusCode.NotFound,
+                v2Payload: null,
+                Encoding.UTF8.GetBytes(invalidLegacyCases[index]));
+            using var http = new HttpClient(handler);
+            using var client = new PluginRepositoryClient(http);
+            try
+            {
+                await AssertThrowsAsync<InvalidDataException>(() => client.LoadIndexAsync());
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException(
+                    $"strict legacy repository contract case {index} was accepted",
                     exception);
             }
         }
@@ -819,16 +976,47 @@ internal static class Program
             var backup = Path.Combine(transaction, "backup");
             Directory.CreateDirectory(backup);
             File.WriteAllText(Path.Combine(backup, "marker.txt"), "removed package");
+            var release = CreateRelease(CreatePackage(includeTraversal: false));
+            var plugin = CreateV2Plugin(release);
+            var expectedOrigin = PluginCatalog.CreateInstallOrigin(plugin, release);
+            catalog.UpdateState(plugin.Id, entry =>
+            {
+                entry.Enabled = true;
+                entry.GrantedCapabilities = ["network.http"];
+                entry.LastError = "state before uninstall";
+                entry.InstallOrigin = expectedOrigin;
+            });
+            Assert(catalog.TryGetState(plugin.Id, out var previousState),
+                "installed plugin has a state entry before uninstall");
+            // Exact crash window: package has moved and launcher-owned state was
+            // removed, but the prepared journal was not committed yet.
+            catalog.RemoveState(plugin.Id);
             File.WriteAllText(
                 Path.Combine(transaction, "journal.json"),
-                "{\"Version\":2,\"Operation\":\"remove\",\"TargetDirectoryName\":" +
-                "\"dev.example.test\",\"HadExistingTarget\":true,\"Phase\":\"prepared\"}");
+                JsonSerializer.Serialize(new
+                {
+                    Version = 2,
+                    Operation = "remove",
+                    TargetDirectoryName = plugin.Id,
+                    HadExistingTarget = true,
+                    Phase = "prepared",
+                    PluginId = plugin.Id,
+                    HadPreviousState = true,
+                    PreviousState = previousState
+                }));
 
             var error = PluginPackageInstaller.RecoverInterruptedTransactions(catalog);
 
             Assert(error is null, $"recovery error: {error}");
             Assert(File.Exists(Path.Combine(target, "marker.txt")),
                 "unconfirmed uninstall restores the original package");
+            Assert(catalog.TryGetState(plugin.Id, out var restoredState),
+                "prepared uninstall recovery restores the removed state entry");
+            Assert(restoredState.Enabled &&
+                   restoredState.GrantedCapabilities.SequenceEqual(["network.http"]) &&
+                   restoredState.LastError == "state before uninstall" &&
+                   Equals(restoredState.InstallOrigin, expectedOrigin),
+                "prepared uninstall restores enabled state, grants, diagnostics, and origin exactly");
             Assert(!Directory.Exists(transaction), "prepared uninstall transaction is cleaned");
             return Task.CompletedTask;
         }
@@ -853,16 +1041,149 @@ internal static class Program
             var backup = Path.Combine(transaction, "backup");
             Directory.CreateDirectory(backup);
             File.WriteAllText(Path.Combine(backup, "marker.txt"), "removed package");
+            catalog.UpdateState("dev.example.test", entry =>
+            {
+                entry.Enabled = true;
+                entry.GrantedCapabilities = ["network.http"];
+            });
+            catalog.RemoveState("dev.example.test");
             File.WriteAllText(
                 Path.Combine(transaction, "journal.json"),
                 "{\"Version\":2,\"Operation\":\"remove\",\"TargetDirectoryName\":" +
-                "\"dev.example.test\",\"HadExistingTarget\":true,\"Phase\":\"committed\"}");
+                "\"dev.example.test\",\"HadExistingTarget\":true,\"Phase\":\"committed\"," +
+                "\"PluginId\":\"dev.example.test\"}");
 
             var error = PluginPackageInstaller.RecoverInterruptedTransactions(catalog);
 
             Assert(error is null, $"recovery error: {error}");
             Assert(!Directory.Exists(target), "committed uninstall does not restore the removed package");
+            Assert(!catalog.TryGetState("dev.example.test", out _),
+                "committed uninstall never restores the removed launcher state");
             Assert(!Directory.Exists(transaction), "committed uninstall backup is safely cleaned");
+            return Task.CompletedTask;
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static Task TestStagedUninstallRollbackAsync()
+    {
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            var catalog = new PluginCatalog(storage);
+            var pluginId = "dev.example.test";
+            var target = Path.Combine(catalog.PackagesDirectory, pluginId);
+            Directory.CreateDirectory(target);
+            File.WriteAllText(Path.Combine(target, "marker.txt"), "installed package");
+            catalog.UpdateState(pluginId, entry =>
+            {
+                entry.Enabled = true;
+                entry.GrantedCapabilities = ["network.http"];
+                entry.LastError = "before rollback";
+            });
+            Assert(catalog.TryGetState(pluginId, out var previousState),
+                "state exists before staging an uninstall");
+
+            var removal = PluginPackageInstaller.StageRemoval(
+                catalog,
+                target,
+                pluginId,
+                hadPreviousState: true,
+                previousState: previousState);
+            catalog.RemoveState(pluginId);
+
+            Assert(removal.Rollback() is null, "live uninstall rollback succeeds");
+            Assert(File.Exists(Path.Combine(target, "marker.txt")),
+                "live rollback restores the package before ending the journal");
+            Assert(catalog.TryGetState(pluginId, out var restored) &&
+                   restored.Enabled &&
+                   restored.GrantedCapabilities.SequenceEqual(["network.http"]) &&
+                   restored.LastError == "before rollback",
+                "live rollback restores the exact launcher-owned state before deleting its journal");
+            return Task.CompletedTask;
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static Task TestInvalidUninstallStateJournalAsync()
+    {
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            var catalog = new PluginCatalog(storage);
+            var transactionsRoot = Path.Combine(
+                catalog.RootDirectory,
+                "repository",
+                "transactions");
+            var invalidStateTransaction = Path.Combine(
+                transactionsRoot,
+                Guid.NewGuid().ToString("N"));
+            var oversizedTransaction = Path.Combine(
+                transactionsRoot,
+                Guid.NewGuid().ToString("N"));
+            foreach (var transaction in new[] { invalidStateTransaction, oversizedTransaction })
+            {
+                var backup = Path.Combine(transaction, "backup");
+                Directory.CreateDirectory(backup);
+                File.WriteAllText(Path.Combine(backup, "marker.txt"), "preserve me");
+            }
+
+            File.WriteAllText(
+                Path.Combine(invalidStateTransaction, "journal.json"),
+                JsonSerializer.Serialize(new
+                {
+                    Version = 2,
+                    Operation = "remove",
+                    TargetDirectoryName = "dev.example.test",
+                    HadExistingTarget = true,
+                    Phase = "prepared",
+                    PluginId = "dev.example.test",
+                    HadPreviousState = true,
+                    PreviousState = new
+                    {
+                        Enabled = true,
+                        GrantedCapabilities = Enumerable.Range(0, 65)
+                            .Select(index => $"capability-{index}")
+                            .ToArray(),
+                        LastError = (string?)null,
+                        InstallOrigin = (PluginInstallOrigin?)null
+                    }
+                }));
+            File.WriteAllText(
+                Path.Combine(oversizedTransaction, "journal.json"),
+                JsonSerializer.Serialize(new
+                {
+                    Version = 2,
+                    Operation = "remove",
+                    TargetDirectoryName = "dev.example.test",
+                    HadExistingTarget = true,
+                    Phase = "prepared",
+                    PluginId = "dev.example.test",
+                    HadPreviousState = true,
+                    PreviousState = new
+                    {
+                        Enabled = true,
+                        GrantedCapabilities = Array.Empty<string>(),
+                        LastError = new string('x', 40 * 1024),
+                        InstallOrigin = (PluginInstallOrigin?)null
+                    }
+                }));
+
+            var error = PluginPackageInstaller.RecoverInterruptedTransactions(catalog);
+
+            Assert(!string.IsNullOrWhiteSpace(error),
+                "invalid and oversized uninstall state journals block recovery");
+            Assert(Directory.Exists(Path.Combine(invalidStateTransaction, "backup")) &&
+                   Directory.Exists(Path.Combine(oversizedTransaction, "backup")),
+                "fail-closed journal validation preserves both package backups for diagnosis");
+            Assert(!catalog.TryGetState("dev.example.test", out _),
+                "invalid journal data is never written into launcher-owned state");
             return Task.CompletedTask;
         }
         finally
@@ -1591,7 +1912,7 @@ internal static class Program
           "schemaVersion": 2,
           "name": "NyaLauncher Plugins",
           "sourceUrl": "https://github.com/redstore-noob/NyaLauncher-Plugins",
-          "minimumLauncherVersion": "0.1.2",
+          "minimumLauncherVersion": "0.1.2-testplug.1",
           "plugins": [
             {
               "id": "dev.example.test",

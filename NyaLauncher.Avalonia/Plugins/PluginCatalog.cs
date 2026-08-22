@@ -203,6 +203,11 @@ internal sealed class PluginCatalog
         "^(?:[a-z][a-z0-9]*(?:\\.[a-z0-9][a-z0-9-]*)+|" +
         "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
         RegexOptions.CultureInvariant);
+    private static readonly Regex GitHubRepositoryPattern = new(
+        "^https://github\\.com/" +
+        "[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/" +
+        "[A-Za-z0-9_.-]{1,100}/?$",
+        RegexOptions.CultureInvariant);
     private static readonly Regex Sha256Pattern = new(
         "^[0-9a-f]{64}$",
         RegexOptions.CultureInvariant);
@@ -463,6 +468,22 @@ internal sealed class PluginCatalog
         }
     }
 
+    internal bool TryGetState(string pluginId, out PluginStateEntry state)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        lock (_stateGate)
+        {
+            if (_state.Plugins.TryGetValue(pluginId, out var existing))
+            {
+                state = CloneState(existing);
+                return true;
+            }
+
+            state = new PluginStateEntry();
+            return false;
+        }
+    }
+
     public void RemoveState(string pluginId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
@@ -475,6 +496,44 @@ internal sealed class PluginCatalog
             SaveJsonAtomically(StateFilePath, next, MaximumStateBytes);
             _state = next;
         }
+    }
+
+    internal void RestoreStateSnapshot(string pluginId, PluginStateEntry state)
+    {
+        var validated = CloneValidatedStateSnapshot(pluginId, state);
+        lock (_stateGate)
+        {
+            var next = CloneStateDocument(_state);
+            next.Plugins[pluginId] = validated;
+            if (next.Plugins.Count > MaximumRememberedPlugins)
+                throw new InvalidDataException(
+                    $"插件状态最多记录 {MaximumRememberedPlugins} 个插件。");
+            SaveJsonAtomically(StateFilePath, next, MaximumStateBytes);
+            _state = next;
+        }
+    }
+
+    internal static PluginStateEntry CloneValidatedStateSnapshot(
+        string pluginId,
+        PluginStateEntry state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (string.IsNullOrWhiteSpace(pluginId) ||
+            pluginId.Length > 128 ||
+            !PluginIdPattern.IsMatch(pluginId) ||
+            state.GrantedCapabilities is null ||
+            state.GrantedCapabilities.Count > MaximumCapabilityCount ||
+            state.GrantedCapabilities.Any(capability =>
+                string.IsNullOrWhiteSpace(capability) || capability.Length > 128) ||
+            state.GrantedCapabilities.Distinct(StringComparer.OrdinalIgnoreCase).Count() !=
+            state.GrantedCapabilities.Count ||
+            state.LastError?.Length > 8192)
+        {
+            throw new InvalidDataException("插件卸载状态快照无效或超过上限。");
+        }
+        if (state.InstallOrigin is not null)
+            ValidateInstallOrigin(state.InstallOrigin, pluginId, expectedVersion: null);
+        return CloneState(state);
     }
 
     public void SynchronizeInstallOrigin(string pluginId, PluginInstallOrigin? origin)
@@ -858,12 +917,18 @@ internal sealed class PluginCatalog
             !OriginLineagePattern.IsMatch(origin.LineageId) ||
             origin.Generation < 1 ||
             string.IsNullOrWhiteSpace(origin.RepositoryUrl) ||
+            origin.RepositoryUrl.Length > 2048 ||
+            !GitHubRepositoryPattern.IsMatch(origin.RepositoryUrl) ||
             !Uri.TryCreate(origin.RepositoryUrl, UriKind.Absolute, out var repository) ||
             !string.Equals(repository.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(repository.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(repository.Host, "github.com", StringComparison.Ordinal) ||
             repository.Port != 443 ||
             !string.IsNullOrEmpty(repository.UserInfo) ||
-            repository.Segments.Length < 3 ||
+            repository.Segments.Length != 3 ||
+            repository.Query.Length != 0 ||
+            repository.Fragment.Length != 0 ||
+            repository.Segments[2].TrimEnd('/') is "." or ".." ||
+            repository.Segments[2].TrimEnd('/').EndsWith(".", StringComparison.Ordinal) ||
             string.IsNullOrWhiteSpace(origin.Version) ||
             !TryParseSemanticVersion(origin.Version, out _) ||
             expectedVersion is not null &&

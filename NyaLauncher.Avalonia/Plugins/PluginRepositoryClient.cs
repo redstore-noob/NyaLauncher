@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -316,7 +317,17 @@ internal readonly record struct SemanticVersion(
     {
         get
         {
-            var version = typeof(PluginRepositoryClient).Assembly.GetName().Version ??
+            var assembly = typeof(PluginRepositoryClient).Assembly;
+            var informationalVersion = assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion;
+            if (TryParse(informationalVersion, out var semanticVersion))
+                return semanticVersion;
+
+            // AssemblyVersion cannot represent prerelease labels. It is only a
+            // fail-safe fallback for unusual builds without valid informational
+            // SemVer metadata.
+            var version = assembly.GetName().Version ??
                           new Version(0, 1, 0);
             return new SemanticVersion(
                 Math.Max(version.Major, 0),
@@ -428,6 +439,18 @@ internal sealed class PluginRepositoryClient : IDisposable
     private static readonly Regex LineageIdPattern = new(
         "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         RegexOptions.CultureInvariant);
+    private static readonly Regex GitHubRepositoryPattern = new(
+        "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex V1HttpsUrlPattern = new(
+        "^(?!.*[\\s\\\\\\x00-\\x1F\\x7F])(?!.*%(?![0-9A-Fa-f]{2}))" +
+        "https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)" +
+        "(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*" +
+        "(?::443)?(?:[/?#]|$)",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex InvalidPercentEncodingPattern = new(
+        "%(?![0-9A-Fa-f]{2})",
+        RegexOptions.CultureInvariant);
     private static readonly HashSet<string> KnownCapabilities = new(
         [
             "ui.components",
@@ -440,6 +463,17 @@ internal sealed class PluginRepositoryClient : IDisposable
             "minecraft.instance.read",
             "minecraft.instance.modify",
             "minecraft.launch.modify"
+        ],
+        StringComparer.Ordinal);
+    private static readonly HashSet<string> KnownCategories = new(
+        [
+            "appearance",
+            "automation",
+            "gameplay",
+            "integration",
+            "launch",
+            "management",
+            "utilities"
         ],
         StringComparer.Ordinal);
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -793,10 +827,23 @@ internal sealed class PluginRepositoryClient : IDisposable
         [
             "lineageId", "generation", "lifecycleStatus", "visibility", "publisher", "generations"
         ];
+        string[] commonPluginProperties =
+        [
+            "id", "name", "description", "authors", "repositoryUrl", "maintainers",
+            "categories", "license", "releases"
+        ];
+        string[] commonReleaseProperties =
+        [
+            "version", "channel", "publishedAt", "releaseNotesUrl", "download",
+            "compatibility", "requiredCapabilities", "optionalCapabilities", "yanked"
+        ];
         foreach (var plugin in plugins.EnumerateArray())
         {
-            if (plugin.ValueKind != JsonValueKind.Object)
-                throw new InvalidDataException("插件仓库条目必须是对象。");
+            if (plugin.ValueKind != JsonValueKind.Object ||
+                commonPluginProperties.Any(name => !plugin.TryGetProperty(name, out _)))
+            {
+                throw new InvalidDataException("插件仓库条目缺少公开契约字段。");
+            }
             if (expectedSchemaVersion == 2)
             {
                 if (v2PluginProperties.Any(name => !plugin.TryGetProperty(name, out _)) ||
@@ -830,12 +877,28 @@ internal sealed class PluginRepositoryClient : IDisposable
             }
             foreach (var release in releases.EnumerateArray())
             {
+                if (release.ValueKind != JsonValueKind.Object ||
+                    commonReleaseProperties.Any(name => !release.TryGetProperty(name, out _)))
+                {
+                    throw new InvalidDataException("插件发行记录缺少公开契约字段。");
+                }
                 var hasGeneration = release.ValueKind == JsonValueKind.Object &&
                                     release.TryGetProperty("generation", out _);
                 if (expectedSchemaVersion == 2 && !hasGeneration)
                     throw new InvalidDataException("v2 发行记录缺少 generation。");
                 if (expectedSchemaVersion == 1 && hasGeneration)
                     throw new InvalidDataException("v1 发行记录不得包含 generation。");
+                if (!release.TryGetProperty("yanked", out var yanked) ||
+                    yanked.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                {
+                    throw new InvalidDataException("发行记录的 yanked 必须显式为布尔值。");
+                }
+                var hasYankReason = release.TryGetProperty("yankReason", out var yankReason);
+                if (yanked.GetBoolean() != hasYankReason ||
+                    hasYankReason && yankReason.ValueKind != JsonValueKind.String)
+                {
+                    throw new InvalidDataException("发行记录的撤回原因与 yanked 状态不一致。");
+                }
             }
         }
     }
@@ -845,13 +908,15 @@ internal sealed class PluginRepositoryClient : IDisposable
         if (index.SchemaVersion != expectedSchemaVersion ||
             expectedSchemaVersion is not (1 or 2) ||
             string.IsNullOrWhiteSpace(index.Name) || index.Name.Length > 128 ||
-            !Uri.TryCreate(index.SourceUrl, UriKind.Absolute, out var source) ||
-            !IsSafeHttpsUri(source) ||
-            !string.Equals(source.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
-            index.Plugins is null || index.Plugins.Count > MaximumPluginCount)
+            index.Plugins is null || index.Plugins.Count > MaximumPluginCount ||
+            expectedSchemaVersion == 1 &&
+            !TryValidatePublicHttpsUrl(index.SourceUrl, 1, maximumLength: null, out _) ||
+            expectedSchemaVersion == 2 &&
+            !TryValidateGitHubRepositoryUrl(index.SourceUrl, out _))
         {
             throw new InvalidDataException("插件仓库索引头无效或超过上限。");
         }
+        SemanticVersion? repositoryMinimum = null;
         if (expectedSchemaVersion == 2)
         {
             if (!SemanticVersion.TryParse(index.MinimumLauncherVersion, out var minimum) ||
@@ -860,6 +925,7 @@ internal sealed class PluginRepositoryClient : IDisposable
                 throw new InvalidDataException(
                     $"插件仓库 v2 需要 NyaLauncher {index.MinimumLauncherVersion ?? "[未知]"} 或更高版本。");
             }
+            repositoryMinimum = minimum;
         }
         else if (index.MinimumLauncherVersion is not null)
         {
@@ -873,24 +939,38 @@ internal sealed class PluginRepositoryClient : IDisposable
         }
 
         foreach (var plugin in index.Plugins)
-            ValidatePlugin(plugin, expectedSchemaVersion);
+            ValidatePlugin(plugin, expectedSchemaVersion, repositoryMinimum);
     }
 
-    private static void ValidatePlugin(RepositoryPlugin plugin, int schemaVersion)
+    private static void ValidatePlugin(
+        RepositoryPlugin plugin,
+        int schemaVersion,
+        SemanticVersion? repositoryMinimum)
     {
         if (string.IsNullOrWhiteSpace(plugin.Id) || plugin.Id.Length > 128 ||
             !PluginIdPattern.IsMatch(plugin.Id) ||
             string.IsNullOrWhiteSpace(plugin.Name) || plugin.Name.Length > 256 ||
-            plugin.Description.Length > 8192 ||
+            string.IsNullOrWhiteSpace(plugin.Description) || plugin.Description.Length > 8192 ||
+            plugin.Authors is null ||
+            plugin.Authors.Count == 0 ||
             plugin.Authors.Count > 64 || plugin.Authors.Any(value =>
                 string.IsNullOrWhiteSpace(value) || value.Length > 256) ||
-            plugin.Maintainers.Count is < 1 or > 16 ||
-            plugin.Categories.Count is < 1 or > 8 ||
+            HasDuplicates(plugin.Authors, StringComparer.OrdinalIgnoreCase) ||
+            plugin.Maintainers is null || plugin.Maintainers.Count is < 1 or > 16 ||
+            plugin.Maintainers.Any(value =>
+                string.IsNullOrWhiteSpace(value) ||
+                value.Length > 39 ||
+                !GitHubLoginPattern.IsMatch(value)) ||
+            HasDuplicates(plugin.Maintainers, StringComparer.OrdinalIgnoreCase) ||
+            plugin.Categories is null || plugin.Categories.Count is < 1 or > 8 ||
+            plugin.Categories.Any(value =>
+                string.IsNullOrWhiteSpace(value) || !KnownCategories.Contains(value)) ||
+            HasDuplicates(plugin.Categories, StringComparer.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(plugin.License) || plugin.License.Length > 256 ||
+            plugin.Releases is null ||
+            plugin.Releases.Count == 0 ||
             plugin.Releases.Count > MaximumReleaseCount ||
-            !Uri.TryCreate(plugin.RepositoryUrl, UriKind.Absolute, out var repositoryUri) ||
-            !IsSafeHttpsUri(repositoryUri) ||
-            !string.Equals(repositoryUri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
-            repositoryUri.Segments.Length < 3)
+            !TryValidateGitHubRepositoryUrl(plugin.RepositoryUrl, out _))
         {
             throw new InvalidDataException($"插件条目 {plugin.Id ?? "[未知]"} 无效。");
         }
@@ -899,11 +979,20 @@ internal sealed class PluginRepositoryClient : IDisposable
         else if (plugin.LineageId is not null ||
                  plugin.Generation != 1 ||
                  plugin.Publisher is not null ||
+                 plugin.Generations is null ||
                  plugin.Generations.Count != 0)
             throw new InvalidDataException($"v1 插件 {plugin.Id} 包含 v2 身份数据。");
 
+        if (plugin.Releases.Any(release => release is null))
+            throw new InvalidDataException($"插件 {plugin.Id} 包含空发行记录。");
         if (plugin.Releases.GroupBy(
-                release => (release.Generation, release.Version),
+                release =>
+                {
+                    var precedence = SemanticVersion.TryParse(release.Version, out var version)
+                        ? version.ToString()
+                        : release.Version;
+                    return (release.Generation, precedence);
+                },
                 EqualityComparer<(int, string)>.Default)
             .Any(group => group.Count() > 1))
         {
@@ -913,6 +1002,8 @@ internal sealed class PluginRepositoryClient : IDisposable
         foreach (var release in plugin.Releases)
         {
             var binding = RepositoryCatalogPolicy.FindGeneration(plugin, release.Generation);
+            var requiredCapabilities = release.RequiredCapabilities;
+            var optionalCapabilities = release.OptionalCapabilities;
             if (release.Generation < 1 ||
                 binding is null ||
                 schemaVersion == 1 && release.Generation != 1 ||
@@ -931,28 +1022,42 @@ internal sealed class PluginRepositoryClient : IDisposable
                 !ApiVersionPattern.IsMatch(release.Compatibility.ApiVersion) ||
                 !SemanticVersion.TryParse(
                     release.Compatibility.MinimumLauncherVersion,
-                    out _) ||
+                    out var minimumCompatibility) ||
                 release.Compatibility.MaximumLauncherVersionExclusive is not null &&
-                !SemanticVersion.TryParse(
-                    release.Compatibility.MaximumLauncherVersionExclusive,
-                    out _) ||
+                (!SemanticVersion.TryParse(
+                     release.Compatibility.MaximumLauncherVersionExclusive,
+                     out var maximumCompatibility) ||
+                 maximumCompatibility.CompareTo(minimumCompatibility) <= 0) ||
+                schemaVersion == 2 &&
+                release.Generation > 1 &&
+                repositoryMinimum is SemanticVersion rootMinimum &&
+                minimumCompatibility.CompareTo(rootMinimum) < 0 ||
                 release.Download.Size is <= 0 or > MaximumPackageBytes ||
+                string.IsNullOrWhiteSpace(release.Download.Sha256) ||
                 !HashPattern.IsMatch(release.Download.Sha256) ||
-                release.RequiredCapabilities.Count + release.OptionalCapabilities.Count > 64 ||
-                release.RequiredCapabilities.Concat(release.OptionalCapabilities)
+                requiredCapabilities is null || optionalCapabilities is null ||
+                requiredCapabilities.Count > 64 || optionalCapabilities.Count > 64 ||
+                requiredCapabilities.Count + optionalCapabilities.Count > 64 ||
+                requiredCapabilities.Concat(optionalCapabilities)
                     .Any(capability => !KnownCapabilities.Contains(capability)) ||
-                release.RequiredCapabilities.Concat(release.OptionalCapabilities)
+                requiredCapabilities.Concat(optionalCapabilities)
                     .GroupBy(capability => capability, StringComparer.OrdinalIgnoreCase)
                     .Any(group => group.Count() > 1) ||
-                release.Yanked && string.IsNullOrWhiteSpace(release.YankReason))
+                release.Yanked &&
+                (string.IsNullOrWhiteSpace(release.YankReason) || release.YankReason.Length > 1024) ||
+                !release.Yanked && release.YankReason is not null)
             {
                 throw new InvalidDataException($"插件 {plugin.Id} 的版本 {release.Version} 无效。");
             }
 
             ValidateDownloadSource(binding.RepositoryUrl, release.Download);
             ValidateReleaseReview(plugin.Id, release);
-            if (!Uri.TryCreate(release.ReleaseNotesUrl, UriKind.Absolute, out var notes) ||
-                !IsSafeHttpsUri(notes))
+            if (!TryValidatePublicHttpsUrl(
+                    release.ReleaseNotesUrl,
+                    schemaVersion,
+                    maximumLength: 2048,
+                    out _) ||
+                !ValidateReleaseNotesSource(binding.RepositoryUrl, release.ReleaseNotesUrl))
             {
                 throw new InvalidDataException($"插件 {plugin.Id} 的发行说明地址无效。");
             }
@@ -967,7 +1072,9 @@ internal sealed class PluginRepositoryClient : IDisposable
             plugin.Visibility is not ("listed" or "hidden") ||
             plugin.Publisher is null ||
             !IsValidPublisher(plugin.Publisher) ||
+            plugin.Generations is null ||
             plugin.Generations.Count is < 1 or > MaximumGenerationCount ||
+            plugin.Generations.Any(binding => binding is null) ||
             plugin.Generations.GroupBy(binding => binding.Generation)
                 .Any(group => group.Count() > 1) ||
             !plugin.Generations.Select(binding => binding.Generation)
@@ -1003,7 +1110,11 @@ internal sealed class PluginRepositoryClient : IDisposable
             current.Publisher.RepositoryId != plugin.Publisher.RepositoryId ||
             current.Publisher.OwnerId != plugin.Publisher.OwnerId ||
             !string.Equals(current.Status, expectedCurrentStatus, StringComparison.Ordinal) ||
-            !string.Equals(plugin.Visibility, expectedVisibility, StringComparison.Ordinal))
+            !string.Equals(plugin.Visibility, expectedVisibility, StringComparison.Ordinal) ||
+            plugin.LifecycleStatus != "active" && currentHasRelease ||
+            plugin.LifecycleStatus == "transferred" && plugin.Generation < 2 ||
+            plugin.Generations.GroupBy(binding => binding.Publisher.RepositoryId)
+                .Any(group => group.Count() > 1))
         {
             throw new InvalidDataException($"插件 {plugin.Id} 的当前代际展示身份不一致。");
         }
@@ -1013,13 +1124,52 @@ internal sealed class PluginRepositoryClient : IDisposable
         publisher.RepositoryId is > 0 and <= long.MaxValue &&
         publisher.OwnerId is > 0 and <= long.MaxValue;
 
-    private static bool TryValidateGitHubRepositoryUrl(string value, out Uri repositoryUri)
+    private static bool HasDuplicates(
+        IEnumerable<string> values,
+        StringComparer comparer) =>
+        values.Distinct(comparer).Count() != values.Count();
+
+    private static bool TryValidatePublicHttpsUrl(
+        string? value,
+        int schemaVersion,
+        int? maximumLength,
+        out Uri uri)
+    {
+        uri = null!;
+        if (string.IsNullOrWhiteSpace(value) ||
+            maximumLength is int limit && value.Length > limit ||
+            value.Any(character =>
+                char.IsWhiteSpace(character) ||
+                char.IsControl(character) ||
+                character is '\\' or '\u007f') ||
+            InvalidPercentEncodingPattern.IsMatch(value) ||
+            schemaVersion == 1 && !V1HttpsUrlPattern.IsMatch(value) ||
+            !Uri.TryCreate(value, UriKind.Absolute, out var parsed) ||
+            !IsSafeHttpsUri(parsed))
+        {
+            return false;
+        }
+
+        uri = parsed;
+        return true;
+    }
+
+    private static bool TryValidateGitHubRepositoryUrl(string? value, out Uri repositoryUri)
     {
         repositoryUri = null!;
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed) ||
+        if (string.IsNullOrWhiteSpace(value) ||
+            value.Length > 2048 ||
+            !GitHubRepositoryPattern.IsMatch(value) ||
+            !Uri.TryCreate(value, UriKind.Absolute, out var parsed) ||
             !IsSafeHttpsUri(parsed) ||
-            !string.Equals(parsed.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
-            parsed.Segments.Length < 3)
+            !string.Equals(parsed.Host, "github.com", StringComparison.Ordinal) ||
+            parsed.Segments.Length != 3 ||
+            parsed.Query.Length != 0 ||
+            parsed.Fragment.Length != 0 ||
+            !GitHubLoginPattern.IsMatch(parsed.Segments[1].TrimEnd('/')) ||
+            parsed.Segments[2].TrimEnd('/') is not { Length: >= 1 and <= 100 } repositoryName ||
+            repositoryName is "." or ".." ||
+            repositoryName.EndsWith(".", StringComparison.Ordinal))
         {
             return false;
         }
@@ -1060,22 +1210,81 @@ internal sealed class PluginRepositoryClient : IDisposable
         string repositoryUrl,
         RepositoryDownload download)
     {
-        if (!Uri.TryCreate(repositoryUrl.TrimEnd('/'), UriKind.Absolute, out var repository) ||
-            !Uri.TryCreate(download.Url, UriKind.Absolute, out var asset) ||
-            !IsAllowedPackageUri(asset) ||
-            !string.Equals(asset.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+        if (!TryValidateGitHubRepositoryUrl(repositoryUrl, out var repository) ||
+            download is null ||
+            !TryValidatePublicHttpsUrl(download.Url, 2, maximumLength: 2048, out var asset) ||
+            !string.Equals(asset.Host, "github.com", StringComparison.Ordinal) ||
+            asset.Query.Length != 0 ||
+            asset.Fragment.Length != 0 ||
+            asset.Segments.Length != 7 ||
+            !string.Equals(
+                asset.Segments[1].TrimEnd('/'),
+                repository.Segments[1].TrimEnd('/'),
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                asset.Segments[2].TrimEnd('/'),
+                repository.Segments[2].TrimEnd('/'),
+                StringComparison.Ordinal) ||
+            !string.Equals(asset.Segments[3], "releases/", StringComparison.Ordinal) ||
+            !string.Equals(asset.Segments[4], "download/", StringComparison.Ordinal) ||
+            !TryDecodeReleasePathSegment(asset.Segments[5].TrimEnd('/'), out var tag) ||
+            !TryDecodeReleasePathSegment(asset.Segments[6], out var assetName) ||
+            tag is "." or ".." ||
+            assetName.Length <= 4 ||
+            !assetName.EndsWith(".zip", StringComparison.Ordinal))
         {
             throw new InvalidDataException("插件包必须来自插件自己的 GitHub Release。");
         }
+    }
 
-        var repositoryPath = repository.AbsolutePath.TrimEnd('/');
-        if (repositoryPath.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-            repositoryPath = repositoryPath[..^4];
-        var expectedPrefix = repositoryPath + "/releases/download/";
-        if (!asset.AbsolutePath.StartsWith(expectedPrefix, StringComparison.Ordinal) ||
-            asset.AbsolutePath.Length <= expectedPrefix.Length)
+    private static bool ValidateReleaseNotesSource(string repositoryUrl, string releaseNotesUrl)
+    {
+        if (!TryValidateGitHubRepositoryUrl(repositoryUrl, out var repository) ||
+            !TryValidatePublicHttpsUrl(
+                releaseNotesUrl,
+                schemaVersion: 2,
+                maximumLength: 2048,
+                out var notes) ||
+            !string.Equals(notes.Host, "github.com", StringComparison.Ordinal) ||
+            notes.Query.Length != 0 ||
+            notes.Fragment.Length != 0)
         {
-            throw new InvalidDataException("插件包下载地址不属于条目声明的 GitHub Release。");
+            return false;
+        }
+
+        var prefix = repository.AbsolutePath.TrimEnd('/') + "/releases/tag/";
+        if (!notes.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal))
+            return false;
+        try
+        {
+            var decodedTag = Uri.UnescapeDataString(notes.AbsolutePath[prefix.Length..]);
+            var segments = decodedTag.Split('/');
+            return segments.Length > 0 && segments.All(segment =>
+                segment.Length > 0 &&
+                segment is not ("." or "..") &&
+                !segment.Contains('\\'));
+        }
+        catch (UriFormatException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryDecodeReleasePathSegment(string value, out string decoded)
+    {
+        decoded = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+        try
+        {
+            decoded = Uri.UnescapeDataString(value);
+            return decoded.Length > 0 &&
+                   decoded.IndexOfAny(['/', '\\']) < 0 &&
+                   decoded is not ("." or "..");
+        }
+        catch (UriFormatException)
+        {
+            return false;
         }
     }
 }

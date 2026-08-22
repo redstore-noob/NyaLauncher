@@ -1658,7 +1658,7 @@ lineageId。作者仓库的 `_manifest.json` 不得自行指定或修改这些�
 
 完整规则见中心 [README](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/README.md) 和
 [CONTRIBUTING](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/CONTRIBUTING.md)。身份索引
-（NyaLauncher 0.1.2 及以上优先读取）：
+（NyaLauncher 0.1.2-testplug.1 及以上优先读取）：
 
 ```text
 https://raw.githubusercontent.com/TouristH/NyaLauncher-Plugins/main/public/v2/index.json

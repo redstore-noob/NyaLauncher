@@ -200,7 +200,7 @@ internal sealed partial class PluginManager : IAsyncDisposable
             if (!_packages.TryGetValue(pluginId, out var package) || package.Manifest is null)
                 return PluginOperationResult.Failed("插件包不存在或清单无效。");
 
-            var previousState = _catalog.GetState(pluginId);
+            var hadPreviousState = _catalog.TryGetState(pluginId, out var previousState);
             if (previousState.Enabled || _runtimes.ContainsKey(pluginId))
             {
                 var disabled = await DisableCoreAsync(package, cancellationToken);
@@ -227,7 +227,10 @@ internal sealed partial class PluginManager : IAsyncDisposable
             {
                 removal = PluginPackageInstaller.StageRemoval(
                     _catalog,
-                    package.PackageDirectory);
+                    package.PackageDirectory,
+                    pluginId,
+                    hadPreviousState,
+                    previousState);
             }
             catch (Exception exception)
             {
@@ -256,7 +259,6 @@ internal sealed partial class PluginManager : IAsyncDisposable
                 var rollbackError = removal.Rollback();
                 if (rollbackError is null)
                 {
-                    RestoreState(pluginId, previousState);
                     try
                     {
                         await RefreshCoreAsync(CancellationToken.None);
@@ -1372,13 +1374,7 @@ internal sealed partial class PluginManager : IAsyncDisposable
     }
 
     private void RestoreState(string pluginId, PluginStateEntry state) =>
-        _catalog.UpdateState(pluginId, entry =>
-        {
-            entry.Enabled = state.Enabled;
-            entry.GrantedCapabilities = [.. state.GrantedCapabilities];
-            entry.LastError = state.LastError;
-            entry.InstallOrigin = state.InstallOrigin;
-        });
+        _catalog.RestoreStateSnapshot(pluginId, state);
 
     private bool TryRecoverRepositoryTransactions()
     {

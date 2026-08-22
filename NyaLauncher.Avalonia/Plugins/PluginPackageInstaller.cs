@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using NyaLauncher.Plugin.Abstractions.Plugins;
@@ -112,6 +113,7 @@ internal static class PluginPackageInstaller
     private const long MaximumExpandedBytes = 1024L * 1024 * 1024;
     private const int MaximumPathLength = 512;
     private const int MaximumCompressionRatio = 200;
+    private const int MaximumTransactionJournalBytes = 32 * 1024;
     private static readonly HashSet<string> WindowsReservedNames = new(
         [
             "CON", "PRN", "AUX", "NUL",
@@ -120,6 +122,11 @@ internal static class PluginPackageInstaller
             "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³"
         ],
         StringComparer.OrdinalIgnoreCase);
+    private static readonly JsonSerializerOptions TransactionJournalJsonOptions = new()
+    {
+        MaxDepth = 16,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+    };
 
     public static string? RecoverInterruptedTransactions(PluginCatalog catalog)
     {
@@ -193,10 +200,10 @@ internal static class PluginPackageInstaller
                         continue;
                     }
 
-                    var journalBytes = File.ReadAllBytes(journalPath);
-                    if (journalBytes.Length is 0 or > 4096)
-                        throw new InvalidDataException("事务日志大小无效。");
-                    var journal = JsonSerializer.Deserialize<TransactionJournal>(journalBytes) ??
+                    var journalBytes = ReadJournalBytes(journalPath);
+                    var journal = JsonSerializer.Deserialize<TransactionJournal>(
+                                      journalBytes,
+                                      TransactionJournalJsonOptions) ??
                                   throw new InvalidDataException("事务日志为空。");
                     if (journal.Version != TransactionJournalVersion ||
                         string.IsNullOrWhiteSpace(journal.TargetDirectoryName) ||
@@ -206,6 +213,8 @@ internal static class PluginPackageInstaller
                     {
                         throw new InvalidDataException("事务日志版本或目标目录无效。");
                     }
+
+                    ValidateRemovalStateSnapshot(journal);
 
                     var targetDirectory = ResolveTargetDirectory(
                         catalog.PackagesDirectory,
@@ -267,6 +276,17 @@ internal static class PluginPackageInstaller
                             failures.Add($"待回滚卸载事务 {name} 的目标和备份均已丢失");
                             continue;
                         }
+
+                        if (journal.HadPreviousState == true)
+                        {
+                            catalog.RestoreStateSnapshot(
+                                journal.PluginId!,
+                                journal.PreviousState!);
+                        }
+                        else
+                        {
+                            catalog.RemoveState(journal.PluginId!);
+                        }
                     }
                     else if (journal.HadExistingTarget && targetExists && backupExists)
                     {
@@ -324,10 +344,17 @@ internal static class PluginPackageInstaller
 
     public static PluginPackageRemovalResult StageRemoval(
         PluginCatalog catalog,
-        string packageDirectory)
+        string packageDirectory,
+        string pluginId,
+        bool hadPreviousState,
+        PluginStateEntry previousState)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentException.ThrowIfNullOrWhiteSpace(packageDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        var validatedPreviousState = hadPreviousState
+            ? PluginCatalog.CloneValidatedStateSnapshot(pluginId, previousState)
+            : null;
         var repositoryRoot = Path.Combine(catalog.RootDirectory, "repository");
         var transactionsRoot = Path.Combine(repositoryRoot, "transactions");
         RejectReparsePoint(catalog.RootDirectory, "插件根目录");
@@ -365,7 +392,10 @@ internal static class PluginPackageInstaller
                         Operation = "remove",
                         TargetDirectoryName = Path.GetFileName(targetDirectory),
                         HadExistingTarget = true,
-                        Phase = "prepared"
+                        Phase = "prepared",
+                        PluginId = pluginId,
+                        HadPreviousState = hadPreviousState,
+                        PreviousState = validatedPreviousState
                     });
                 Directory.Move(targetDirectory, backupDirectory);
                 moved = true;
@@ -383,7 +413,8 @@ internal static class PluginPackageInstaller
                                 Operation = "remove",
                                 TargetDirectoryName = Path.GetFileName(targetDirectory),
                                 HadExistingTarget = true,
-                                Phase = "committed"
+                                Phase = "committed",
+                                PluginId = pluginId
                             });
                         TryDeleteTransactionDirectory(transactionsRoot, transactionDirectory);
                         DisposeLockNoThrow(ownedLock);
@@ -397,6 +428,10 @@ internal static class PluginPackageInstaller
                             if (!Directory.Exists(backupDirectory))
                                 return "卸载回滚所需的原包备份不存在。";
                             Directory.Move(backupDirectory, targetDirectory);
+                            if (hadPreviousState)
+                                catalog.RestoreStateSnapshot(pluginId, validatedPreviousState!);
+                            else
+                                catalog.RemoveState(pluginId);
                             TryDeleteTransactionDirectory(transactionsRoot, transactionDirectory);
                             return null;
                         }
@@ -862,12 +897,81 @@ internal static class PluginPackageInstaller
         }
     }
 
+    private static byte[] ReadJournalBytes(string journalPath)
+    {
+        using var stream = new FileStream(
+            journalPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            4096,
+            FileOptions.SequentialScan);
+        if (stream.Length is 0 or > MaximumTransactionJournalBytes)
+            throw new InvalidDataException("事务日志大小无效。");
+        var bytes = new byte[checked((int)stream.Length)];
+        stream.ReadExactly(bytes);
+        if (stream.ReadByte() != -1)
+            throw new InvalidDataException("事务日志在读取时超过大小上限。");
+        return bytes;
+    }
+
+    private static void ValidateRemovalStateSnapshot(TransactionJournal journal)
+    {
+        var isRemoval = string.Equals(journal.Operation, "remove", StringComparison.Ordinal);
+        if (!isRemoval)
+        {
+            if (journal.PluginId is not null ||
+                journal.HadPreviousState is not null ||
+                journal.PreviousState is not null)
+            {
+                throw new InvalidDataException("安装事务不得携带卸载状态快照。");
+            }
+            return;
+        }
+
+        if (!journal.HadExistingTarget ||
+            string.IsNullOrWhiteSpace(journal.PluginId))
+        {
+            throw new InvalidDataException("卸载事务缺少插件身份或原包声明。");
+        }
+        if (string.Equals(journal.Phase, "committed", StringComparison.Ordinal))
+        {
+            if (journal.HadPreviousState is not null || journal.PreviousState is not null)
+                throw new InvalidDataException("已提交卸载事务不得保留旧状态快照。");
+            return;
+        }
+
+        if (journal.HadPreviousState is null ||
+            journal.HadPreviousState == true && journal.PreviousState is null ||
+            journal.HadPreviousState == false && journal.PreviousState is not null)
+        {
+            throw new InvalidDataException("待回滚卸载事务的旧状态声明不一致。");
+        }
+        if (journal.HadPreviousState == true)
+        {
+            _ = PluginCatalog.CloneValidatedStateSnapshot(
+                journal.PluginId,
+                journal.PreviousState!);
+        }
+        else
+        {
+            // Validate the ID even when no prior state entry existed.
+            _ = PluginCatalog.CloneValidatedStateSnapshot(
+                journal.PluginId,
+                new PluginStateEntry());
+        }
+    }
+
     private static void WriteJournalDurably(string journalPath, TransactionJournal journal)
     {
         var directory = Path.GetDirectoryName(journalPath) ??
                         throw new InvalidOperationException("事务日志缺少父目录。");
         var temporaryPath = Path.Combine(directory, $"journal.{Guid.NewGuid():N}.tmp");
-        var contents = JsonSerializer.SerializeToUtf8Bytes(journal);
+        var contents = JsonSerializer.SerializeToUtf8Bytes(
+            journal,
+            TransactionJournalJsonOptions);
+        if (contents.Length > MaximumTransactionJournalBytes)
+            throw new InvalidDataException("事务日志超过安全大小上限。");
         try
         {
             using (var stream = new FileStream(
@@ -1004,5 +1108,11 @@ internal static class PluginPackageInstaller
         public bool HadExistingTarget { get; set; }
 
         public string Phase { get; set; } = string.Empty;
+
+        public string? PluginId { get; set; }
+
+        public bool? HadPreviousState { get; set; }
+
+        public PluginStateEntry? PreviousState { get; set; }
     }
 }
