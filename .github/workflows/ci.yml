@@ -65,15 +65,15 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish
 
-      - name: Pack archive
+      - name: Pack archive (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath ${{ matrix.artifact }}
+
+      - name: Pack archive (tar.gz)
+        if: runner.os != 'Windows'
         shell: bash
-        run: |
-          cd publish
-          if [[ "${{ matrix.rid }}" == win-x64* ]]; then
-            zip -r "../${{ matrix.artifact }}" .
-          else
-            tar -czf "../${{ matrix.artifact }}" .
-          fi
+        run: tar -czf "${{ matrix.artifact }}" -C publish .
 
       - uses: actions/upload-artifact@v4
         with:
