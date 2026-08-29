@@ -26,6 +26,10 @@ Desktop.ini
 *.snupkg
 /.packages/
 
+# VS publish profiles (local leftovers)
+*.pubxml
+*.pubxml.user
+
 # Logs and temp files
 *.log
 *.tmp
