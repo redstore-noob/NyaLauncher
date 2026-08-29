@@ -80,7 +80,9 @@ public sealed class GameLaunchService
     }
 
     public async Task<ComponentActionResult> LaunchSelectedAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? serverHost = null,
+        int? serverPort = null)
     {
         if (Interlocked.CompareExchange(ref _launchInProgress, 1, 0) != 0)
             return ComponentActionResult.Failed("游戏正在启动，请稍候。");
@@ -173,8 +175,8 @@ public sealed class GameLaunchService
                 microsoftAccount = await _authenticator
                     .ValidateAsync(microsoftAccount, cancellationToken)
                     .ConfigureAwait(false);
-                selectedAccount.Microsoft = microsoftAccount;
-                AccountStore.Save();
+                // 通过 AccountStore 更新，确保 UI 订阅者收到 Changed 通知
+                AccountStore.UpdateMicrosoftAccount(selectedAccount, microsoftAccount);
                 launchAccount = microsoftAccount;
                 AppendLog("正版账号凭据校验完成。");
             }
@@ -210,12 +212,23 @@ public sealed class GameLaunchService
             var windowHeight = versionProfile.FollowGlobalAdvancedSettings
                 ? globalLaunchSettings.WindowHeight
                 : versionProfile.WindowHeight;
-            var additionalJvmArguments = versionProfile.FollowGlobalAdvancedSettings
+            var additionalJvmArguments = (versionProfile.FollowGlobalAdvancedSettings
                 ? globalLaunchSettings.AdditionalJvmArguments
-                : versionProfile.AdditionalJvmArguments;
-            var additionalGameArguments = versionProfile.FollowGlobalAdvancedSettings
+                : versionProfile.AdditionalJvmArguments) ?? [];
+            var additionalGameArguments = (versionProfile.FollowGlobalAdvancedSettings
                 ? globalLaunchSettings.AdditionalGameArguments
-                : versionProfile.AdditionalGameArguments;
+                : versionProfile.AdditionalGameArguments) ?? [];
+            if (!string.IsNullOrWhiteSpace(serverHost))
+            {
+                // 直接进服：原版客户端会读取追加在末尾的 --server / --port 参数
+                additionalGameArguments =
+                [
+                    .. additionalGameArguments,
+                    "--server", serverHost,
+                    "--port", (serverPort ?? 25565).ToString()
+                ];
+                AppendLog($"已指定进入服务器：{serverHost}:{serverPort ?? 25565}。");
+            }
             AppendLog(memoryDecision.IsAutomatic
                 ? $"已根据启动前可用内存自动设置：可用 {memoryDecision.AvailableMemoryMb} MiB，" +
                   $"保留 {memoryDecision.ReservedMemoryMb} MiB，游戏最大 {memoryDecision.MaximumMemoryMb} MiB。"
@@ -240,7 +253,8 @@ public sealed class GameLaunchService
                 WindowWidth = windowWidth,
                 WindowHeight = windowHeight,
                 AdditionalJvmArguments = additionalJvmArguments,
-                AdditionalGameArguments = additionalGameArguments
+                AdditionalGameArguments = additionalGameArguments,
+                LogCallback = AppendLog
             };
 
             AppendLog(versionProfile.FollowGlobalAdvancedSettings
@@ -356,7 +370,16 @@ public sealed class GameLaunchService
         int exitCode;
         try
         {
-            process.WaitForExit();
+            // 进程已退出但 stdout/stderr 管道未 EOF（子进程继承句柄）时，
+            // WaitForExit 不会返回：先看 HasExited 直接收尾，避免永久挂起。
+            while (!process.HasExited)
+            {
+                // 每 30 秒记录一次仍在运行，避免日志收集子进程挂起时永久静默阻塞
+                if (!process.WaitForExit(30000))
+                {
+                    AppendLog("游戏进程仍在运行，继续等待退出…");
+                }
+            }
             exitCode = process.ExitCode;
         }
         catch (Exception exception)

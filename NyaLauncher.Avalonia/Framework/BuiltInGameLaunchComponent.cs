@@ -11,6 +11,7 @@ namespace NyaLauncher.Avalonia.Framework;
 
 internal static class BuiltInGameLaunchComponent
 {
+    /// <summary>组件 Id：<c>nyalauncher.builtin/game-launch</c>。全局唯一且必须保持稳定，用户的工作区布局与个性化配置靠它引用本组件。</summary>
     public const string ComponentId = "nyalauncher.builtin/game-launch";
     private const string LaunchActionId = "launch-game";
 
@@ -20,18 +21,18 @@ internal static class BuiltInGameLaunchComponent
 
         var definition = new PolygonComponentBuilder(ComponentId, "启动游戏")
             .WithDescription("点击直接使用当前账号启动已选择的 Minecraft 游戏实例")
-            .WithGlyph("▶")
+            .WithGlyph("material:Play")
             .WithSize(250, 110)
             .WithSizeLimits(210, 92, 360, 150)
             .WithShape(PolygonShapeDefinition.Rectangle())
             .WithDragHandle(new ComponentRect(0.04, 0.1, 0.09, 0.3))
-            .WithTheme(ThemePolygonHelper.CreateLaunchTheme())
+            .WithTheme(new PolygonComponentTheme { Variant = ComponentThemeVariant.Launch })
             .AddAction(LaunchActionId)
             .UseSurfaceAction(LaunchActionId)
             .AddText(
                 "launch-glyph",
                 new ComponentRect(0.08, 0.2, 0.14, 0.42),
-                "▶",
+                "material:Play",
                 ComponentTextRole.Emphasis,
                 fontSize: 25)
             .AddText(
@@ -61,31 +62,24 @@ internal static class BuiltInGameLaunchComponent
         };
     }
 
-    private sealed class GameLaunchInstance : IPolygonComponentInstance
+    private sealed class GameLaunchInstance : PolygonComponentInstanceBase
     {
         private readonly GameLaunchService _launchService;
-        private ComponentStateSnapshot _currentState;
-        private long _revision;
-        private int _isDisposed;
 
         public GameLaunchInstance(GameLaunchService launchService)
         {
             _launchService = launchService;
-            _currentState = CreateState(Interlocked.Increment(ref _revision));
+            SetState(CreateState());
             AccountStore.Changed += OnSelectionChanged;
             GameInstanceStore.Changed += OnInstancesChanged;
             _launchService.Changed += OnLaunchChanged;
         }
 
-        public ComponentStateSnapshot CurrentState => Volatile.Read(ref _currentState);
-
-        public event EventHandler<ComponentStateChangedEventArgs>? StateChanged;
-
-        public async ValueTask<ComponentActionResult> InvokeAsync(
+        public override async ValueTask<ComponentActionResult> InvokeAsync(
             ComponentActionInvocation invocation,
             CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return ComponentActionResult.Failed("启动游戏组件已释放。");
             if (!string.Equals(
                     invocation.ActionId,
@@ -100,17 +94,12 @@ internal static class BuiltInGameLaunchComponent
                 .ConfigureAwait(false);
         }
 
-        public ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _isDisposed, 1) == 0)
-            {
-                AccountStore.Changed -= OnSelectionChanged;
-                GameInstanceStore.Changed -= OnInstancesChanged;
-                _launchService.Changed -= OnLaunchChanged;
-                StateChanged = null;
-            }
-
-            return ValueTask.CompletedTask;
+            AccountStore.Changed -= OnSelectionChanged;
+            GameInstanceStore.Changed -= OnInstancesChanged;
+            _launchService.Changed -= OnLaunchChanged;
+            return base.DisposeAsync();
         }
 
         private void OnSelectionChanged() => Publish();
@@ -119,17 +108,9 @@ internal static class BuiltInGameLaunchComponent
 
         private void OnLaunchChanged(GameLaunchSnapshot _) => Publish();
 
-        private void Publish()
-        {
-            if (Volatile.Read(ref _isDisposed) != 0)
-                return;
+        private void Publish() => SetState(CreateState());
 
-            var next = CreateState(Interlocked.Increment(ref _revision));
-            Volatile.Write(ref _currentState, next);
-            StateChanged?.Invoke(this, new ComponentStateChangedEventArgs(next));
-        }
-
-        private ComponentStateSnapshot CreateState(long revision)
+        private ComponentStateSnapshot CreateState()
         {
             var launch = _launchService.Current;
             var instance = GameInstanceStore.Current;
@@ -138,7 +119,7 @@ internal static class BuiltInGameLaunchComponent
             var status = account is null
                 ? "请先添加并选择账号"
                 : $"{account.DisplayName} · 点击直接启动";
-            var glyph = "▶";
+            var glyph = "material:Play";
 
             switch (launch.Phase)
             {
@@ -150,7 +131,7 @@ internal static class BuiltInGameLaunchComponent
                 case GameLaunchPhase.Running:
                     title = launch.Title;
                     status = launch.Message;
-                    glyph = "■";
+                    glyph = "material:Stop";
                     break;
                 case GameLaunchPhase.Failed:
                     title = launch.Title;
@@ -160,13 +141,12 @@ internal static class BuiltInGameLaunchComponent
                 case GameLaunchPhase.Exited:
                     title = instance.SelectedVersionId ?? launch.VersionId ?? "游戏已退出";
                     status = $"{launch.Message} · 点击可再次启动";
-                    glyph = "↻";
+                    glyph = "material:Refresh";
                     break;
             }
 
             return new ComponentStateSnapshot
             {
-                Revision = revision,
                 Elements = new Dictionary<string, ComponentElementState>(
                     StringComparer.OrdinalIgnoreCase)
                 {

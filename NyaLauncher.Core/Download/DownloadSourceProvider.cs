@@ -60,10 +60,10 @@ public static class DownloadSources
 public static class DownloadSourceProvider
 {
     /// <summary>
-    /// 当前活跃下载源。默认 Official。
+    /// 当前活跃下载源。默认 BMCL（国内网络友好）。
     /// 前端可在启动时或设置页切换。
     /// </summary>
-    public static DownloadSource Active { get; set; } = DownloadSources.Official;
+    public static DownloadSource Active { get; set; } = DownloadSources.Bmcl;
 
     /// <summary>
     /// 自动回退源。当 <see cref="Active"/> 请求失败时自动尝试。
@@ -101,6 +101,29 @@ public static class DownloadSourceProvider
     // 带回退的 HTTP 请求
     // ------------------------------------------------------------------
 
+    private static readonly HttpClient SharedClient = CreateSharedClient();
+
+    private static HttpClient CreateSharedClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("NyaLauncher/1.0");
+        return client;
+    }
+
+    /// <summary>
+    /// 按调用方超时创建链接取消令牌；无超时要求时返回 null。
+    /// </summary>
+    private static CancellationTokenSource? CreateTimeoutCts(
+        TimeSpan? timeout,
+        CancellationToken cancellationToken)
+    {
+        if (timeout is null)
+            return null;
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(timeout.Value);
+        return cts;
+    }
+
     /// <summary>
     /// GET 请求，自动应用 Active 源；失败时回退到 Fallback 源。
     /// </summary>
@@ -112,16 +135,17 @@ public static class DownloadSourceProvider
         var primaryUrl = Resolve(officialUrl);
         var fallbackUrl = ResolveFallback(officialUrl);
 
-        using var client = CreateClient(timeout);
+        using var timeoutCts = CreateTimeoutCts(timeout, cancellationToken);
+        var ct = timeoutCts?.Token ?? cancellationToken;
 
         try
         {
-            return await client.GetStringAsync(primaryUrl, cancellationToken)
+            return await SharedClient.GetStringAsync(primaryUrl, ct)
                 .ConfigureAwait(false);
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested && fallbackUrl is not null)
+        catch (Exception) when (!ct.IsCancellationRequested && fallbackUrl is not null)
         {
-            return await client.GetStringAsync(fallbackUrl, cancellationToken)
+            return await SharedClient.GetStringAsync(fallbackUrl, ct)
                 .ConfigureAwait(false);
         }
     }
@@ -137,29 +161,19 @@ public static class DownloadSourceProvider
         var primaryUrl = Resolve(officialUrl);
         var fallbackUrl = ResolveFallback(officialUrl);
 
-        using var client = CreateClient(timeout);
+        using var timeoutCts = CreateTimeoutCts(timeout, cancellationToken);
+        var ct = timeoutCts?.Token ?? cancellationToken;
 
         try
         {
-            return await client.GetByteArrayAsync(primaryUrl, cancellationToken)
+            return await SharedClient.GetByteArrayAsync(primaryUrl, ct)
                 .ConfigureAwait(false);
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested && fallbackUrl is not null)
+        catch (Exception) when (!ct.IsCancellationRequested && fallbackUrl is not null)
         {
-            return await client.GetByteArrayAsync(fallbackUrl, cancellationToken)
+            return await SharedClient.GetByteArrayAsync(fallbackUrl, ct)
                 .ConfigureAwait(false);
         }
-    }
-
-    // ------------------------------------------------------------------
-    // 辅助
-    // ------------------------------------------------------------------
-
-    private static HttpClient CreateClient(TimeSpan? timeout)
-    {
-        var client = new HttpClient { Timeout = timeout ?? TimeSpan.FromSeconds(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("NyaLauncher/1.0");
-        return client;
     }
 
     /// <summary>
@@ -182,9 +196,23 @@ public static class DownloadSourceProvider
         if (url.Contains("maven.minecraftforge.net", StringComparison.OrdinalIgnoreCase))
             return url.Replace("https://maven.minecraftforge.net", target.Maven, StringComparison.OrdinalIgnoreCase);
 
-        // NeoForge Maven
+        // NeoForge Maven：BMCL 镜像会去掉 /releases/ 路径段（实测 maven/releases/... 返回 404），
+        // 必须先处理带路径的特例，再回退到域名级替换。
+        if (url.Contains("maven.neoforged.net/releases/net/neoforged", StringComparison.OrdinalIgnoreCase))
+            return url.Replace(
+                "https://maven.neoforged.net/releases/net/neoforged",
+                $"{target.Maven}/net/neoforged",
+                StringComparison.OrdinalIgnoreCase);
         if (url.Contains("maven.neoforged.net", StringComparison.OrdinalIgnoreCase))
             return url.Replace("https://maven.neoforged.net", target.Maven, StringComparison.OrdinalIgnoreCase);
+
+        // Fabric meta（版本列表与 profile JSON 的镜像为 {Meta}/fabric-meta）
+        if (url.Contains("meta.fabricmc.net", StringComparison.OrdinalIgnoreCase))
+            return url.Replace("https://meta.fabricmc.net", $"{target.Meta}/fabric-meta", StringComparison.OrdinalIgnoreCase);
+
+        // Fabric Maven（库文件）
+        if (url.Contains("maven.fabricmc.net", StringComparison.OrdinalIgnoreCase))
+            return url.Replace("https://maven.fabricmc.net", target.Maven, StringComparison.OrdinalIgnoreCase);
 
         // 通用 Meta 域名
         if (url.Contains("piston-meta.mojang.com", StringComparison.OrdinalIgnoreCase))

@@ -1,12 +1,18 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Animations.Helpers;
+using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Dialogs;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Pages;
@@ -16,6 +22,8 @@ using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Launch.Auth;
+using NyaLauncher.Core.Logs;
+using NyaLauncher.Core.Models;
 using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia;
@@ -26,18 +34,20 @@ public partial class MainWindow : Window
     private readonly MinecraftProfileService _minecraftProfileService = new();
     private readonly GameLaunchService _gameLaunchService;
     private readonly GameDownloadService _gameDownloadService;
-    private readonly LaunchPage _launchPage;
     private readonly DownloadPage _downloadPage;
     private readonly VersionManagerPage _versionManagerPage;
     private readonly SettingsHubPage _settingsPage;
     private readonly AccountManagePage _accountManagePage;
     private readonly MusicPlayerPage _musicPlayerPage;
-    private ComponentLibraryWindow? _componentLibraryWindow;
     private TaskDetailsWindow? _taskDetailsWindow;
     private bool _suppressWorkspaceSave;
     private bool _storageChangeInProgress;
     private bool _polygonShutdownInProgress;
     private bool _polygonShutdownComplete;
+    private bool _themeReloading;
+    private DispatcherTimer? _windowSizeSaveTimer;
+    private bool _applyingSavedSize;
+    private Core.Logs.LogsWrite _logSystem;
 
     /// <summary>
     /// Shared registry for the built-in feature areas and configurable components.
@@ -48,25 +58,26 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        // [诊断] 在标题栏显示当前主题，确认主题加载是否正确
-        var loadedTheme = Pages.ThemeSettings.LoadTheme();
-        var accent = Application.Current?.Resources.TryGetValue("AccentBrush", out var a) == true ? a : "null";
-        var bg = Application.Current?.Resources.TryGetValue("WindowBgBrush", out var b) == true ? b : "null";
-        Title = $"NyaLauncher [{loadedTheme}] Accent={accent} Bg={bg}";
-
         // 让 config.json 与 workspace.json 存放在同一目录（含自定义存储目录）。
         LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
         try { DownloadSettings.ApplySavedSettings(); }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"下载设置恢复失败，使用默认值：{ex.Message}"); }
+        // 启动即应用「彩虹背景」开关（同理）
+        AmbientGradient.AmbientGradientEnabled = Pages.ThemeSettings.LoadAmbientGradient();
+        // 启动即应用「星尘特效」开关（同理）
+        SparkleTrail.SparkleTrailEnabled = Pages.ThemeSettings.LoadSparkleTrail();
         _gameLaunchService = new GameLaunchService();
         _gameLaunchService.Changed += OnGameLaunchChanged;
         _gameDownloadService = new GameDownloadService();
         _gameDownloadService.Changed += OnGameDownloadChanged;
+        // 日志系统在构造函数初始化：ShowStatus 可能早于窗口 Loaded 被快照事件触发
+        _logSystem = new LogsWrite();
 
         FeatureAreas.Register(new BuiltInFeatureAreaProvider(
             NavigateFromAction,
             _minecraftProfileService,
-            _gameLaunchService));
+            _gameLaunchService,
+            OpenServerJoinDialog));
         var profile = _profileStore.Load();
         FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
         FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
@@ -84,21 +95,41 @@ public partial class MainWindow : Window
                 SaveWorkspaceProfile();
         };
         Workspace.ComponentDropRequested += OnComponentDropRequested;
+        Workspace.ComponentDiscardRequested += OnComponentRemovalRequested;
+        Workspace.ComponentFeedback += (_, message) => ShowStatus(message);
 
-        _launchPage = new LaunchPage(_gameLaunchService);
         _downloadPage = new DownloadPage(_gameDownloadService);
         _downloadPage.ModInstallRequested += (_, project) =>
-            ModOverlay.ShowFor(project);
+            ModalHost.Show(BuildModView(project));
+        _downloadPage.ContentDownloadRequested += (_, args) =>
+            ModalHost.Show(BuildContentView(args.Project, args.Kind));
         _versionManagerPage = new VersionManagerPage();
         _settingsPage = new SettingsHubPage(
             FeatureAreas,
             _profileStore.StorageDirectory);
         _settingsPage.PersonalizationSaved += OnPersonalizationSaved;
         _settingsPage.AccountManageRequested += OnAccountManageRequested;
+
+        // ------------------------------------------------------------
+        // 右侧「组件库」抽屉初始化
+        // ------------------------------------------------------------
+        ComponentLibraryView.AttachRegistry(FeatureAreas);
+        // 拖动任一组件卡：立即缩回抽屉（回调发生在 DoDragDropAsync 之前，动画由渲染线程播完）
+        ComponentLibraryView.DragStarting += (_, _) => CloseComponentLibraryDrawer();
+        // 点击遮罩：关闭抽屉
+        ComponentLibraryScrim.PointerPressed += (_, _) => CloseComponentLibraryDrawer();
+
+        // 主题热重载：切换主题后重挂载根元素刷新 StaticResource
+        ThemeManager.ThemeChanged += OnThemeHotReload;
         _settingsPage.InstanceManageRequested += (_, _) =>
         {
             _versionManagerPage.Activate();
             ShowPage(_versionManagerPage, "版本管理");
+        };
+        _settingsPage.JavaRuntimeManageRequested += (_, _) =>
+        {
+            _downloadPage.ActivateJavaTab();
+            ShowPage(_downloadPage, "资源下载");
         };
         _accountManagePage = new AccountManagePage();
         _musicPlayerPage = new MusicPlayerPage();
@@ -111,10 +142,90 @@ public partial class MainWindow : Window
         PropertyChanged += (_, args) =>
         {
             if (args.Property == WindowStateProperty)
+            {
                 UpdateWindowStateIcons();
+                // 从任务栏恢复（最小化→普通/最大化）：播放放大淡入，承接最小化的收缩动画
+                if (args.OldValue is WindowState.Minimized && args.NewValue is not WindowState.Minimized)
+                    WindowEffects.Restore(this, fromMinimized: true);
+            }
         };
         UpdateWindowStateIcons();
         Closing += OnWindowClosing;
+        // 整合包拖拽安装：Avalonia 12 移除了 Window 的 XAML 拖放属性（AllowDrop/DragOver/Drop），
+        // 必须改用 DragDrop 静态类代码附加
+        DragDrop.SetAllowDrop(this, true);
+        DragDrop.AddDragOverHandler(this, OnWindowDragOver);
+        DragDrop.AddDropHandler(this, OnWindowDrop);
+        // 窗口尺寸变更（防抖 300ms）后轻量保存，避免拖动时反复整文件回写
+        SizeChanged += (_, _) => OnWindowSizeChanged();
+        _windowSizeSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _windowSizeSaveTimer.Tick += (_, _) =>
+        {
+            _windowSizeSaveTimer.Stop();
+            SaveCurrentWindowSize();
+        };
+        // 主窗口创建时「飞出来」：入场动效逻辑在 Animations 模块的 WindowEffects.Enter
+        Opened += (_, _) =>
+        {
+            WindowEffects.Enter(this);
+            // 兜底强制启用（class 正常时幂等）：背景流光 + 星尘跟随鼠标
+            AmbientGradient.Enable(WindowRoot);
+            SparkleTrail.Enable(WindowRoot);
+        };
+    }
+
+    /// <summary>构建 Mod 下载内容视图（每次新建实例，避免状态残留与事件重复订阅）。</summary>
+    private ModDownloadOverlay BuildModView(ModrinthProject project)
+    {
+        var view = new ModDownloadOverlay();
+        view.Setup(project);
+        return view;
+    }
+
+    /// <summary>构建整合包/资源包/光影包下载内容视图。</summary>
+    private ContentDownloadOverlay BuildContentView(ModrinthProject project, ContentDownloadKind kind)
+    {
+        var view = new ContentDownloadOverlay { DownloadService = _gameDownloadService };
+        view.Setup(project, kind);
+        return view;
+    }
+
+    /// <summary>
+    /// 「服务器快连」组件请求进服：弹出遮罩层选择版本，
+    /// 确认后切换选中实例并携带 --server/--port 参数后台启动。
+    /// </summary>
+    private void OpenServerJoinDialog(ServerJoinRequest request)
+    {
+        // 组件动作由 PolygonComponentInstanceHost 经 Task.Run 在后台线程执行；
+        // 创建遮罩层等 UI 操作必须封送回 UI 线程，否则抛跨线程异常。
+        _ = Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            try
+            {
+                var instance = GameInstanceStore.Current;
+                var view = new ServerJoinOverlay(
+                    request,
+                    instance.VersionIds,
+                    instance.SelectedVersionId);
+                view.VersionLaunchRequested += (_, versionId) =>
+                {
+                    if (!GameInstanceStore.Select(versionId))
+                        return;
+
+                    ModalHost.Close();
+                    // 启动进度由「启动游戏」组件卡片显示，无需再跳转旧启动页
+                    var host = request.Host;
+                    var port = request.Port;
+                    _ = Task.Run(() => _gameLaunchService.LaunchSelectedAsync(
+                        CancellationToken.None, host, port));
+                };
+                ModalHost.Show(view);
+            }
+            catch (Exception exception)
+            {
+                ShowStatus($"无法打开进服选择器：{exception.Message}");
+            }
+        });
     }
 
     private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
@@ -127,6 +238,9 @@ public partial class MainWindow : Window
         }
         if (_polygonShutdownComplete)
             return;
+
+        // 关闭前兜底保存当前窗口尺寸（已内部判断非普通状态则跳过）
+        SaveCurrentWindowSize();
 
         e.Cancel = true;
         if (_polygonShutdownInProgress)
@@ -146,7 +260,9 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    Close();
+                    // 先播「飞走」退场动效（Animations 模块 WindowEffects.Exit），播完再真正关闭；
+                    // 此时 _polygonShutdownComplete 已为 true，再次 OnClosing 会直接放行，不会递归。
+                    WindowEffects.Exit(this, () => Close());
                 }
                 catch (InvalidOperationException)
                 {
@@ -161,11 +277,6 @@ public partial class MainWindow : Window
     {
         switch (actionId)
         {
-            case "select-instance":
-            case "launch":
-                ShowPage(_launchPage, "启动游戏");
-                break;
-
             case "account":
                 ShowPage(_accountManagePage, "账户管理");
                 break;
@@ -202,14 +313,36 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowPage(Control page, string title)
+    /// <summary>页面切换代数：新切换会使进行中的退出动画序作废，防止快速连续点击时序错乱。</summary>
+    private int _pageTransitionGeneration;
+
+    private async void ShowPage(Control page, string title)
     {
+        var generation = ++_pageTransitionGeneration;
+        var oldPage = PageHost.Content as Control;
+        if (oldPage is { } && !ReferenceEquals(oldPage, page) && PageSurface.IsVisible)
+        {
+            await AnimationHelper.SlideFadeOutAsync(oldPage);
+            if (generation != _pageTransitionGeneration)
+            {
+                // 已被更新的一次切换取代；旧页的隐藏与复位由新的那次切换负责
+                return;
+            }
+            // 旧页已脱离（即将被替换）：复位缓存页面，供下次复用（动画总开关关闭时无残留）
+            oldPage.Opacity = 1;
+            oldPage.RenderTransform = null;
+            oldPage.IsHitTestVisible = true;
+        }
+
         PageHost.Content = page;
         CurrentPageTitle.Text = title;
         Workspace.IsVisible = false;
         PageSurface.IsVisible = true;
         HeaderStatusText.Text = title;
         ShowStatus($"已进入：{title}");
+
+        // 页面切换动效：淡入 + 轻微上浮（滑入）
+        _ = AnimationHelper.SlideFadeInAsync(page);
     }
 
     private void ShowSettings(SettingsSection section)
@@ -224,19 +357,98 @@ public partial class MainWindow : Window
         ShowPage(_accountManagePage, "账户管理");
     }
 
-    private void ShowWorkspace()
+    private async void ShowWorkspace()
     {
+        var generation = ++_pageTransitionGeneration;
+        var oldPage = PageHost.Content as Control;
+        if (oldPage is { } && PageSurface.IsVisible)
+        {
+            await AnimationHelper.SlideFadeOutAsync(oldPage);
+            if (generation != _pageTransitionGeneration)
+            {
+                // 已被更新的一次切换取代；旧页的隐藏与复位由新的那次切换负责
+                return;
+            }
+        }
+
         PageSurface.IsVisible = false;
-        Workspace.IsVisible = true;
         PageHost.Content = null;
+        if (oldPage is { })
+        {
+            // 页面已脱离视觉树：复位缓存页面（透明度/位移/命中），供下次复用
+            oldPage.Opacity = 1;
+            oldPage.RenderTransform = null;
+            oldPage.IsHitTestVisible = true;
+        }
+        Workspace.IsVisible = true;
         CurrentPageTitle.Text = string.Empty;
         HeaderStatusText.Text = "工作区已就绪";
-        ShowStatus("已返回工作区");
     }
 
+    // ------------------------------------------------------------------
+    // 整合包拖拽安装：.zip 拖入窗口 → 解压到当前选中实例的内容目录
+    // ------------------------------------------------------------------
+
+    private void OnWindowDragOver(object? sender, DragEventArgs e)
+    {
+        var hasZip = e.DataTransfer.TryGetFiles()?.Any(f =>
+            f.TryGetLocalPath()?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true) == true;
+        e.DragEffects = hasZip ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void OnWindowDrop(object? sender, DragEventArgs e)
+    {
+        var zip = e.DataTransfer.TryGetFiles()?
+            .Select(f => f.TryGetLocalPath())
+            .FirstOrDefault(p => p?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true);
+        if (zip is null)
+        {
+            ShowStatus("请拖入 .zip 整合包文件");
+            return;
+        }
+
+        var instance = GameInstanceStore.Current;
+        if (string.IsNullOrWhiteSpace(instance.SelectedVersionId) ||
+            (string.IsNullOrWhiteSpace(instance.SourcePath) &&
+             string.IsNullOrWhiteSpace(instance.MinecraftDirectory)))
+        {
+            NyaAlert.Info("请先在「启动游戏」页面选择一个游戏实例，再拖入整合包");
+            return;
+        }
+
+        var contentDir = ContentInstallService.ResolveContentDirectory(
+            instance.MinecraftDirectory, instance.SourcePath, instance.SelectedVersionId);
+        if (string.IsNullOrWhiteSpace(contentDir))
+        {
+            NyaAlert.Error("无法解析实例内容目录，安装已取消");
+            return;
+        }
+
+        ShowStatus($"正在安装整合包：{Path.GetFileName(zip)} …");
+        try
+        {
+            (int installed, int downloaded, List<string> errors) =
+                await ContentInstallService.InstallModpackAsync(zip, contentDir);
+            ShowStatus(errors.Count == 0
+                ? $"整合包安装完成：解压 {installed} 个文件"
+                : $"整合包安装完成（解压 {installed} 个，{errors.Count} 个问题）：{string.Join("；", errors.Take(2))}");
+        }
+        catch (Exception ex)
+        {
+            NyaAlert.Error($"整合包安装失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 由于不敢动之前的代码,该函数暂时与Log系统与NyaAlert()同时调用.
+    /// </summary>
+    /// <param name="message">日志系统中出现的日志,状态栏Text出现的文字,信息条出现的文字</param>
     private void ShowStatus(string message)
     {
         StatusText.Text = message;
+        NyaAlert.Info(message);
+        _logSystem.AddLogs(message, null);
     }
 
     private void OnGameLaunchChanged(GameLaunchSnapshot snapshot)
@@ -274,7 +486,8 @@ public partial class MainWindow : Window
             TaskActivityButton.IsVisible = true;
             TaskActivityButton.Background = ThemePolygonHelper.TaskDownloadingBg;
             TaskActivityButton.BorderBrush = ThemePolygonHelper.TaskDownloadingBorder;
-            TaskActivityGlyph.Text = "↓";
+            // 下载中图标："material:Kind" 渲染为 Material 图标，其余回退文字
+            TaskActivityIcon.Content = CreateTaskActivityGlyph("material:ArrowDownward");
             TaskActivityProgress.IsVisible = true;
             TaskActivityProgress.IsIndeterminate = download.TotalBytes <= 0;
             TaskActivityProgress.Value = download.Percentage;
@@ -294,17 +507,31 @@ public partial class MainWindow : Window
         TaskActivityButton.BorderBrush = ThemePolygonHelper.TaskLaunchingBorder;
         TaskActivityProgress.IsVisible = launch.Phase == GameLaunchPhase.Preparing;
         TaskActivityProgress.IsIndeterminate = launch.Phase == GameLaunchPhase.Preparing;
-        TaskActivityGlyph.Text = launch.Phase switch
+        // 启动状态图标："material:Kind" 渲染为 Material 图标，其余（… / !）回退文字
+        TaskActivityIcon.Content = launch.Phase switch
         {
-            GameLaunchPhase.Preparing => "…",
-            GameLaunchPhase.Running => "▶",
-            GameLaunchPhase.Failed => "!",
-            GameLaunchPhase.Exited => "✓",
-            _ => "▶"
+            GameLaunchPhase.Preparing => CreateTaskActivityGlyph("…"),
+            GameLaunchPhase.Running => CreateTaskActivityGlyph("material:Play"),
+            GameLaunchPhase.Failed => CreateTaskActivityGlyph("!"),
+            GameLaunchPhase.Exited => CreateTaskActivityGlyph("material:Check"),
+            _ => CreateTaskActivityGlyph("material:Play")
         };
         ToolTip.SetTip(
             TaskActivityButton,
             $"{launch.Title}\n{launch.Message}\n点击查看启动日志");
+    }
+
+    /// <summary>
+    /// 创建任务按钮图标："material:Kind" 渲染为 Material 图标，其余回退文字；
+    /// 前景色沿用原 WhiteBrush 主题资源。
+    /// </summary>
+    private Control CreateTaskActivityGlyph(string glyph)
+    {
+        var foreground = Application.Current?.TryGetResource("WhiteBrush", null, out var resource) == true &&
+                         resource is IBrush brush
+            ? brush
+            : Brushes.White;
+        return FeatureIconFactory.CreateGlyph(glyph, 22, foreground);
     }
 
     private void OnTaskActivityClick(object? sender, RoutedEventArgs e)
@@ -346,18 +573,72 @@ public partial class MainWindow : Window
         ShowWorkspace();
     }
 
+    /// <summary>状态栏右下角齿轮按钮：快速进入设置页（与 Ctrl+, 一致）。</summary>
+    private void OnSettingsQuickClick(object? sender, RoutedEventArgs e)
+    {
+        ShowSettings(SettingsSection.Launcher);
+    }
+
+    private bool _componentLibraryDrawerOpen;
+    private int _drawerAnimationGeneration;
+    private const double ComponentLibraryDrawerWidth = 400;
+
+    /// <summary>点击状态栏「组件库」按钮：切换右侧抽屉开合。</summary>
     private void OnComponentLibraryClick(object? sender, RoutedEventArgs e)
     {
-        if (_componentLibraryWindow is not null)
-        {
-            _componentLibraryWindow.Activate();
-            return;
-        }
+        if (_componentLibraryDrawerOpen)
+            CloseComponentLibraryDrawer();
+        else
+            OpenComponentLibraryDrawer();
+    }
 
-        _componentLibraryWindow = new ComponentLibraryWindow(FeatureAreas);
-        _componentLibraryWindow.ComponentRemovalRequested += OnComponentRemovalRequested;
-        _componentLibraryWindow.Closed += (_, _) => _componentLibraryWindow = null;
-        _componentLibraryWindow.Show(this);
+    /// <summary>
+    /// 展开右侧组件库抽屉：容器先滑出（M3 emphasized 300ms），
+    /// 走到 40% 时再播卡片错峰入场，符合 M3「先容器后内容」。
+    /// </summary>
+    private async void OpenComponentLibraryDrawer()
+    {
+        if (_componentLibraryDrawerOpen)
+            return;
+        var generation = ++_drawerAnimationGeneration;
+        _componentLibraryDrawerOpen = true;
+
+        ComponentLibraryScrim.IsVisible = true;
+        ComponentLibraryDrawer.IsVisible = true;
+        // Transitions 需要观察到属性变化才生效；先确保基线为 0 再在下一帧赋展开宽度
+        ComponentLibraryDrawer.Width = 0;
+        await Dispatcher.UIThread.InvokeAsync(
+            () =>
+            {
+                if (generation == _drawerAnimationGeneration)
+                    ComponentLibraryDrawer.Width = ComponentLibraryDrawerWidth;
+            },
+            DispatcherPriority.Loaded);
+
+        // 300ms * 40% = 120ms 后开始内容入场
+        await Task.Delay((int)(MaterialMotion.MediumTransitionMs * MaterialMotion.FadeEndFraction));
+        if (generation == _drawerAnimationGeneration)
+            ComponentLibraryView.PlayStagger();
+    }
+
+    /// <summary>
+    /// 缩回右侧组件库抽屉：宽度动画回 0；拖拽场景下 DoDragDropAsync 会阻塞
+    /// UI 线程，但 Transitions 在渲染线程继续播放，不受影响。
+    /// </summary>
+    private async void CloseComponentLibraryDrawer()
+    {
+        if (!_componentLibraryDrawerOpen)
+            return;
+        var generation = ++_drawerAnimationGeneration;
+        _componentLibraryDrawerOpen = false;
+
+        ComponentLibraryScrim.IsVisible = false;
+        ComponentLibraryDrawer.Width = 0;
+
+        // 动画播完再隐藏，避免截断（生成号变化说明期间又重新打开，则跳过）
+        await Task.Delay(MaterialMotion.MediumTransitionMs + 20);
+        if (generation == _drawerAnimationGeneration)
+            ComponentLibraryDrawer.IsVisible = false;
     }
 
     private void OnComponentRemovalRequested(
@@ -411,11 +692,104 @@ public partial class MainWindow : Window
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
+        // 设置页正在录制新快捷键：按键优先喂给捕获流程
+        if (AppHotkeys.IsCapturing)
+        {
+            e.Handled = true;
+            AppHotkeys.FeedKey(e);
+            return;
+        }
+
+        // 「打开设置」快捷键（可在设置中自定义，默认 Ctrl+,）
+        if (AppHotkeys.OpenSettingsGesture.Matches(e))
+        {
+            ShowSettings(SettingsSection.Launcher);
+            e.Handled = true;
+            return;
+        }
+
+        // 「快捷启动」快捷键（默认未设置，需在设置中录制）
+        if (AppHotkeys.QuickLaunchGesture is { } launchGesture && launchGesture.Matches(e))
+        {
+            // 等价于旧启动页 TriggerLaunch 的 CanLaunch 条件，进度由「启动游戏」组件卡片显示
+            var launch = _gameLaunchService.Current;
+            if (GameInstanceStore.Current.VersionIds.Count > 0 &&
+                !launch.IsBusy &&
+                !launch.IsGameRunning)
+            {
+                _ = _gameLaunchService.LaunchSelectedAsync(CancellationToken.None);
+            }
+            e.Handled = true;
+            return;
+        }
+
+        // Esc：从最上层逐层退出 —— 先关模态遮罩，再从页面返回工作区
         if (e.Key != Key.Escape)
             return;
 
-        ShowSettings(SettingsSection.Launcher);
-        e.Handled = true;
+        if (ModalHost.IsVisible)
+        {
+            ModalHost.Close();
+            e.Handled = true;
+            return;
+        }
+
+        if (PageSurface.IsVisible)
+        {
+            ShowWorkspace();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// 主题热重载：把窗口根元素脱离再挂载，强制全部控件重新应用样式与资源。
+    /// 使用 Dispatcher 合并连续切换（同一帧内只重挂载一次）。
+    /// </summary>
+    private async void OnThemeHotReload()
+    {
+        if (_themeReloading)
+            return;
+        _themeReloading = true;
+
+        try
+        {
+            // 氛围流光层在启用时一次性取色，需在资源已更新后强制重建，
+            // 否则主窗口底层光效停留在旧主题配色（重挂载 detach 会先移除该层）
+            NyaLauncher.Avalonia.Animations.Helpers.AmbientGradient.RecreateAll();
+
+            // 保存当前页面状态，重挂载后自动恢复
+            var pageVisible = PageSurface.IsVisible;
+            var lastPage = PageHost.Content as Control;
+            var lastTitle = CurrentPageTitle.Text ?? string.Empty;
+
+            await ThemeManager.RemountRootAsync(
+                this,
+                TimeSpan.FromMilliseconds(120),
+                TimeSpan.FromMilliseconds(200));
+
+            // 恢复页面状态（如果之前正处于页面视图）
+            if (pageVisible && lastPage is not null)
+            {
+                PageHost.Content = lastPage;
+                CurrentPageTitle.Text = lastTitle;
+                PageSurface.IsVisible = true;
+                Workspace.IsVisible = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ThemeHotReload] Failed: {ex}");
+            // 降级：无动画同步重挂载（根元素脱离后立即挂回，强制重新应用样式）
+            if (Content is Control root)
+            {
+                Content = null;
+                Content = root;
+            }
+        }
+        finally
+        {
+            _themeReloading = false;
+        }
     }
 
     private async void OnPersonalizationSaved(
@@ -424,7 +798,6 @@ public partial class MainWindow : Window
     {
         if (_storageChangeInProgress)
             return;
-
         _storageChangeInProgress = true;
         var profile = result.Profile;
         profile.Layout = Workspace.ExportLayout();
@@ -494,7 +867,6 @@ public partial class MainWindow : Window
                     throw;
                 }
                 AccountStore.Reload();
-                _launchPage.ReloadConfiguration();
                 profile = storageChange.AppliedProfile;
             }
             else
@@ -606,7 +978,8 @@ public partial class MainWindow : Window
 
     private void OnMinimizeClick(object? sender, RoutedEventArgs e)
     {
-        WindowState = WindowState.Minimized;
+        // 先播放"收向任务栏"动画，播完再真正最小化（最小化后窗口不可见，动画必须提前播）
+        WindowEffects.Minimize(this, () => WindowState = WindowState.Minimized);
     }
 
     private void OnMaximizeClick(object? sender, RoutedEventArgs e)
@@ -657,9 +1030,13 @@ public partial class MainWindow : Window
 
     private void ToggleMaximized()
     {
-        WindowState = WindowState == WindowState.Maximized
-            ? WindowState.Normal
-            : WindowState.Maximized;
+        var wasMaximized = WindowState == WindowState.Maximized;
+        WindowState = wasMaximized ? WindowState.Normal : WindowState.Maximized;
+        // 状态切换后播放确认动画：最大化"弹开"，还原"收正"
+        if (wasMaximized)
+            WindowEffects.Restore(this, fromMinimized: false);
+        else
+            WindowEffects.Maximize(this);
     }
 
     private void UpdateWindowStateIcons()
@@ -673,12 +1050,61 @@ public partial class MainWindow : Window
 
     private void Control_OnLoaded(object? sender, RoutedEventArgs e)
     {
+        ApplySavedWindowSize();
         MainWindowVersionText.Text = "NyaLauncher测试版,功能不稳定,不建议作为日常使用";
     }
 
-    private void Button_OnClick(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// 还原上次记忆的窗口尺寸，并 clamp 到主屏可用区域，避免记忆了外接屏导致窗口跑到屏外。
+    /// </summary>
+    private void ApplySavedWindowSize()
     {
-        ShowSettings(SettingsSection.Launcher);
-        e.Handled = true;
+        var settings = GlobalLaunchSettingsStore.Load();
+        var w = settings.WindowWidth;
+        var h = settings.WindowHeight;
+        if (w < 320 || h < 240)
+            return;
+
+        _applyingSavedSize = true;
+        try
+        {
+            var screen = Screens.Primary;
+            if (screen is not null)
+            {
+                var scale = RenderScaling;
+                var maxW = screen.WorkingArea.Width / scale;
+                var maxH = screen.WorkingArea.Height / scale;
+                Width = Math.Clamp((double)w, 320.0, maxW);
+                Height = Math.Clamp((double)h, 240.0, maxH);
+            }
+            else
+            {
+                Width = w;
+                Height = h;
+            }
+        }
+        finally
+        {
+            _applyingSavedSize = false;
+        }
     }
+
+    /// <summary>
+    /// 仅在窗口处于普通状态（未最大化/最小化）时记忆尺寸，避免存下一个"铺满屏"的无效值。
+    /// </summary>
+    private void SaveCurrentWindowSize()
+    {
+        if (WindowState != WindowState.Normal)
+            return;
+        GlobalLaunchSettingsStore.SaveWindowSize((int)Math.Round(Width), (int)Math.Round(Height));
+    }
+
+    private void OnWindowSizeChanged()
+    {
+        if (_applyingSavedSize || WindowState != WindowState.Normal)
+            return;
+        _windowSizeSaveTimer?.Stop();
+        _windowSizeSaveTimer?.Start();
+    }
+    
 }

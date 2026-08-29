@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Controls.ComponentLibraryView">
+  <Grid x:Name="LibraryRoot" RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0"
+            Padding="22,20,22,16"
+            Background="{DynamicResource CardBgBrush}"
+            BorderBrush="{DynamicResource DefaultBorderBrush}"
+            BorderThickness="0,0,0,1">
+      <StackPanel Spacing="6">
+        <TextBlock Text="组件库"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Foreground="{DynamicResource PrimaryTextBrush}" />
+        <TextBlock Text="拖到功能区可添加；拖动时抽屉自动收起"
+                   FontSize="12"
+                   Foreground="{DynamicResource SubtextTextBrush}" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel x:Name="ComponentList"
+                  Margin="16"
+                  Spacing="10" />
+    </ScrollViewer>
+
+    <Border Grid.Row="2"
+            Padding="18,12"
+            Background="{DynamicResource BaseBgBrush}"
+            BorderBrush="{DynamicResource DefaultBorderBrush}"
+            BorderThickness="0,1,0,0">
+      <TextBlock Text="拖动组件到工作区任一功能区即可添加；删除组件可拖到工作区底部中央的垃圾桶图标。"
+                 FontSize="10"
+                 Foreground="{DynamicResource HintTextBrush}"
+                 TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</UserControl>

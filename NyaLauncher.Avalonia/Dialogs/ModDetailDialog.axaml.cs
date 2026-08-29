@@ -12,6 +12,8 @@ using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Models;
 
+using NyaLauncher.Avalonia.Animations.Helpers;
+
 namespace NyaLauncher.Avalonia.Dialogs;
 
 public partial class ModDetailDialog : Window
@@ -25,6 +27,16 @@ public partial class ModDetailDialog : Window
     private string? _selectedGameVersion;
     private List<ModrinthVersion> _currentVersions = [];
     private ModrinthVersion? _selectedModVersion;
+
+    /// <summary>
+    /// 仅供 Avalonia 编译 XAML 的运行时加载器满足实例化可达性要求（消除 AVLN3001），
+    /// 业务代码必须使用 <see cref="ModDetailDialog(ModrinthProject)"/>。
+    /// </summary>
+    public ModDetailDialog()
+    {
+        throw new InvalidOperationException(
+            $"{nameof(ModDetailDialog)} 必须通过 {nameof(ModrinthProject)} 参数构造，禁止调用无参版本。");
+    }
 
     public ModDetailDialog(ModrinthProject project)
     {
@@ -310,7 +322,7 @@ public partial class ModDetailDialog : Window
         }
     }
 
-    private void OnCancelClick(object? sender, RoutedEventArgs e) => Close();
+    private void OnCancelClick(object? sender, RoutedEventArgs e) => OverlayEffects.PopOut(this, () => Close());
 
     protected override void OnClosed(EventArgs e)
     {

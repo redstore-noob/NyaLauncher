@@ -89,7 +89,18 @@ public static partial class GameContentMetadataService
             launcherRoot = external.LauncherRoot;
         }
 
-        var icon = FindInstanceIcon(instanceDirectory, launcherRoot);
+        // 优先级：显式内置图标偏好 → profile 自定义图标偏好 → 实例目录自带图标 → 按加载器默认。
+        // 前置判断 gameicon: 直接返回，无需触碰磁盘。
+        var profileOverride = GameVersionProfileStore.GetInstanceIconOverride(
+            snapshot.MinecraftDirectory, versionId);
+        if (profileOverride is { Length: > 0 } &&
+            profileOverride.StartsWith("gameicon:", StringComparison.Ordinal))
+            return new GameInstanceVisual(profileOverride, LoaderGlyph(loaderName));
+
+        // 自定义图标偏好（"custom"）优先读取用户手动设置的图标文件，其次实例目录自带图标
+        var useCustom = string.Equals(profileOverride, "custom", StringComparison.Ordinal);
+        var icon = useCustom ? CustomInstanceIconStore.GetPath(snapshot.MinecraftDirectory, versionId) : null;
+        icon ??= FindInstanceIcon(instanceDirectory, launcherRoot);
         loaderName ??= DetectLoaderFromMetadata(snapshot.MinecraftDirectory, instanceDirectory, versionId);
         icon ??= DefaultInstanceIconCatalog.GetIconPath(loaderName);
         return new GameInstanceVisual(icon, LoaderGlyph(loaderName));
@@ -323,8 +334,17 @@ public static partial class GameContentMetadataService
         {
         }
 
-        var created = Directory.GetCreationTime(path);
+        var created = DateTime.MinValue;
         var icon = FindFirstExisting(path, "icon.png");
+        try
+        {
+            created = Directory.GetCreationTime(path);
+        }
+        catch (Exception)
+        {
+            // 目录被删除/权限不足时用占位时间，避免整个存档扫描中断
+        }
+
         return new GameContentEntry(
             name,
             $"创建日期 {created:yyyy-MM-dd HH:mm} · Minecraft {gameVersion}",
@@ -332,7 +352,7 @@ public static partial class GameContentMetadataService
                 ? $"存档文件夹：{folderName}"
                 : $"最后游玩：{lastPlayed:yyyy-MM-dd HH:mm} · 存档文件夹：{folderName}",
             icon,
-            "🌍",
+            "material:Apps",
             path,
             false);
     }
@@ -640,14 +660,8 @@ public static partial class GameContentMetadataService
         return "原版";
     }
 
-    private static string LoaderGlyph(string? loaderName) => loaderName switch
-    {
-        "Fabric" => "🧵",
-        "Forge" => "⚒",
-        "NeoForge" => "🦊",
-        "Quilt" => "◆",
-        _ => "🟩"
-    };
+    // 回退字形统一使用 Material 图标字形（Core 只存字符串，由 UI 层渲染为图标）
+    private static string LoaderGlyph(string? loaderName) => "material:Apps";
 
     private static string? FindFirstExisting(string root, params string[] relativePaths)
     {
@@ -803,138 +817,20 @@ public static partial class GameContentMetadataService
         }
     }
 
+    /// <summary>
+    /// 按加载器名称给出内置 GameIcons 资源符号（"gameicon:{key}"）。
+    /// UI 层的 ComponentImageLoader 将符号解码为程序集内嵌的 Resources/GameIcons PNG；
+    /// Fabric、Quilt 及未知加载器用 command_block 兜底。
+    /// </summary>
     private static class DefaultInstanceIconCatalog
     {
-        private const int Size = 32;
-        private static readonly object Gate = new();
-
-        public static string? GetIconPath(string loaderName)
+        public static string? GetIconPath(string loaderName) => loaderName switch
         {
-            try
-            {
-                var key = loaderName.ToLowerInvariant() switch
-                {
-                    "fabric" => "fabric-cloth",
-                    "forge" => "forge-anvil",
-                    "neoforge" => "neoforge-fox",
-                    "quilt" => "quilt-fabric",
-                    _ => "vanilla-grass-block"
-                };
-                var directory = Path.Combine(LauncherConfig.StorageDirectory, "instance-icons");
-                var path = Path.Combine(directory, key + "-v1.png");
-                if (File.Exists(path))
-                    return path;
-
-                lock (Gate)
-                {
-                    if (File.Exists(path))
-                        return path;
-                    Directory.CreateDirectory(directory);
-                    var pixels = new byte[Size * Size * 4];
-                    switch (key)
-                    {
-                        case "fabric-cloth": DrawFabric(pixels); break;
-                        case "forge-anvil": DrawAnvil(pixels); break;
-                        case "neoforge-fox": DrawFox(pixels); break;
-                        case "quilt-fabric": DrawQuilt(pixels); break;
-                        default: DrawGrassBlock(pixels); break;
-                    }
-                    var temporary = path + ".tmp";
-                    using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
-                        WritePng(stream, pixels);
-                    File.Move(temporary, path, true);
-                }
-                return path;
-            }
-            catch (IOException)
-            {
-                return null;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return null;
-            }
-        }
-
-        private static void DrawGrassBlock(byte[] pixels)
-        {
-            Fill(pixels, 4, 7, 24, 22, 105, 67, 40);
-            Fill(pixels, 4, 7, 24, 7, 80, 176, 70);
-            Fill(pixels, 6, 5, 20, 4, 106, 205, 82);
-            Fill(pixels, 8, 11, 5, 4, 74, 143, 55);
-            Fill(pixels, 19, 10, 6, 5, 62, 133, 51);
-            Fill(pixels, 7, 19, 5, 4, 139, 91, 49);
-            Fill(pixels, 18, 23, 6, 4, 77, 49, 34);
-        }
-
-        private static void DrawFabric(byte[] pixels)
-        {
-            Fill(pixels, 5, 5, 22, 22, 214, 177, 121);
-            Fill(pixels, 8, 3, 17, 4, 239, 207, 153);
-            Fill(pixels, 5, 9, 22, 3, 238, 204, 148);
-            Fill(pixels, 5, 17, 22, 3, 185, 141, 89);
-            Fill(pixels, 9, 5, 3, 22, 232, 198, 143);
-            Fill(pixels, 19, 5, 3, 22, 177, 131, 82);
-            Fill(pixels, 23, 23, 4, 6, 151, 109, 70);
-        }
-
-        private static void DrawAnvil(byte[] pixels)
-        {
-            Fill(pixels, 3, 6, 26, 5, 92, 103, 119);
-            Fill(pixels, 7, 11, 19, 5, 69, 78, 91);
-            Fill(pixels, 11, 16, 11, 8, 91, 102, 116);
-            Fill(pixels, 7, 24, 19, 5, 60, 69, 81);
-            Fill(pixels, 5, 7, 11, 2, 157, 168, 181);
-            Fill(pixels, 12, 17, 4, 6, 132, 143, 157);
-        }
-
-        private static void DrawFox(byte[] pixels)
-        {
-            Fill(pixels, 6, 7, 7, 8, 230, 104, 43);
-            Fill(pixels, 19, 7, 7, 8, 230, 104, 43);
-            Fill(pixels, 8, 5, 4, 5, 251, 143, 60);
-            Fill(pixels, 20, 5, 4, 5, 251, 143, 60);
-            Fill(pixels, 7, 11, 18, 14, 238, 113, 45);
-            Fill(pixels, 9, 19, 14, 8, 244, 224, 190);
-            Fill(pixels, 10, 14, 4, 4, 39, 34, 36);
-            Fill(pixels, 18, 14, 4, 4, 39, 34, 36);
-            Fill(pixels, 14, 21, 4, 3, 47, 39, 39);
-        }
-
-        private static void DrawQuilt(byte[] pixels)
-        {
-            Fill(pixels, 4, 4, 24, 24, 102, 76, 168);
-            for (var y = 4; y < 28; y += 8)
-                for (var x = 4; x < 28; x += 8)
-                    Fill(pixels, x, y, 7, 7, ((x + y) / 8) % 2 == 0 ? (byte)177 : (byte)126, 103, 205);
-            Fill(pixels, 11, 4, 1, 24, 223, 207, 240);
-            Fill(pixels, 20, 4, 1, 24, 223, 207, 240);
-            Fill(pixels, 4, 11, 24, 1, 223, 207, 240);
-            Fill(pixels, 4, 20, 24, 1, 223, 207, 240);
-        }
-
-        private static void Fill(
-            byte[] pixels,
-            int x,
-            int y,
-            int width,
-            int height,
-            byte red,
-            byte green,
-            byte blue)
-        {
-            for (var row = Math.Max(0, y); row < Math.Min(Size, y + height); row++)
-                for (var column = Math.Max(0, x); column < Math.Min(Size, x + width); column++)
-                {
-                    var offset = (row * Size + column) * 4;
-                    pixels[offset] = red;
-                    pixels[offset + 1] = green;
-                    pixels[offset + 2] = blue;
-                    pixels[offset + 3] = 255;
-                }
-        }
-
-        private static void WritePng(Stream target, byte[] pixels) =>
-            NyaLauncher.Core.Tools.PngEncoder.EncodeTo(target, Size, Size, pixels);
+            "NeoForge" => "gameicon:neoforge",
+            "Forge" => "gameicon:forge",
+            "Fabric" => "gameicon:fabric",
+            "原版" => "gameicon:vanilla",
+            _ => "gameicon:command_block"
+        };
     }
 }

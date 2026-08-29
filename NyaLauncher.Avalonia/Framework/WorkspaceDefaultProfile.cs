@@ -1,11 +1,22 @@
 namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
-/// Shipped first-run workspace.  Always returns a fresh object graph so user
-/// changes can never mutate the defaults held by the application.
+/// 出厂默认工作区：首次启动（或用户选择「恢复默认布局」）时使用。
+/// <para>
+/// 每次调用都返回一整棵<b>全新的对象图</b>，因此调用方对结果的任何修改
+/// 都不会污染应用程序持有的默认值。
+/// </para>
+/// <para>
+/// 内置区域固定占用前三个中性编号：<c>area-001</c> 启动页、<c>area-002</c> 自定义、
+/// <c>area-003</c> 多功能区（默认折叠为左侧栏）。用户新建区域从 <c>area-004</c> 开始。
+/// </para>
 /// </summary>
 public static class WorkspaceDefaultProfile
 {
+    /// <summary>
+    /// 创建一份全新的默认档案，版本号为 <see cref="WorkspaceProfile.CurrentVersion"/>。
+    /// </summary>
+    /// <returns>默认工作区档案；调用方可随意修改返回值。</returns>
     public static WorkspaceProfile Create()
     {
         return new WorkspaceProfile
@@ -19,7 +30,7 @@ public static class WorkspaceDefaultProfile
                     AreaId = "area-001",
                     DisplayName = "启动页",
                     Description = "启动游戏功能的区域",
-                    IconGlyph = "\u25B6",
+                    IconGlyph = "material:Play",
                     IconPath = null,
                     ActionIds =
                     [
@@ -34,7 +45,7 @@ public static class WorkspaceDefaultProfile
                     AreaId = "area-002",
                     DisplayName = "自定义",
                     Description = "自定义的功能区",
-                    IconGlyph = "\u25C6",
+                    IconGlyph = "material:Diamond",
                     IconPath = null,
                     ActionIds = [BuiltInVersionManagerComponent.ComponentId]
                 },
@@ -43,7 +54,7 @@ public static class WorkspaceDefaultProfile
                     AreaId = "area-003",
                     DisplayName = "多功能区",
                     Description = "设置与下载",
-                    IconGlyph = "\u2699",
+                    IconGlyph = "material:Cog",
                     IconPath = null,
                     ActionIds =
                     [

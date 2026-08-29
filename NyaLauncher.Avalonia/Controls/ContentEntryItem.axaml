@@ -3,8 +3,8 @@
              xmlns:local="using:NyaLauncher.Avalonia.Controls"
              x:Class="NyaLauncher.Avalonia.Controls.ContentEntryItem"
              x:CompileBindings="False">
-  <Border Background="{StaticResource SurfaceBgBrush}"
-          BorderBrush="{StaticResource MediumBorderBrush}"
+  <Border Background="{DynamicResource SurfaceBgBrush}"
+          BorderBrush="{DynamicResource MediumBorderBrush}"
           BorderThickness="1"
           CornerRadius="9"
           Padding="11"
@@ -16,7 +16,7 @@
           </ContextMenu>
       </Border.ContextMenu>
       <Grid ColumnDefinitions="48,12,*">
-      <Border Width="48" Height="48" CornerRadius="8" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+      <Border Width="48" Height="48" CornerRadius="8" Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
         <Grid>
           <TextBlock Text="{Binding FallbackGlyph}"
                      FontSize="22"
@@ -32,15 +32,15 @@
         <TextBlock Text="{Binding Name}"
                    FontSize="13"
                    FontWeight="SemiBold"
-                   Foreground="{StaticResource PrimaryTextBrush}"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
                    TextTrimming="CharacterEllipsis" />
         <TextBlock Text="{Binding MetadataLine}"
                    FontSize="10"
-                   Foreground="{StaticResource MutedTextBrush}"
+                   Foreground="{DynamicResource MutedTextBrush}"
                    TextTrimming="CharacterEllipsis" />
         <TextBlock Text="{Binding Description}"
                    FontSize="10"
-                   Foreground="{StaticResource DisabledTextBrush}"
+                   Foreground="{DynamicResource DisabledTextBrush}"
                    TextTrimming="CharacterEllipsis"
                    MaxLines="2" />
       </StackPanel>

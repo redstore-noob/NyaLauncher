@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Windows;
 
@@ -18,7 +19,8 @@ public partial class SettingsHubPage : UserControl
 {
     private readonly SettingsPage _launcherSettings;
     private PersonalizationWindow? _personalization;
-    private int _activeTab; // 0=游戏, 1=工作区, 2=关于
+    private int _activeTab;    // 0=游戏, 1=工作区, 2=关于
+    private int _previousTab;  // 切换前的标签（用于正确识别换页动画的「旧页」，动画期间新旧页同时可见，不能靠 IsVisible 猜）
 
     public event EventHandler<PersonalizationResult>? PersonalizationSaved;
 
@@ -28,6 +30,9 @@ public partial class SettingsHubPage : UserControl
     /// <summary>转发自 <see cref="SettingsPage.InstanceManageRequested"/>，供主窗口跳转到实例管理页面。</summary>
     public event EventHandler? InstanceManageRequested;
 
+    /// <summary>转发自 <see cref="SettingsPage.JavaRuntimeManageRequested"/>，供主窗口跳转到下载中心的 Java 标签页。</summary>
+    public event EventHandler? JavaRuntimeManageRequested;
+
     public SettingsHubPage()
     {
         InitializeComponent();
@@ -36,6 +41,8 @@ public partial class SettingsHubPage : UserControl
             AccountManageRequested?.Invoke(this, EventArgs.Empty);
         _launcherSettings.InstanceManageRequested += (_, _) =>
             InstanceManageRequested?.Invoke(this, EventArgs.Empty);
+        _launcherSettings.JavaRuntimeManageRequested += (_, _) =>
+            JavaRuntimeManageRequested?.Invoke(this, EventArgs.Empty);
         LegacySettingsHost.Content = _launcherSettings;
         AboutHost.Content = new AboutPage();
         ApplyTabVisuals();
@@ -53,6 +60,7 @@ public partial class SettingsHubPage : UserControl
 
     public void SelectSection(SettingsSection section)
     {
+        _previousTab = _activeTab;
         _activeTab = section == SettingsSection.Personalization ? 1 : 0;
         ApplyTabVisuals();
     }
@@ -69,34 +77,47 @@ public partial class SettingsHubPage : UserControl
 
     private void OnTabGameClick(object? sender, PointerPressedEventArgs e)
     {
+        _previousTab = _activeTab;
         _activeTab = 0;
         ApplyTabVisuals();
     }
 
     private void OnTabWorkspaceClick(object? sender, PointerPressedEventArgs e)
     {
+        _previousTab = _activeTab;
         _activeTab = 1;
         ApplyTabVisuals();
     }
 
     private void OnTabAboutClick(object? sender, PointerPressedEventArgs e)
     {
+        _previousTab = _activeTab;
         _activeTab = 2;
         ApplyTabVisuals();
     }
 
     private void ApplyTabVisuals()
     {
-        // 切换内容可见性
-        LegacySettingsHost.IsVisible = _activeTab == 0;
-        PersonalizationHost.IsVisible = _activeTab == 1;
-        AboutHost.IsVisible = _activeTab == 2;
+        // 旧页 = 切换前的标签页（动画期间新旧页同时可见，不能靠 IsVisible 推断），新页 = 当前标签页
+        var oldHost = HostFor(_previousTab);
+        var newHost = HostFor(_activeTab);
+
+        // 垂直换页动画：新页从下方滑入、旧页向上划走（逻辑在 Animations 模块 SwapTransition）
+        SwapTransition.SwapVertical(newHost, oldHost);
+        _previousTab = _activeTab;
 
         // 更新标签栏视觉状态
         SetTabStyle(TabGame, _activeTab == 0);
         SetTabStyle(TabWorkspace, _activeTab == 1);
         SetTabStyle(TabAbout, _activeTab == 2);
     }
+
+    private Control HostFor(int tab) => tab switch
+    {
+        0 => LegacySettingsHost,
+        1 => PersonalizationHost,
+        _ => AboutHost,
+    };
 
     private void SetTabStyle(Border tab, bool isActive)
     {

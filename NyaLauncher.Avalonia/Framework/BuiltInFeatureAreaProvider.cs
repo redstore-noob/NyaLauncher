@@ -13,15 +13,18 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
     private readonly System.Action<string> _navigate;
     private readonly MinecraftProfileService _profileService;
     private readonly GameLaunchService _launchService;
+    private readonly System.Action<ServerJoinRequest> _openServerJoin;
 
     public BuiltInFeatureAreaProvider(
         System.Action<string> navigate,
         MinecraftProfileService profileService,
-        GameLaunchService launchService)
+        GameLaunchService launchService,
+        System.Action<ServerJoinRequest> openServerJoin)
     {
         _navigate = navigate;
         _profileService = profileService;
         _launchService = launchService;
+        _openServerJoin = openServerJoin;
     }
 
     public IEnumerable<FeatureAreaDefinition> GetFeatureAreas()
@@ -31,18 +34,19 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             Id = "area-001",
             Title = "启动中心",
             Subtitle = "选择实例并进入游戏",
-            Glyph = "▶",
+            Glyph = "material:Play",
             Actions =
             [
-                new("select-instance", "选择游戏实例", "Minecraft 1.21.8 · Fabric", "▣",
-                    () => _navigate("select-instance"))
+                CreateInstanceSelectorAction()
             ],
             PolygonComponents =
             [
-                BuiltInAccountSelectorComponent.Create(_navigate),
-                BuiltInGameInstanceSelectorComponent.Create(),
+                BuiltInAccountSelectorComponent.Create(_navigate, _profileService),
                 BuiltInSkinCapeComponent.Create(_profileService, _navigate),
-                BuiltInGameLaunchComponent.Create(_launchService)
+                BuiltInGameLaunchComponent.Create(_launchService),
+                BuiltInWorldLaunchComponent.Create(_launchService),
+                BuiltInMemoryUsageComponent.Create(),
+                BuiltInServerJoinComponent.Create(_openServerJoin)
             ]
         };
 
@@ -51,14 +55,14 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             Id = "area-002",
             Title = "资源与实例",
             Subtitle = "管理游戏内容与版本",
-            Glyph = "◆",
+            Glyph = "material:Diamond",
             Actions =
             [
-                new("instances", "实例库", "查看、复制或创建实例", "▦",
+                new("instances", "实例库", "查看、复制或创建实例", "material:Apps",
                     () => _navigate("instances")),
-                new("downloads", "下载资源", "游戏、模组、光影与材质", "↓",
+                new("downloads", "下载资源", "游戏、模组、光影与材质", "material:ArrowDown",
                     () => _navigate("downloads")),
-                new("tasks", "下载任务", "当前没有进行中的任务", "≡",
+                new("tasks", "下载任务", "当前没有进行中的任务", "material:FormatListBulleted",
                     () => _navigate("tasks"))
             ],
             PolygonComponents =
@@ -73,14 +77,14 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             Id = "area-003",
             Title = "启动器工具",
             Subtitle = "配置与运行环境",
-            Glyph = "✦",
+            Glyph = "material:Star",
             Actions =
             [
-                new("settings", "启动器设置", "外观、语言与行为", "⚙",
+                new("settings", "个性化设置", "外观、语言与行为", "material:Cog",
                     () => _navigate("settings")),
-                new("runtime", "Java 运行环境", "自动查找并管理 Java", "⌘",
+                new("runtime", "Java 运行环境", "自动查找并管理 Java", "material:Coffee",
                     () => _navigate("runtime")),
-                new("music-player", "音乐播放器", "播放音乐、管理播放列表", "♪",
+                new("music-player", "音乐播放器", "播放音乐、管理播放列表", "material:MusicNote",
                     () => _navigate("music-player"))
             ],
             PolygonComponents =
@@ -90,17 +94,37 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
         };
     }
 
+    /// <summary>
+    /// 「选择游戏实例」功能区动作直接绑定游戏实例选择组件：
+    /// 顶部按钮以组件卡片样式渲染，点击弹出实例下拉菜单，与组件库卡片样式完全融合。
+    /// </summary>
+    private static FeatureAreaAction CreateInstanceSelectorAction()
+    {
+        var registration = BuiltInGameInstanceSelectorComponent.Create();
+        var definition = registration.Definition;
+        return new FeatureAreaAction(
+            "select-instance",
+            definition.Title,
+            definition.Description,
+            definition.Glyph)
+        {
+            BaseWidth = definition.PreferredSize.Width,
+            BaseHeight = definition.PreferredSize.Height,
+            PolygonComponent = registration
+        };
+    }
+
     private static PolygonComponentRegistration CreateDownloadProgressComponent()
     {
         var definition = new PolygonComponentBuilder(
                 "nyalauncher.builtin/download-task-progress",
                 "下载任务进度")
             .WithDescription("展示文本、进度条、按钮、异步动作与实时状态更新")
-            .WithGlyph("⬢")
+            .WithGlyph("material:Hexagon")
             .WithSize(320, 180)
             .WithShape(PolygonShapeDefinition.RegularPolygon(6, rotationDegrees: 0))
             .WithDragHandle(new ComponentRect(0.45, 0.055, 0.1, 0.1))
-            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
+            .WithTheme(new PolygonComponentTheme())
             .AddAction("run-demo")
             .AddText(
                 "title",
@@ -124,7 +148,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
                 new ComponentRect(0.32, 0.69, 0.36, 0.16),
                 "继续下载",
                 "run-demo",
-                glyph: "▶",
+                glyph: "material:Play",
                 isPrimary: true)
             .Build();
 
@@ -136,34 +160,26 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
         };
     }
 
-    private sealed class BuiltInDownloadProgressInstance : IPolygonComponentInstance
+    private sealed class BuiltInDownloadProgressInstance : PolygonComponentInstanceBase
     {
         private const string RunDemoActionId = "run-demo";
-        private ComponentStateSnapshot _currentState;
-        private long _revision;
         private double _progress = 36;
         private int _isRunning;
-        private int _isDisposed;
 
         public BuiltInDownloadProgressInstance()
         {
-            _currentState = CreateState(
-                Interlocked.Increment(ref _revision),
+            SetState(CreateState(
                 _progress,
                 "资源索引等待继续",
-                "▶ 继续下载",
-                buttonEnabled: true);
+                "继续下载",
+                buttonEnabled: true));
         }
 
-        public ComponentStateSnapshot CurrentState => Volatile.Read(ref _currentState);
-
-        public event EventHandler<ComponentStateChangedEventArgs>? StateChanged;
-
-        public async ValueTask<ComponentActionResult> InvokeAsync(
+        public override async ValueTask<ComponentActionResult> InvokeAsync(
             ComponentActionInvocation invocation,
             CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return ComponentActionResult.Failed("组件实例已释放。");
             if (!string.Equals(invocation.ActionId, RunDemoActionId, StringComparison.OrdinalIgnoreCase))
                 return ComponentActionResult.Failed($"未知动作：{invocation.ActionId}");
@@ -186,7 +202,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
                         _progress >= 100
                             ? "资源下载完成"
                             : $"正在下载资源… {_progress:0}%",
-                        _progress >= 100 ? "↻ 重新演示" : "正在运行…",
+                        _progress >= 100 ? "重新演示" : "正在运行…",
                         buttonEnabled: _progress >= 100);
                 }
 
@@ -194,7 +210,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             }
             catch (OperationCanceledException)
             {
-                Publish(_progress, "下载任务已取消", "▶ 继续下载", buttonEnabled: true);
+                Publish(_progress, "下载任务已取消", "继续下载", buttonEnabled: true);
                 throw;
             }
             finally
@@ -203,34 +219,23 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             }
         }
 
-        public ValueTask DisposeAsync()
-        {
-            Interlocked.Exchange(ref _isDisposed, 1);
-            StateChanged = null;
-            return ValueTask.CompletedTask;
-        }
-
         private void Publish(
             double progress,
             string status,
             string buttonText,
             bool buttonEnabled)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return;
 
-            var next = CreateState(
-                Interlocked.Increment(ref _revision),
+            SetState(CreateState(
                 progress,
                 status,
                 buttonText,
-                buttonEnabled);
-            Volatile.Write(ref _currentState, next);
-            StateChanged?.Invoke(this, new ComponentStateChangedEventArgs(next));
+                buttonEnabled));
         }
 
         private static ComponentStateSnapshot CreateState(
-            long revision,
             double progress,
             string status,
             string buttonText,
@@ -238,7 +243,6 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
         {
             return new ComponentStateSnapshot
             {
-                Revision = revision,
                 Elements = new Dictionary<string, ComponentElementState>(
                     StringComparer.OrdinalIgnoreCase)
                 {

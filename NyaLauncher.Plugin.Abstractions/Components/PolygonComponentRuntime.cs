@@ -85,6 +85,13 @@ public sealed record ComponentElementState
     /// <summary>Overrides an image element's local path or absolute HTTPS URL.</summary>
     public string? ImageSource { get; init; }
 
+    /// <summary>
+    /// Optional token that forces an image to reload even when
+    /// <see cref="ImageSource"/> is unchanged. Increment it to manually
+    /// refresh remote avatars (e.g. after a skin change).
+    /// </summary>
+    public long? ImageRefreshToken { get; init; }
+
     public double? ProgressValue { get; init; }
 
     public bool? IsEnabled { get; init; }

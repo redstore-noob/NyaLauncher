@@ -40,7 +40,7 @@ public static class GlobalLaunchSettingsStore
 
         var normalized = settings with
         {
-            JavaExecutable = settings.JavaExecutable.Trim(),
+            JavaExecutable = (settings.JavaExecutable ?? string.Empty).Trim(),
             AdditionalJvmArguments = NormalizeArguments(settings.AdditionalJvmArguments),
             AdditionalGameArguments = NormalizeArguments(settings.AdditionalGameArguments)
         };
@@ -57,6 +57,19 @@ public static class GlobalLaunchSettingsStore
                LauncherConfig.SetValue(
                    GameArgumentsKey,
                    JsonSerializer.Serialize(normalized.AdditionalGameArguments));
+    }
+
+    /// <summary>
+    /// 仅保存窗口尺寸（宽/高），不触碰 Java 路径与 JVM/游戏参数。
+    /// 用于主窗口尺寸变更时轻量落盘，避免整份设置回写，也避免用旧值覆盖其它字段。
+    /// </summary>
+    public static bool SaveWindowSize(int width, int height)
+    {
+        if (width < 320 || height < 240)
+            return false;
+
+        return LauncherConfig.SetValue(WindowWidthKey, width.ToString()) &&
+               LauncherConfig.SetValue(WindowHeightKey, height.ToString());
     }
 
     private static int ReadInt(string key, int fallback, int minimum) =>

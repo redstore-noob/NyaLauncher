@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Themes;
 
@@ -31,6 +32,7 @@ public partial class DockWorkspace : UserControl
     private const double MinimumAreaHeight = 150;
     private const double SeamThickness = 1;
     private const double SeamHitSize = 9;
+    private const double DockDraggedStartScale = 0.965;
     private readonly Dictionary<string, AreaVisual> _visuals = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<GroupVisual> _groupVisuals = [];
 
@@ -40,8 +42,14 @@ public partial class DockWorkspace : UserControl
     private string? _targetAreaId;
     private DropSide? _dropSide;
     private bool _registrySubscribed;
+    // 布局重建计数：过期的过渡动画通过它自我中止，避免在新布局上播放旧轨迹
+    private int _dockLayoutGeneration;
+    private DispatcherTimer? _dockMoveTimer;
 
     public event EventHandler? LayoutChanged;
+
+    /// <summary>组件动作反馈消息（成功提示或失败原因），转发给宿主状态栏。</summary>
+    public event EventHandler<string>? ComponentFeedback;
 
     public DockWorkspace()
     {
@@ -50,13 +58,17 @@ public partial class DockWorkspace : UserControl
             OnPolygonComponentDisposalCompleted);
         WorkspaceRoot.PointerMoved += OnRestoredResizePointerMoved;
         WorkspaceRoot.PointerReleased += OnRestoredResizePointerReleased;
-        StyleAlter.ThemeChanged += () =>
+        WireDiscardBin();
+        Action themeChangedHandler = () =>
         {
             if (IsLoaded)
                 Rebuild();
         };
+        ThemeManager.ThemeChanged += themeChangedHandler;
         DetachedFromVisualTree += (_, _) =>
         {
+            // 退订静态事件，防止旧实例被永久钉住
+            ThemeManager.ThemeChanged -= themeChangedHandler;
             if (_registry is not null && _registrySubscribed)
             {
                 _registry.Changed -= OnRegistryChanged;
@@ -275,6 +287,8 @@ public partial class DockWorkspace : UserControl
 
     private void Rebuild()
     {
+        _dockLayoutGeneration++;
+        StopDockMoveAnimation();
         HideComponentDragPreview();
         ClearHoveredComponent();
         AreaGrid.Children.Clear();
@@ -679,12 +693,14 @@ public partial class DockWorkspace : UserControl
             return;
 
         CaptureLayoutRatios();
+        var previousBounds = CaptureAreaBounds();
         var remaining = RemoveArea(_layoutRoot, draggedId);
         if (remaining is null || !ContainsArea(remaining, targetId))
             return;
 
         _layoutRoot = InsertArea(remaining, targetId, draggedNode, side);
         Rebuild();
+        AnimateDockRelayout(previousBounds, draggedId, _dockLayoutGeneration);
         LayoutChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -804,6 +820,131 @@ public partial class DockWorkspace : UserControl
             visual.Card.BorderThickness = new Thickness(0);
             visual.Handle.Background = ThemeBrushes.DragHandleBg;
         }
+    }
+
+    // —— 停靠过渡动画（FLIP，遵循 Material Design 3 motion）——
+    // 记录旧位置、布局重建后反向偏移再缓动归零。曲线与时长取自 M3 令牌：
+    // 邻居位移用 emphasized（cubic-bezier(0.2, 0, 0, 1)），被拖拽卡片以
+    // emphasized-decelerate（0.05, 0.7, 0.1, 1）落座，透明度在前 40% 时长内完成。
+    // 布局代数计数保证动画可中断：二次重排会立即接管，符合 M3 的可交互性要求。
+
+    private Dictionary<string, Rect> CaptureAreaBounds()
+    {
+        var bounds = new Dictionary<string, Rect>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in _visuals)
+            bounds[pair.Key] = GetWorkspaceBounds(pair.Value.Card);
+        return bounds;
+    }
+
+    private void AnimateDockRelayout(IReadOnlyDictionary<string, Rect> previousBounds, string draggedId, int generation)
+    {
+        EventHandler? handler = null;
+        handler = (_, _) =>
+        {
+            AreaGrid.LayoutUpdated -= handler;
+            if (_dockLayoutGeneration != generation)
+                return;
+            PlayDockMoveAnimation(previousBounds, draggedId, generation);
+        };
+        AreaGrid.LayoutUpdated += handler;
+    }
+
+    private void PlayDockMoveAnimation(
+        IReadOnlyDictionary<string, Rect> previousBounds,
+        string draggedId,
+        int generation)
+    {
+        StopDockMoveAnimation();
+        if (!AnimationGate.Enabled)
+            return;
+
+        var moves = new List<(Border Card, TranslateTransform Translate, ScaleTransform? Scale, double StartX, double StartY)>();
+        foreach (var pair in _visuals)
+        {
+            if (!previousBounds.TryGetValue(pair.Key, out var before))
+                continue;
+
+            var origin = pair.Value.Card.TranslatePoint(new Point(0, 0), AreaGrid);
+            if (origin is null)
+                continue;
+
+            var offsetX = before.X - origin.Value.X;
+            var offsetY = before.Y - origin.Value.Y;
+            if (Math.Abs(offsetX) < 0.5 && Math.Abs(offsetY) < 0.5)
+                continue;
+
+            var translate = new TranslateTransform(offsetX, offsetY);
+            ScaleTransform? scale = null;
+            if (string.Equals(pair.Key, draggedId, StringComparison.OrdinalIgnoreCase))
+            {
+                scale = new ScaleTransform(DockDraggedStartScale, DockDraggedStartScale);
+                pair.Value.Card.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+                pair.Value.Card.RenderTransform = new TransformGroup { Children = { translate, scale } };
+                // 拖拽结束时透明度被重置为 1，这里重新拉低，随滑动一起淡入
+                pair.Value.Card.Opacity = 0.7;
+            }
+            else
+            {
+                pair.Value.Card.RenderTransform = translate;
+            }
+
+            moves.Add((pair.Value.Card, translate, scale, offsetX, offsetY));
+        }
+
+        if (moves.Count == 0)
+            return;
+
+        var frameCount = Math.Max(1, (int)Math.Ceiling(MaterialMotion.LargeTransitionMs / 16d));
+        var frame = 0;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        timer.Tick += (_, _) =>
+        {
+            frame++;
+            var progress = Math.Min(frame / (double)frameCount, 1d);
+            if (_dockLayoutGeneration != generation || progress >= 1d)
+            {
+                StopDockMoveAnimation();
+                foreach (var move in moves)
+                {
+                    move.Card.RenderTransform = null;
+                    move.Card.Opacity = 1;
+                }
+                return;
+            }
+
+            foreach (var move in moves)
+            {
+                // M3：位移中的容器用 emphasized 缓动；落座的被拖拽卡片用
+                // emphasized-decelerate，前段更快、结尾更缓
+                var eased = move.Scale is not null
+                    ? MaterialMotion.EmphasizedDecelerate(progress)
+                    : MaterialMotion.Emphasized(progress);
+                move.Translate.X = move.StartX * (1 - eased);
+                move.Translate.Y = move.StartY * (1 - eased);
+                if (move.Scale is not null)
+                {
+                    move.Scale.ScaleX = move.Scale.ScaleY =
+                        DockDraggedStartScale + (1 - DockDraggedStartScale) * eased;
+
+                    // M3：进入元素的不透明度在前 40% 时长内匀速完成，
+                    // 避免位移结束时还残留一块半透明卡片
+                    var fade = Math.Min(1d, progress / MaterialMotion.FadeEndFraction);
+                    move.Card.Opacity = 0.7 + 0.3 * fade;
+                }
+            }
+        };
+
+        _dockMoveTimer = timer;
+        timer.Start();
+    }
+
+    private void StopDockMoveAnimation()
+    {
+        if (_dockMoveTimer is null)
+            return;
+
+        _dockMoveTimer.Stop();
+        _dockMoveTimer = null;
     }
 
     private void CaptureLayoutRatios()

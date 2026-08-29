@@ -12,19 +12,18 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.1" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
-
-    <PackageReference Include="AvaloniaUI.DiagnosticsSupport"
-                      Version="2.2.3"
-                      Condition="'$(Configuration)' == 'Debug'">
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" Condition="'$(Configuration)' == 'Debug'">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Material.Avalonia" Version="3.19.0" />
+    <PackageReference Include="Material.Icons.Avalonia" Version="3.0.2" />
   </ItemGroup>
 
+  
   <ItemGroup>
-    <AvaloniaResource Include="Resources\Fonts\**" />
-    <AvaloniaResource Include="Resources\Icons\**" />
+    <AvaloniaResource Include="Resources\**" />
+    <AvaloniaResource Include="Resources\GameIcons\**"/>
   </ItemGroup>
 
   <ItemGroup>

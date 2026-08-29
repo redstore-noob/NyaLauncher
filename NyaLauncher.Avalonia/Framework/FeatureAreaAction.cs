@@ -4,8 +4,23 @@ using NyaLauncher.Plugin.Abstractions.Components;
 namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
-/// Describes a command exposed by a feature area.
+/// 功能区对外暴露的一条命令（按钮型动作）。
+/// <para>
+/// 当 <see cref="PolygonComponent"/> 为 <c>null</c> 时，宿主用传统矩形按钮渲染；
+/// 否则用多边形组件渲染器渲染，此时 <see cref="Execute"/> 通常为 <c>null</c>，
+/// 交互由组件实例的 <c>InvokeAsync</c> 处理。
+/// </para>
 /// </summary>
+/// <param name="Id">
+/// 动作标识，在全局范围内唯一（按忽略大小写比较）。
+/// 个性化配置靠它引用按钮，<b>必须保持稳定</b>；第三方建议使用
+/// <c>publisher.plugin/name</c> 形式。
+/// </param>
+/// <param name="Title">按钮显示标题。</param>
+/// <param name="Description">按钮描述文字（副标题或 ToolTip）。</param>
+/// <param name="Glyph">图标字符，支持 Material 前缀与 Emoji。</param>
+/// <param name="Execute">点击回调；多边形组件动作留空。</param>
+/// <param name="IsPrimary">是否使用强调色视觉样式。</param>
 public sealed record FeatureAreaAction(
     string Id,
     string Title,
@@ -14,22 +29,22 @@ public sealed record FeatureAreaAction(
     Action? Execute = null,
     bool IsPrimary = false)
 {
-    /// <summary>
-    /// Preferred component footprint in device-independent pixels.
-    /// </summary>
+    /// <summary>首选宽度（设备无关像素）。</summary>
     public double BaseWidth { get; init; } = 220;
 
+    /// <summary>首选高度（设备无关像素）。</summary>
     public double BaseHeight { get; init; } = 82;
 
     /// <summary>
-    /// Optional declarative polygon component. Existing actions keep using the
-    /// legacy rectangular button renderer when this property is null.
+    /// 可选的声明式多边形组件。为 <c>null</c> 时沿用传统矩形按钮渲染路径。
     /// </summary>
     public PolygonComponentRegistration? PolygonComponent { get; init; }
 
+    /// <summary>实际生效的首选宽度：有组件定义时取其 <c>PreferredSize.Width</c>，否则用 <see cref="BaseWidth"/>。</summary>
     public double EffectiveBaseWidth =>
         PolygonComponent?.Definition.PreferredSize.Width ?? BaseWidth;
 
+    /// <summary>实际生效的首选高度：有组件定义时取其 <c>PreferredSize.Height</c>，否则用 <see cref="BaseHeight"/>。</summary>
     public double EffectiveBaseHeight =>
         PolygonComponent?.Definition.PreferredSize.Height ?? BaseHeight;
 }

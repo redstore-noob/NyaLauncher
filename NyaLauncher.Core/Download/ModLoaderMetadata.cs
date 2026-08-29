@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace NyaLauncher.Core.Download;
 
@@ -97,8 +98,17 @@ public static class ModLoaderMetadata
     private const string NeoForgeVersionsUrl =
         "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
 
+    /// <summary>BMCLAPI（bangbang93 镜像）按 Minecraft 版本查询 NeoForge 列表。</summary>
+    private const string NeoForgeBmclListUrl =
+        "https://bmclapi2.bangbang93.com/neoforge/list/{0}";
+
+    /// <summary>BMCLAPI 下载 NeoForge 安装器 JAR（302 重定向到实际文件）。</summary>
+    private const string NeoForgeBmclInstallerUrl =
+        "https://bmclapi2.bangbang93.com/neoforge/version/{0}/download/installer.jar";
+
     /// <summary>
     /// 获取指定 Minecraft 版本可用的 NeoForge 版本列表。
+    /// 优先使用 BMCLAPI 镜像（国内网络可达性好），失败时回退官方 Maven。
     /// NeoForge 版本格式为 "{mcMajor}.{mcMinor}.{patch}"，如 "21.8.1"。
     /// </summary>
     public static async Task<List<ModLoaderVersion>> GetNeoForgeVersionsAsync(
@@ -107,6 +117,39 @@ public static class ModLoaderMetadata
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(minecraftVersion);
 
+        // 1) 优先 BMCLAPI：直接返回该 MC 版本下的 NeoForge 版本，无需前缀推导
+        try
+        {
+            var bmclJson = await DownloadSourceProvider.GetStringAsync(
+                    string.Format(NeoForgeBmclListUrl, minecraftVersion),
+                    TimeSpan.FromSeconds(10), cancellationToken)
+                .ConfigureAwait(false);
+            var entries = JsonSerializer.Deserialize<List<NeoForgeBmclEntry>>(bmclJson);
+
+            if (entries is { Count: > 0 })
+            {
+                return entries
+                    .Where(e => !string.IsNullOrWhiteSpace(e.Version))
+                    .Select(e => NormalizeBmclNeoForgeVersion(e.Version))
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderByDescending(v => v, Comparer<string>.Create(ModrinthVersionApi.CompareVersionStrings))
+                    .Select(v => new ModLoaderVersion
+                    {
+                        Type = ModLoaderType.NeoForge,
+                        LoaderVersion = v,
+                        MetadataUrl = string.Format(NeoForgeBmclInstallerUrl, v),
+                        RequiresInstallerExtraction = true
+                    })
+                    .ToList();
+            }
+        }
+        catch
+        {
+            // BMCL 不可用（网络/格式异常）时回退官方源，避免版本列表为空
+        }
+
+        // 2) 回退：官方 maven-metadata.xml（按前缀匹配）
         var xml = await DownloadSourceProvider.GetStringAsync(
                 NeoForgeVersionsUrl, TimeSpan.FromSeconds(10), cancellationToken)
             .ConfigureAwait(false);
@@ -115,8 +158,11 @@ public static class ModLoaderMetadata
         var prefix = ToNeoForgePrefix(minecraftVersion);
 
         return versions
-            .Where(v => v.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(v => v)
+            // 带版本边界匹配：仅匹配 "21.8.x" 或 "21.0.x"（基础版 1.21 → 21.0.x），
+            // 防止 "21.1" 误匹配 "21.11.x"、防止 "21" 误匹配全部 21.x 系列。
+            .Where(v => MatchesPrefix(v, prefix))
+            // 按版本号数字比较降序（字典序会让 21.8.9 排在 21.8.54 前面）
+            .OrderByDescending(v => v, Comparer<string>.Create(ModrinthVersionApi.CompareVersionStrings))
             .Select(v => new ModLoaderVersion
             {
                 Type = ModLoaderType.NeoForge,
@@ -126,6 +172,27 @@ public static class ModLoaderMetadata
                 RequiresInstallerExtraction = true
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// 归一化 BMCL 返回的 NeoForge 版本号：
+    /// 纯版本号（如 "21.8.54"）原样返回；
+    /// 带 "mc-版本" 前缀的（如 "1.20.1-47.1.12"）截取纯版本号。
+    /// </summary>
+    internal static string NormalizeBmclNeoForgeVersion(string version)
+    {
+        var v = version.Trim();
+        if (v.Length == 0 || !char.IsDigit(v[0]))
+            return v;
+
+        var dash = v.IndexOf('-');
+        if (dash > 0 && dash < v.Length - 1)
+        {
+            var tail = v[(dash + 1)..];
+            if (char.IsDigit(tail[0]))
+                return tail;
+        }
+        return v;
     }
 
     // ------------------------------------------------------------------
@@ -157,7 +224,8 @@ public static class ModLoaderMetadata
         foreach (var property in promos.EnumerateObject())
         {
             // key 格式: "{mcVersion}-latest" 或 "{mcVersion}-recommended"
-            if (!property.Name.StartsWith(minecraftVersion, StringComparison.OrdinalIgnoreCase))
+            // 必须与所选 MC 版本精确匹配：防止 "1.21" 误匹配 "1.21.1-latest"
+            if (!MatchesForgePromoKey(property.Name, minecraftVersion))
                 continue;
 
             var forgeVersion = property.Value.GetString();
@@ -208,18 +276,46 @@ public static class ModLoaderMetadata
 
     /// <summary>
     /// 将 Minecraft 版本号转换为 NeoForge 的 Maven 版本前缀。
-    /// 如 "1.21.8" → "21.8"，"1.20.4" → "20.4"。
+    /// 如 "1.21.8" → "21.8"，"1.21"（基础版）→ "21.0"。
     /// </summary>
-    private static string ToNeoForgePrefix(string minecraftVersion)
+    internal static string ToNeoForgePrefix(string minecraftVersion)
     {
-        // NeoForge 版本格式: {mcMajor}.{mcMinor}.{patch}
-        // MC 1.21.8 → NeoForge 21.8.x
+        // NeoForge 版本格式: {mcMinor}.{mcPatch}
+        // MC 1.21.8 → NeoForge 21.8.x；MC 1.21（无补丁号）→ NeoForge 21.0.x
         var parts = minecraftVersion.Split('.');
         if (parts.Length >= 3)
             return $"{parts[1]}.{parts[2]}";
         if (parts.Length == 2)
-            return parts[1];
+            return $"{parts[1]}.0";
         return minecraftVersion;
+    }
+
+    /// <summary>
+    /// 带版本边界的精确前缀匹配：仅当 value 等于 prefix 或以 "prefix." 开头时匹配，
+    /// 防止 "21.1" 误匹配 "21.11.x" 这类错误。
+    /// </summary>
+    internal static bool MatchesPrefix(string value, string prefix) =>
+        value.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Forge promos 键匹配：键格式为 "{mcVersion}-latest" / "{mcVersion}-recommended"，
+    /// 要求去后缀后与所选 MC 版本精确相等，防止 "1.21" 误匹配 "1.21.1-latest"。
+    /// </summary>
+    internal static bool MatchesForgePromoKey(string promoKey, string minecraftVersion)
+    {
+        if (string.IsNullOrWhiteSpace(promoKey) || string.IsNullOrWhiteSpace(minecraftVersion))
+            return false;
+        foreach (var suffix in new[] { "-latest", "-recommended" })
+        {
+            if (!promoKey.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                continue;
+            return string.Equals(
+                promoKey[..^suffix.Length],
+                minecraftVersion,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        return false;
     }
 
     /// <summary>
@@ -256,16 +352,29 @@ public static class ModLoaderMetadata
 
     private sealed class FabricLoaderEntry
     {
-        [System.Text.Json.Serialization.JsonPropertyName("loader")]
+        [JsonPropertyName("loader")]
         public FabricLoaderInfo? Loader { get; set; }
     }
 
     private sealed class FabricLoaderInfo
     {
-        [System.Text.Json.Serialization.JsonPropertyName("version")]
+        [JsonPropertyName("version")]
         public string Version { get; set; } = string.Empty;
 
-        [System.Text.Json.Serialization.JsonPropertyName("stable")]
+        [JsonPropertyName("stable")]
         public bool Stable { get; set; }
+    }
+
+    /// <summary>BMCLAPI /neoforge/list/:mcversion 返回条目。</summary>
+    private sealed class NeoForgeBmclEntry
+    {
+        [JsonPropertyName("rawVersion")]
+        public string RawVersion { get; set; } = string.Empty;
+
+        [JsonPropertyName("version")]
+        public string Version { get; set; } = string.Empty;
+
+        [JsonPropertyName("mcversion")]
+        public string McVersion { get; set; } = string.Empty;
     }
 }

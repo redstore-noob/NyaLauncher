@@ -223,6 +223,7 @@ public sealed class GameDownloadService
         MinecraftVersion version,
         ModLoaderVersion loader,
         string instanceName,
+        bool skipFabricApi = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(version);
@@ -295,6 +296,20 @@ public sealed class GameDownloadService
             {
                 LauncherConfig.SaveGameDirectory(targetRoot);
                 sourcePath = targetRoot;
+            }
+
+            // Fabric 实例默认随本体一起下载 Fabric API（除非用户在下载选项中勾选跳过）。
+            if (loader.Type == ModLoaderType.Fabric && !skipFabricApi)
+            {
+                await DownloadFabricApiIfNeededAsync(
+                        loader,
+                        instanceName,
+                        targetRoot,
+                        sourcePath,
+                        version.Id,
+                        taskId,
+                        taskCancellation.Token)
+                    .ConfigureAwait(false);
             }
 
             await GameInstanceStore.RefreshAsync(sourcePath).ConfigureAwait(false);
@@ -395,6 +410,87 @@ public sealed class GameDownloadService
         "screenshots",
         "shaderpacks",
     ];
+
+    /// <summary>
+    /// Modrinth 上的 Fabric API 项目 ID（任何 Fabric 实例都需要的运行库）。
+    /// 与 ModDetailDialog 中使用的常量保持一致。
+    /// </summary>
+    private const string FabricApiProjectId = "P7dR8mSH";
+
+    private const string FabricApiDisplayName = "Fabric API";
+
+    /// <summary>
+    /// Fabric 实例安装完成后，默认把 Fabric API 一起下载到该实例的 mods 目录。
+    /// 失败不阻断整个安装流程，仅作为警告提示。
+    /// </summary>
+    private async Task DownloadFabricApiIfNeededAsync(
+        ModLoaderVersion loader,
+        string instanceName,
+        string targetRoot,
+        string sourcePath,
+        string gameVersion,
+        long taskId,
+        CancellationToken cancellationToken)
+    {
+        if (loader.Type != ModLoaderType.Fabric)
+            return;
+
+        // 解析该实例实际的内容目录（版本隔离 / 共享布局 / 外部实例均可正确命中）。
+        // 全局默认只作兜底传入，不覆盖自动检测（与 GameVersionIsolation.Resolve 语义一致）。
+        var layout = GameInstanceLayoutResolver.Resolve(
+            targetRoot, sourcePath, instanceName, null, LauncherConfig.DefaultVersionIsolation);
+        var modsDir = Path.Combine(layout.ContentDirectory, "mods");
+        Directory.CreateDirectory(modsDir);
+
+        try
+        {
+            Publish(new GameDownloadSnapshot(
+                NextRevision(), taskId, GameDownloadPhase.Downloading, instanceName,
+                MinecraftVersionInstaller.StageCount, "下载 Fabric API",
+                $"正在下载 {FabricApiDisplayName}…", 0, 0, 0, 0, 0, 0));
+
+            var versions = await ModrinthVersionApi.GetVersionsAsync(
+                    FabricApiProjectId,
+                    gameVersions: [gameVersion],
+                    loaders: ["fabric"],
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            var latest = versions.FirstOrDefault(
+                v => v.PrimaryFile is { } f && !string.IsNullOrWhiteSpace(f.Url));
+            if (latest?.PrimaryFile is null ||
+                string.IsNullOrWhiteSpace(latest.PrimaryFile.Url))
+            {
+                Publish(new GameDownloadSnapshot(
+                    NextRevision(), taskId, GameDownloadPhase.Downloading, instanceName,
+                    MinecraftVersionInstaller.StageCount, "下载 Fabric API",
+                    $"{FabricApiDisplayName} 无可用版本，已跳过。", 0, 0, 0, 0, 0, 0));
+                return;
+            }
+
+            var targetPath = Path.Combine(modsDir, latest.PrimaryFile.Filename);
+            if (File.Exists(targetPath))
+                return;
+
+            await ModDownloadService.DownloadAsync(
+                    latest.PrimaryFile.Url, targetPath, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            Publish(new GameDownloadSnapshot(
+                NextRevision(), taskId, GameDownloadPhase.Downloading, instanceName,
+                MinecraftVersionInstaller.StageCount, "下载 Fabric API",
+                $"{FabricApiDisplayName} 已下载至 mods/。", 0, 0, 0, 0, 0, 0));
+        }
+        catch (Exception exception)
+        {
+            // Fabric API 下载失败不应让整个实例安装失败，仅给出警告提示。
+            Publish(new GameDownloadSnapshot(
+                NextRevision(), taskId, GameDownloadPhase.Downloading, instanceName,
+                MinecraftVersionInstaller.StageCount, "下载 Fabric API",
+                $"{FabricApiDisplayName} 下载失败，请稍后手动安装：{exception.Message}",
+                0, 0, 0, 0, 0, 0));
+        }
+    }
 
     private void PublishTerminal(
         long taskId,

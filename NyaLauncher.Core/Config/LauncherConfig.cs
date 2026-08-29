@@ -8,12 +8,20 @@ namespace NyaLauncher.Core.Config;
 /// <summary>
 /// 启动器配置的统一入口。底层由 <see cref="ConfigFileManager"/> 负责 JSON 读写。
 /// 配置文件为存储目录下的 config.json，默认目录与 workspace.json 保持一致
-/// （%LOCALAPPDATA%\NyaLauncher），可通过 <see cref="SetStorageDirectory"/> 同步工作区存储目录。
+/// （%USERPROFILE%\NyaLauncher），可通过 <see cref="SetStorageDirectory"/> 同步工作区存储目录。
 /// </summary>
 public static class LauncherConfig
 {
-    /// <summary>默认存储目录：%LOCALAPPDATA%\NyaLauncher（与 workspace.json 默认目录一致）。</summary>
+    /// <summary>默认存储目录：%USERPROFILE%\NyaLauncher（与 workspace.json 默认目录一致，便于用户直接找到并编辑）。</summary>
     public static string DefaultStorageDirectory { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        "NyaLauncher");
+
+    /// <summary>
+    /// 旧版默认存储目录：%LOCALAPPDATA%\NyaLauncher。
+    /// 仅用于从旧版本一次性迁移配置到 <see cref="DefaultStorageDirectory"/>。
+    /// </summary>
+    public static string LegacyDefaultStorageDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "NyaLauncher");
 
@@ -118,8 +126,33 @@ public static class LauncherConfig
     public static void ClearJava() =>
         WithStore(store => store.ConfigItemDelete("javaPath"));
 
+    /// <summary>已保存的全部 Java 路径（列表首位为默认 Java）。</summary>
+    public static IReadOnlyList<ConfigFileManager.JavaPathItem> GetJavaPaths() =>
+        WithStore(store => store.JavaPathGet());
+
+    /// <summary>添加一条 Java 路径；路径已存在时更新其版本。返回是否成功。</summary>
+    public static bool AddJava(string javaPath, string javaVersion)
+    {
+        if (string.IsNullOrWhiteSpace(javaPath))
+            return false;
+        return WithStore(store => store.JavaPathAdd(
+            javaPath.Trim(),
+            string.IsNullOrWhiteSpace(javaVersion) ? "unknown" : javaVersion.Trim()));
+    }
+
+    /// <summary>移除一条 Java 路径。返回是否移除成功。</summary>
+    public static bool RemoveJava(string javaPath) =>
+        !string.IsNullOrWhiteSpace(javaPath) &&
+        WithStore(store => store.JavaPathRemove(javaPath.Trim()));
+
+    /// <summary>把指定路径设为默认 Java（列表首位）。返回是否成功。</summary>
+    public static bool SetPrimaryJava(string javaPath) =>
+        !string.IsNullOrWhiteSpace(javaPath) &&
+        WithStore(store => store.JavaPathSetPrimary(javaPath.Trim()));
+
     /// <summary>
-    /// 全局默认版本隔离设置。true = 新实例默认隔离，false = 默认共享目录，null = 跟随自动检测。
+    /// 全局默认版本隔离设置。true = 新实例默认隔离（mods/config/saves 各实例独立），
+    /// false = 默认共享 .minecraft 根目录。未配置时默认 true（启用隔离，更安全、实例互不污染）。
     /// 仅在版本自身的 <c>IsVersionIsolationEnabled</c> 为 null 时生效。
     /// </summary>
     public static bool? DefaultVersionIsolation
@@ -127,11 +160,12 @@ public static class LauncherConfig
         get
         {
             var value = GetValue("defaultVersionIsolation");
-            return bool.TryParse(value, out var result) ? result : null;
+            // 缺省启用隔离：避免不同实例的 mods/saves/config 互相污染
+            return bool.TryParse(value, out var result) ? result : true;
         }
     }
 
-    /// <summary>保存全局默认版本隔离设置；传 null 恢复自动检测。</summary>
+    /// <summary>保存全局默认版本隔离设置。</summary>
     public static void SaveDefaultVersionIsolation(bool? value)
     {
         if (value.HasValue)
@@ -172,6 +206,11 @@ public static class LauncherConfig
             return string.IsNullOrWhiteSpace(value) ? null : value;
         });
     }
+
+    /// <summary>删除配置项；不存在时无副作用。返回是否删除成功。</summary>
+    public static bool ClearValue(string key) =>
+        !string.IsNullOrWhiteSpace(key) &&
+        WithStore(store => store.ConfigItemDelete(key));
 
     private static string GetFilePath() =>
         Path.Combine(_storageDirectory, "config.json");

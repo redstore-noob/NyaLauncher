@@ -94,6 +94,12 @@ public static class GameInstanceStore
                     SelectedVersionConfigKey,
                     scanned.SelectedVersionId);
             }
+            else
+            {
+                // 该目录下已无任何有效实例（例如唯一实例被用户在启动器外手动删除）。
+                // 清除指向已删除版本的选中记录，避免下次扫描仍尝试恢复一个不存在的实例。
+                LauncherConfig.ClearValue(SelectedVersionConfigKey);
+            }
 
             RaiseChanged(scanned);
             return scanned;
@@ -200,6 +206,12 @@ public static class GameInstanceStore
         var versions = MinecraftDirectoryLocator
             .GetInstalledVersionIds(location.MinecraftDirectory)
             .ToArray();
+
+        // 版本文件夹可能被用户在启动器外手动删除（或改名后残留旧配置）。
+        // 扫描出实际存在的版本后立即清理该目录下已消失版本的实例配置，
+        // 防止其隔离、内存等设置残留在 config.json 中被后续启动逻辑误读。
+        GameVersionProfileStore.PruneMissingVersions(location.MinecraftDirectory, versions);
+
         var savedSelection = LauncherConfig.GetValue(SelectedVersionConfigKey);
         var previousSelection = PathsEqual(
                 previous.MinecraftDirectory,

@@ -1,29 +1,167 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="using:NyaLauncher.Avalonia.Animations.Helpers"
+             xmlns:themes="clr-namespace:Material.Styles.Themes;assembly=Material.Styles"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="NyaLauncher.Avalonia.App"
              >
 
   <Application.Resources>
-    <FontFamily x:Key="ContentFontTheme">avares://NyaLauncher.Avalonia/Resources/Fonts#HarmonyOS Sans, avares://NyaLauncher.Avalonia/Resources/Fonts#Noto Color Emoji</FontFamily>
+    <!-- ===== 交互状态令牌 ===== -->
+    <x:Double x:Key="HoverOpacity">0.92</x:Double>
+    <x:Double x:Key="PressedOpacity">0.82</x:Double>
+
+    <!-- ===== Material 画刷对齐主题（Material 组件全面跟随主题家族明暗与配色） =====
+         每个 Material 画刷都桥到对应的家族颜色键（DynamicResource），
+         主题热重载时自动跟随，无需额外处理。
+         注意：仅桥接基础中性色；Primary/Secondary 强调色变体由
+         StyleAlter.SyncMaterialTheme 动态注入，不要在这里静态覆盖以免冲突 -->
+    <SolidColorBrush x:Key="MaterialBackgroundBrush" Color="{DynamicResource BaseBgColor}" />
+    <SolidColorBrush x:Key="MaterialPaperBrush" Color="{DynamicResource PanelBgColor}" />
+    <SolidColorBrush x:Key="MaterialCardBackgroundBrush" Color="{DynamicResource CardBgColor}" />
+    <SolidColorBrush x:Key="MaterialToolBarBackgroundBrush" Color="{DynamicResource HeaderBgColor}" />
+    <SolidColorBrush x:Key="MaterialBodyBrush" Color="{DynamicResource PrimaryTextColor}" />
+    <SolidColorBrush x:Key="MaterialBodyLightBrush" Color="{DynamicResource MutedTextColor}" />
+    <SolidColorBrush x:Key="MaterialColumnHeaderBrush" Color="{DynamicResource SecondaryTextColor}" />
+    <SolidColorBrush x:Key="MaterialSelectionBrush" Color="{DynamicResource HighlightBgColor}" />
+    <!-- CheckBox 未选中边框/禁用色兜底：避免 Material 默认色板在明暗错配时显示为全灰 -->
+    <SolidColorBrush x:Key="MaterialCheckBoxOffBrush" Color="{DynamicResource MediumBorderColor}" />
+    <SolidColorBrush x:Key="MaterialCheckBoxDisabledBrush" Color="{DynamicResource DisabledTextColor}" />
+    <!-- 输入框：边框 / 填充底 / 悬停填充 / 禁用填充 / 多行文本框边框 -->
+    <SolidColorBrush x:Key="MaterialTextBoxBorderBrush" Color="{DynamicResource MediumBorderColor}" />
+    <SolidColorBrush x:Key="MaterialTextFieldBoxBackgroundBrush" Color="{DynamicResource ControlBgColor}" />
+    <SolidColorBrush x:Key="MaterialTextFieldBoxHoverBackgroundBrush" Color="{DynamicResource HighlightBgColor}" />
+    <SolidColorBrush x:Key="MaterialTextFieldBoxDisabledBackgroundBrush" Color="{DynamicResource BadgeBgColor}" />
+    <SolidColorBrush x:Key="MaterialTextAreaBorderBrush" Color="{DynamicResource StrongBorderColor}" />
+    <SolidColorBrush x:Key="MaterialTextAreaInactiveBorderBrush" Color="{DynamicResource SubtleBorderColor}" />
+    <!-- 分隔线 / 工具栏前景（默认暗主题下是深灰不可见）/ Tooltip / Chip 徽标 -->
+    <SolidColorBrush x:Key="MaterialDividerBrush" Color="{DynamicResource SubtleBorderColor}" />
+    <SolidColorBrush x:Key="MaterialToolForegroundBrush" Color="{DynamicResource PrimaryTextColor}" />
+    <SolidColorBrush x:Key="MaterialToolBackgroundBrush" Color="{DynamicResource ControlBgColor}" />
+    <SolidColorBrush x:Key="MaterialToolTipBackgroundBrush" Color="{DynamicResource DialogBgColor}" />
+    <SolidColorBrush x:Key="MaterialChipBackgroundBrush" Color="{DynamicResource BadgeBgColor}" />
+    <!-- Snackbar / 通知条：深底 + 悬停 + 点击涟漪（文字随 MaterialBodyBrush 自动可读） -->
+    <SolidColorBrush x:Key="MaterialSnackbarBackgroundBrush" Color="{DynamicResource DialogBgColor}" />
+    <SolidColorBrush x:Key="MaterialSnackbarMouseOverBrush" Color="{DynamicResource SurfaceBgColor}" />
+    <SolidColorBrush x:Key="MaterialSnackbarRippleBrush" Color="{DynamicResource MediumBorderColor}" />
+    <!-- 数据行悬停 / 表单验证错误 -->
+    <SolidColorBrush x:Key="MaterialDataGridRowHoverBackgroundBrush" Color="{DynamicResource HighlightBgColor}" />
+    <SolidColorBrush x:Key="MaterialValidationErrorBrush" Color="{DynamicResource ErrorColor}" />
   </Application.Resources>
 
   <Application.Styles>
-    <FluentTheme />
-    
-    <Style Selector="Window">
-      <Setter Property="FontFamily" Value="{StaticResource ContentFontTheme}" />
+    <!-- Material Design 全局主题（替换 FluentTheme）。
+         用 XAML 静态声明的 MaterialTheme（而非 MaterialThemeBase）：确保 Material 画刷在
+         XAML 加载时即注册（代码注入 CurrentTheme 在该版本下不生效会致画刷为 null，
+         表现为控件全灰不可用、点击 Ripple 崩溃）。BaseTheme/PrimaryColor 由 StyleAlter 尽力联动。
+         注意：Primary/Secondary 是 Material.Colors 下的预设色板枚举（非 Avalonia.Media.Color），
+         只能写枚举名（Teal/Pink…）；这里仅作 XAML 加载期的占位初值，
+         用户主题的强调色由 StyleAlter.SyncMaterialTheme 通过 Theme.Create() 全量注入 -->
+    <themes:MaterialTheme BaseTheme="Dark" PrimaryColor="Teal" SecondaryColor="Pink" />
+    <!-- Material.Icons 默认样式（官方要求显式添加，否则 MaterialIcon 不渲染） -->
+    <materialIcons:MaterialIconStyles />
+
+    <!-- 全局动效：hover / 按下平滑过渡（流光感），不占用 RenderTransform（由弹跳动画管理） -->
+    <Style Selector="Button, ListBoxItem, ComboBox, TextBox, ToggleButton, RadioButton">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <!-- 全局动效：Button hover 微放大 + 点击弹性回弹；ComboBox 弹出线性动画 -->
+    <Style Selector="Button">
+      <Setter Property="(helpers:GlobalAnimation.Enable)" Value="True" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="(helpers:GlobalAnimation.Enable)" Value="True" />
+    </Style>
+    <!-- 开关 / 复选 / 单选：hover 微放大 + 点击弹性回弹 -->
+    <Style Selector="ToggleButton">
+      <Setter Property="(helpers:GlobalAnimation.Enable)" Value="True" />
+    </Style>
+
+    <!-- 声明式动画 class 触发器（动画逻辑全部在 NyaLauncher.Avalonia.Animations） -->
+    <Style Selector="Control.nya-lift">
+      <Setter Property="(helpers:TransitionEffects.HoverLift)" Value="True" />
+    </Style>
+    <Style Selector="Control.nya-fade">
+      <Setter Property="(helpers:TransitionEffects.FadeInOnLoad)" Value="True" />
+    </Style>
+    <Style Selector="Control.nya-spin">
+      <Setter Property="(helpers:TransitionEffects.Spin)" Value="True" />
+    </Style>
+    <Style Selector="Control.nya-pulse">
+      <Setter Property="(helpers:TransitionEffects.Pulse)" Value="True" />
+    </Style>
+    <Style Selector="TextBlock.nya-marquee">
+      <Setter Property="(helpers:TransitionEffects.Marquee)" Value="True" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+
+    <!-- 按钮水波纹：全局 Button 启用（ScrollBar/Popup 内部按钮自动跳过）；
+         nya-ripple 也可手加到非按钮控件上 -->
+    <Style Selector="Button">
+      <Setter Property="(helpers:Ripple.Enabled)" Value="True" />
+    </Style>
+    <Style Selector="Control.nya-ripple">
+      <Setter Property="(helpers:Ripple.Enabled)" Value="True" />
+    </Style>
+
+    <!-- 光影流转：斜向掠光带循环扫过（用于卡片 / 标题栏） -->
+    <Style Selector="Control.nya-shimmer">
+      <Setter Property="(helpers:Shimmer.Enabled)" Value="True" />
+    </Style>
+
+    <!-- 背景流光渐变：底层半透明渐变缓慢旋转（氛围感） -->
+    <Style Selector="Control.nya-ambient">
+      <Setter Property="(helpers:AmbientGradient.Enabled)" Value="True" />
+    </Style>
+
+    <!-- 星尘跟随鼠标：指针划过飘小星星 -->
+    <Style Selector="Control.nya-sparkles">
+      <Setter Property="(helpers:SparkleTrail.Enabled)" Value="True" />
+    </Style>
+
+    <!-- 列表级联入场：数据刷新后每项依次错峰滑入 -->
+    <Style Selector="ItemsControl.nya-stagger">
+      <Setter Property="(helpers:Stagger.Enabled)" Value="True" />
+    </Style>
+
+    <!-- 卡片 3D 翻转：hover 绕竖轴翻转显示背面（最后一个子元素为背面） -->
+    <Style Selector="Control.nya-flip">
+      <Setter Property="(helpers:Flip.Enabled)" Value="True" />
+    </Style>
+
+    <!-- 磁性弹簧按钮：hover 朝鼠标吸附微移，离开回弹 -->
+    <Style Selector="Control.nya-magnetic">
+      <Setter Property="(helpers:Magnetic.Enabled)" Value="True" />
+    </Style>
+
+    <!-- 打字机：TextBlock 挂载后逐字打出 -->
+    <Style Selector="TextBlock.nya-typewriter">
+      <Setter Property="(helpers:Typewriter.Enabled)" Value="True" />
     </Style>
 
     <Style Selector="Button:pointerover">
-      <Setter Property="Opacity" Value="0.9" />
+        <Setter Property="Opacity" Value="{StaticResource HoverOpacity}" />
     </Style>
 
     <Style Selector="Button:pressed">
-      <Setter Property="Opacity" Value="0.78" />
+        <Setter Property="Opacity" Value="{StaticResource PressedOpacity}" />
     </Style>
 
     <Style Selector="ScrollViewer">
       <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- 滑块：拇指 + 已滑过轨道用主题主色，未滑轨道用控件底色（Material 默认色板对比低、看不清） -->
+    <Style Selector="Slider">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
     </Style>
   </Application.Styles>
 </Application>

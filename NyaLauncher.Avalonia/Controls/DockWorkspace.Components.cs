@@ -4,14 +4,20 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using Avalonia.Media.Transformation;
 using Avalonia.Threading;
+using Material.Icons;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Avalonia.Windows;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Controls;
@@ -37,6 +43,12 @@ public partial class DockWorkspace
     private bool _refreshPolygonInstancesOnAttach;
 
     public event EventHandler<ComponentDropRequestedEventArgs>? ComponentDropRequested;
+
+    /// <summary>组件被拖到垃圾桶松手丢弃；复用组件库移除参数。</summary>
+    public event EventHandler<ComponentRemovalRequestedEventArgs>? ComponentDiscardRequested;
+
+    private static readonly IBrush DiscardBinIdleBg = new ImmutableSolidColorBrush(Color.Parse("#26E53935"));
+    private static readonly IBrush DiscardBinHotBg = new ImmutableSolidColorBrush(Color.Parse("#40E53935"));
 
     public double GlobalComponentScale => _globalComponentScale;
 
@@ -192,6 +204,8 @@ public partial class DockWorkspace
                     instance,
                     PolygonComponentVisualState.Normal,
                     interactive: true);
+                polygonView.ActionFeedback += (_, message) =>
+                    ComponentFeedback?.Invoke(this, message);
                 ToolTip.SetTip(
                     polygonView,
                     "短按使用组件；长按组件任意位置后拖动可自由摆放");
@@ -225,14 +239,11 @@ public partial class DockWorkspace
                     Height = 38,
                     CornerRadius = new CornerRadius(11),
                     Background = action.IsPrimary ? ThemeBrushes.ComponentPrimaryBg : ThemeBrushes.ComponentHoverBg,
-                    Child = new TextBlock
-                    {
-                        Text = action.Glyph,
-                        FontSize = 17,
-                        Foreground = action.IsPrimary ? Brushes.White : ThemeBrushes.Muted,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
+                    // 字形渲染统一走 FeatureIconFactory："material:Kind" 显示为 Material 图标，其余回退文字
+                    Child = FeatureIconFactory.CreateGlyph(
+                        action.Glyph,
+                        17,
+                        action.IsPrimary ? Brushes.White : ThemeBrushes.Muted)
                 };
 
                 var copy = new StackPanel
@@ -708,14 +719,8 @@ public partial class DockWorkspace
             Height = 38,
             CornerRadius = new CornerRadius(11),
             Background = ThemeBrushes.IconBoxBg,
-            Child = new TextBlock
-            {
-                Text = action.Glyph,
-                FontSize = 17,
-                Foreground = ThemeBrushes.Muted,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
+            // 字形渲染统一走 FeatureIconFactory："material:Kind" 显示为 Material 图标，其余回退文字
+            Child = FeatureIconFactory.CreateGlyph(action.Glyph, 17, ThemeBrushes.Muted)
         };
 
         var copy = new StackPanel
@@ -916,6 +921,287 @@ public partial class DockWorkspace
 
     private static string ComponentPlacementKey(string areaId, string componentId) =>
         $"{areaId.Length}:{areaId}{componentId}";
+
+    #region 拖拽丢弃（垃圾桶）
+
+    private bool _discardBinHot;
+    private bool _discardAnimationActive;
+    private DispatcherTimer? _discardBinHideTimer;
+
+    /// <summary>
+    /// 组件拖拽期间在底部显示垃圾桶：指针命中 60x60 红圈时切换开盖图标，松手丢弃组件。
+    /// DragDrop 路由事件只有 Bubble 策略，且卡片会把 DragOver 标记 Handled，
+    /// 因此挂在 MainWorkspaceCell 上并开启 handledEventsToo；
+    /// 同时给 MainWorkspaceCell 开放 AllowDrop，保证空白区域也有连续 DragOver，
+    /// Esc/空白处松手结束后由延迟隐藏兜底，避免垃圾桶残留。
+    /// </summary>
+    private void WireDiscardBin()
+    {
+        DragDrop.SetAllowDrop(MainWorkspaceCell, true);
+        DragDrop.SetAllowDrop(DiscardBinCircle, true);
+
+        // 卡片/垃圾桶会把 DragOver 标记 Handled，必须开启 handledEventsToo 才能在
+        // MainWorkspaceCell 上持续感知
+        MainWorkspaceCell.AddHandler(
+            DragDrop.DragEnterEvent,
+            OnDiscardBinRootDragOver,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        MainWorkspaceCell.AddHandler(
+            DragDrop.DragOverEvent,
+            OnDiscardBinRootDragOver,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        MainWorkspaceCell.AddHandler(
+            DragDrop.DragLeaveEvent,
+            OnDiscardBinRootDragLeave,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        MainWorkspaceCell.AddHandler(
+            DragDrop.DropEvent,
+            (_, _) =>
+            {
+                // 丢弃动画播放期间延迟收起垃圾桶，让回弹与幽灵飞入可见
+                if (_discardAnimationActive)
+                    ScheduleDiscardBinHide(420);
+                else
+                    HideDiscardBin();
+            },
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+
+        DragDrop.AddDragOverHandler(DiscardBinCircle, (_, args) =>
+        {
+            if (!ComponentDragPayload.TryParse(args.DataTransfer, out var payload) ||
+                payload is null)
+            {
+                args.DragEffects = DragDropEffects.None;
+                return;
+            }
+
+            // 仅工作区上的组件可丢弃；组件库拖入的在新区域松手放置
+            args.DragEffects = payload.IsFromLibrary
+                ? DragDropEffects.None
+                : DragDropEffects.Move;
+            args.Handled = true;
+        });
+        DragDrop.AddDropHandler(DiscardBinCircle, (_, args) =>
+        {
+            args.Handled = true;
+            if (!ComponentDragPayload.TryParse(args.DataTransfer, out var payload) ||
+                payload is null ||
+                payload.IsFromLibrary)
+            {
+                args.DragEffects = DragDropEffects.None;
+                return;
+            }
+
+            args.DragEffects = DragDropEffects.Move;
+            _discardAnimationActive = true;
+            PlayDiscardAnimation(payload.ComponentId, args.GetPosition(MainWorkspaceCell));
+            ComponentDiscardRequested?.Invoke(
+                this,
+                new ComponentRemovalRequestedEventArgs(
+                    payload.ComponentId,
+                    payload.SourceAreaId!));
+        });
+    }
+
+    private void OnDiscardBinRootDragOver(object? sender, DragEventArgs args)
+    {
+        if (!ComponentDragPayload.TryParse(args.DataTransfer, out var payload) ||
+            payload is null)
+        {
+            return;
+        }
+
+        CancelDiscardBinHide();
+        DiscardBin.IsVisible = true;
+        var origin = DiscardBinCircle.TranslatePoint(new Point(0, 0), MainWorkspaceCell);
+        var hot = origin.HasValue && new Rect(
+            origin.Value,
+            DiscardBinCircle.Bounds.Size).Contains(args.GetPosition(MainWorkspaceCell));
+        if (hot == _discardBinHot)
+            return;
+
+        _discardBinHot = hot;
+        DiscardBinIcon.Kind = hot ? MaterialIconKind.DeleteEmpty : MaterialIconKind.Delete;
+        DiscardBinCircle.Background = hot ? DiscardBinHotBg : DiscardBinIdleBg;
+        DiscardBinText.Text = hot ? "松手删除组件" : "松手删除";
+    }
+
+    private void OnDiscardBinRootDragLeave(object? sender, DragEventArgs args)
+    {
+        // 在子级卡片之间移动也会冒泡 DragLeave：指针仍在工作区内时只是短暂离开
+        // 某个卡片，用延迟隐藏兜底；一旦后续 DragOver 到来即取消。
+        var position = args.GetPosition(MainWorkspaceCell);
+        if (new Rect(default, MainWorkspaceCell.Bounds.Size).Contains(position))
+        {
+            ScheduleDiscardBinHide();
+            return;
+        }
+
+        HideDiscardBin();
+    }
+
+    private void ScheduleDiscardBinHide(int delayMs = 150)
+    {
+        CancelDiscardBinHide();
+        var timer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(delayMs)
+        };
+        _discardBinHideTimer = timer;
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (ReferenceEquals(_discardBinHideTimer, timer))
+            {
+                _discardBinHideTimer = null;
+                HideDiscardBin();
+            }
+        };
+        timer.Start();
+    }
+
+    private void CancelDiscardBinHide()
+    {
+        _discardBinHideTimer?.Stop();
+        _discardBinHideTimer = null;
+    }
+
+    private void HideDiscardBin()
+    {
+        CancelDiscardBinHide();
+        DiscardBin.IsVisible = false;
+        _discardBinHot = false;
+        DiscardBinIcon.Kind = MaterialIconKind.Delete;
+        DiscardBinCircle.Background = DiscardBinIdleBg;
+        DiscardBinText.Text = "松手删除";
+    }
+
+    /// <summary>
+    /// 丢弃吸附动画：被丢弃的组件以幽灵形态飞向垃圾桶并缩小消失（M3 加速曲线），
+    /// 同时垃圾桶缩放回弹表达「吃掉」反馈。
+    /// </summary>
+    private void PlayDiscardAnimation(string componentId, Point dropPosition)
+    {
+        if (!AnimationGate.Enabled)
+            return;
+
+        var action = _registry?.AvailableActions.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, componentId, StringComparison.OrdinalIgnoreCase));
+        if (action is not null)
+        {
+            var ghost = CreateComponentDragPreview(action);
+            var size = GetEffectiveComponentSize(action, MainWorkspaceCell.Bounds.Size);
+            _ = AnimateDiscardGhostAsync(ghost, size, dropPosition);
+        }
+
+        _ = AnimateDiscardBinBumpAsync();
+    }
+
+    private async Task AnimateDiscardGhostAsync(Viewbox ghost, Size size, Point dropPosition)
+    {
+        try
+        {
+            var layer = DropPreviewLayer;
+            ghost.Width = size.Width;
+            ghost.Height = size.Height;
+            var startX = Math.Clamp(
+                dropPosition.X - size.Width / 2,
+                0,
+                Math.Max(0, layer.Bounds.Width - size.Width));
+            var startY = Math.Clamp(
+                dropPosition.Y - size.Height / 2,
+                0,
+                Math.Max(0, layer.Bounds.Height - size.Height));
+            Canvas.SetLeft(ghost, startX);
+            Canvas.SetTop(ghost, startY);
+            ghost.Opacity = 1;
+            ghost.RenderTransform = TransformOperations.Parse("translate(0px, 0px) scale(1)");
+            layer.Children.Add(ghost);
+
+            // 等一帧让初始布局生效，Transitions 才能从正确的起点插值
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+            var binOrigin = DiscardBinCircle.TranslatePoint(new Point(0, 0), MainWorkspaceCell);
+            if (!binOrigin.HasValue)
+                return;
+
+            var binCenter = new Point(
+                binOrigin.Value.X + DiscardBinCircle.Bounds.Width / 2,
+                binOrigin.Value.Y + DiscardBinCircle.Bounds.Height / 2);
+            var dx = binCenter.X - (startX + size.Width / 2);
+            var dy = binCenter.Y - (startY + size.Height / 2);
+
+            ghost.Transitions = new Transitions
+            {
+                new TransformOperationsTransition
+                {
+                    Property = Visual.RenderTransformProperty,
+                    Duration = TimeSpan.FromMilliseconds(MaterialMotion.MediumTransitionMs),
+                    Easing = MaterialMotion.EmphasizedAccelerateEasing
+                },
+                new DoubleTransition
+                {
+                    Property = Visual.OpacityProperty,
+                    Duration = TimeSpan.FromMilliseconds(
+                        MaterialMotion.MediumTransitionMs * MaterialMotion.FadeEndFractionExit),
+                    Easing = MaterialMotion.LinearEasing
+                }
+            };
+            ghost.RenderTransform = TransformOperations.Parse(
+                $"translate({dx:F1}px, {dy:F1}px) scale(0.12)");
+            ghost.Opacity = 0;
+
+            await Task.Delay(MaterialMotion.MediumTransitionMs + 40);
+            _discardAnimationActive = false;
+            HideDiscardBin();
+        }
+        finally
+        {
+            ((Canvas)ghost.Parent)?.Children.Remove(ghost);
+        }
+    }
+
+    private async Task AnimateDiscardBinBumpAsync()
+    {
+        DiscardBinCircle.RenderTransformOrigin =
+            new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
+        DiscardBinCircle.RenderTransform = TransformOperations.Parse("scale(1)");
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        // 吞下：150ms 快速放大（减速曲线）
+        DiscardBinCircle.Transitions = new Transitions
+        {
+            new TransformOperationsTransition
+            {
+                Property = Visual.RenderTransformProperty,
+                Duration = TimeSpan.FromMilliseconds(150),
+                Easing = MaterialMotion.EmphasizedDecelerateEasing
+            }
+        };
+        DiscardBinCircle.RenderTransform = TransformOperations.Parse("scale(1.22)");
+        await Task.Delay(170);
+
+        // 回弹：200ms 归位（标准强调曲线）
+        DiscardBinCircle.Transitions = new Transitions
+        {
+            new TransformOperationsTransition
+            {
+                Property = Visual.RenderTransformProperty,
+                Duration = TimeSpan.FromMilliseconds(200),
+                Easing = MaterialMotion.EmphasizedEasing
+            }
+        };
+        DiscardBinCircle.RenderTransform = TransformOperations.Parse("scale(1)");
+        await Task.Delay(220);
+        DiscardBinCircle.Transitions = null;
+        DiscardBinCircle.RenderTransform = null;
+    }
+
+    #endregion
 
     private static ComponentPlacementProfile ClonePlacement(ComponentPlacementProfile placement)
     {

@@ -166,6 +166,95 @@ public class ConfigFileManager
         }, "保存 Java 路径");
     }
 
+    /// <summary>
+    /// 追加一条 Java 路径。路径已存在时更新其版本（不重复添加），返回 true。
+    /// </summary>
+    public bool JavaPathAdd(string javaPath, string javaVersion)
+    {
+        if (string.IsNullOrWhiteSpace(javaPath))
+            return false;
+
+        return Update(config =>
+        {
+            var entries = GetOrCreateJavaEntries(config);
+            foreach (var entry in entries)
+            {
+                if (ReadString(entry["path"]) is { } existing &&
+                    string.Equals(existing, javaPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrWhiteSpace(javaVersion))
+                        entry["version"] = javaVersion;
+                    return true;
+                }
+            }
+
+            entries.Add(new JsonObject
+            {
+                ["path"] = javaPath,
+                ["version"] = javaVersion ?? string.Empty
+            });
+            return true;
+        }, "添加 Java 路径");
+    }
+
+    /// <summary>移除指定路径的 Java 条目；不存在时返回 false。</summary>
+    public bool JavaPathRemove(string javaPath)
+    {
+        if (string.IsNullOrWhiteSpace(javaPath))
+            return false;
+
+        return Update(config =>
+        {
+            var entries = GetOrCreateJavaEntries(config);
+            var removed = false;
+            for (var i = entries.Count - 1; i >= 0; i--)
+            {
+                if (ReadString(entries[i]["path"]) is { } existing &&
+                    string.Equals(existing, javaPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    entries.RemoveAt(i);
+                    removed = true;
+                }
+            }
+            return removed;
+        }, "移除 Java 路径");
+    }
+
+    /// <summary>把指定路径移到列表首位（成为默认 Java）；路径不存在时返回 false。</summary>
+    public bool JavaPathSetPrimary(string javaPath)
+    {
+        if (string.IsNullOrWhiteSpace(javaPath))
+            return false;
+
+        return Update(config =>
+        {
+            var entries = GetOrCreateJavaEntries(config);
+            for (var i = 0; i < entries.Count; i++)
+            {
+                if (ReadString(entries[i]["path"]) is { } existing &&
+                    string.Equals(existing, javaPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (i == 0)
+                        return true;
+                    var item = entries[i];
+                    entries.RemoveAt(i);
+                    entries.Insert(0, item);
+                    return true;
+                }
+            }
+            return false;
+        }, "设为默认 Java");
+    }
+
+    private static JsonArray GetOrCreateJavaEntries(JsonObject config)
+    {
+        if (config[JavaPathKey] is JsonArray array)
+            return array;
+        var created = new JsonArray();
+        config[JavaPathKey] = created;
+        return created;
+    }
+
     /// <summary>获取 Minecraft 游戏路径；未配置时返回空字符串。</summary>
     public string MinecraftPathGet()
     {
@@ -198,21 +287,32 @@ public class ConfigFileManager
                 return root ?? throw new JsonException("配置文件根节点必须是 JSON 对象。");
             }
         }
-        catch (Exception exception)
+        catch (JsonException exception)
         {
-            Console.WriteLine($"加载配置文件失败: {exception.Message}，将创建默认配置");
-
-            // 备份损坏的配置文件，避免数据完全丢失
+            // 仅"内容损坏"才走备份+重建：瞬时 IO 失败绝不能用默认配置覆盖原文件
+            Console.WriteLine($"配置文件损坏: {exception.Message}，已备份并重建默认配置");
+            var backupPath = FilePath + $".corrupted-{DateTime.Now:yyyyMMddHHmmss}.bak";
             try
             {
-                var backupPath = FilePath + $".corrupted-{DateTime.Now:yyyyMMddHHmmss}.bak";
                 File.Copy(FilePath, backupPath, overwrite: true);
                 Console.WriteLine($"已备份损坏的配置文件到: {backupPath}");
             }
-            catch
+            catch (Exception copyException)
             {
-                // 备份失败不应阻止后续流程
+                // 备份失败：为避免数据彻底丢失，抛出异常让调用方处理，而非覆盖原文件
+                throw new IOException(
+                    $"配置文件损坏且无法备份：{FilePath}（{copyException.Message}）", exception);
             }
+
+            var rebuiltConfig = CreateDefaultConfig();
+            if (!SaveConfig(rebuiltConfig))
+                throw new IOException($"无法重建配置文件：{Path.GetFullPath(FilePath)}");
+            return rebuiltConfig;
+        }
+        catch (IOException exception)
+        {
+            // 文件被占用、磁盘抖动等瞬时 IO 失败：不覆盖原文件，向上抛出
+            throw new IOException($"读取配置文件失败：{FilePath}", exception);
         }
 
         var defaultConfig = CreateDefaultConfig();
@@ -272,10 +372,8 @@ public class ConfigFileManager
 
             if (OperatingSystem.IsWindows() && File.Exists(fullPath))
             {
-                // Windows 的 File.Move(overwrite) 非原子：先删后改名，中间断电会丢文件。
-                // 先删除目标再改名，至少保证不会因 overwrite 路径触发异常。
-                File.Delete(fullPath);
-                File.Move(temporaryPath, fullPath);
+                // Windows 原子替换：File.Replace 先写新文件再原子交换，避免"先删后移"丢失配置
+                File.Replace(temporaryPath, fullPath, destinationBackupFileName: null);
             }
             else
             {

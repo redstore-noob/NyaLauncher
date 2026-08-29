@@ -1,36 +1,110 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="using:NyaLauncher.Core.Models"
+             xmlns:download="using:NyaLauncher.Core.Download"
              xmlns:local="using:NyaLauncher.Avalonia.Controls"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="NyaLauncher.Avalonia.Pages.DownloadPage">
   <UserControl.Styles>
-    <!-- 列表项悬停 -->
+    <!-- ===== MD3 列表项：仅状态层反馈（无缩放/位移动画） ===== -->
     <Style Selector="Border.ItemHover">
-      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
     </Style>
     <Style Selector="Border.ItemHover:pointerover">
-      <Setter Property="Background" Value="{StaticResource HighlightBgBrush}" />
+      <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+    </Style>
+
+    <!-- ===== Material Design 3 标签页样式（只改 Tab 外观，各标签内容不动） ===== -->
+    <Style Selector="TabItem">
+      <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate>
+            <Border x:Name="TabRoot"
+                    Background="Transparent"
+                    CornerRadius="8"
+                    Padding="16,10">
+              <Grid RowDefinitions="*,Auto">
+                <ContentPresenter Content="{TemplateBinding Header}"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                <!-- MD3 选中指示条：底部 3px 圆角短条，默认隐藏，选中时亮起 -->
+                <Border x:Name="TabIndicator"
+                        Grid.Row="1"
+                        Height="3"
+                        CornerRadius="1.5"
+                        Margin="8,5,8,0"
+                        HorizontalAlignment="Stretch"
+                        Background="{DynamicResource AccentBrush}"
+                        IsVisible="False" />
+              </Grid>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- MD3：选中态 → 指示条亮起 + 文字主色 -->
+    <Style Selector="TabItem:selected">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TabItem:selected /template/ Border#TabIndicator">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- MD3：hover → 浅色圆角背景（跟随主题高亮色） -->
+    <Style Selector="TabItem:pointerover /template/ Border#TabRoot">
+      <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
     </Style>
   </UserControl.Styles>
   <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
 
     <!-- 标题区 -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
-      <StackPanel Spacing="8">
+      <StackPanel Spacing="8" Classes="nya-fade">
         <TextBlock Text="下载大厅"
                    FontSize="28"
                    FontWeight="Bold"
-                   Foreground="{StaticResource PrimaryTextBrush}" />
-        <TextBlock x:Name="DownloadTaskStatusText"
-                   Text="当前任务:无"
-                   FontSize="11"
-                   Foreground="{StaticResource AccentBrush}" />
+                   Foreground="{DynamicResource PrimaryTextBrush}" />
+        <ProgressBar x:Name="DownloadProgressBar"
+                     Minimum="0"
+                     Maximum="100"
+                     Value="0"
+                     IsVisible="False"
+                     Height="4"
+                     Foreground="{DynamicResource AccentBrush}"
+                     Background="{DynamicResource ControlBgBrush}" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock x:Name="DownloadTaskStatusText"
+                     Text="当前任务:无"
+                     FontSize="11"
+                     Foreground="{DynamicResource AccentBrush}"
+                     VerticalAlignment="Center" />
+          <Button Grid.Column="1"
+                  x:Name="CancelDownloadButton"
+                  Content="取消下载"
+                  IsVisible="False"
+                  Padding="10,4"
+                  CornerRadius="6"
+                  FontSize="11"
+                  Background="{DynamicResource ButtonBgBrush}"
+                  BorderThickness="0"
+                  Click="OnCancelDownloadClick"
+                  Cursor="Hand"
+                  VerticalAlignment="Center" />
+        </Grid>
       </StackPanel>
       <Button Grid.Column="1"
               x:Name="RefreshButton"
-              Content="⟳ 刷新"
-              Background="{StaticResource ButtonBgBrush}"
-              Foreground="{StaticResource BodyTextBrush}"
+              Background="{DynamicResource ButtonBgBrush}"
+              Foreground="{DynamicResource BodyTextBrush}"
               CornerRadius="8"
               Padding="16,8"
               FontSize="13"
@@ -40,18 +114,25 @@
               Margin="0,0,0,2"
               Click="OnRefreshClick"
               RenderTransformOrigin="50%,50%">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <mi:MaterialIcon Kind="Refresh" Width="15" Height="15"
+                           Foreground="{DynamicResource BodyTextBrush}"
+                           VerticalAlignment="Center" />
+          <TextBlock Text="刷新" VerticalAlignment="Center" />
+        </StackPanel>
       </Button>
     </Grid>
 
     <!-- TabControl -->
     <Border Grid.Row="1"
-            Background="{StaticResource PanelBgBrush}"
+            Background="{DynamicResource PanelBgBrush}"
             CornerRadius="16"
             Padding="0"
             Margin="0">
       <TabControl x:Name="DownloadTabs"
                   BorderThickness="0"
-                  Background="{StaticResource TransparentBrush}">
+                  Background="{DynamicResource TransparentBrush}"
+                  SelectionChanged="OnDownloadTabChanged">
 
         <!-- ===== Minecraft 本体 ===== -->
 
@@ -61,23 +142,23 @@
             <StackPanel Spacing="16" Margin="24,20,24,24">
 
               <!-- 搜索栏 + 筛选器 -->
-              <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
+              <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                 <Grid ColumnDefinitions="Auto,*,Auto">
-                  <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
+                  <mi:MaterialIcon Kind="Magnify" Width="14" Height="14" Foreground="{DynamicResource DisabledTextBrush}" VerticalAlignment="Center" />
                   <TextBox Grid.Column="1"
                            x:Name="VersionSearchBox"
                            PlaceholderText="搜索版本号..."
-                           Background="{StaticResource TransparentBrush}"
+                           Background="{DynamicResource TransparentBrush}"
                            BorderThickness="0"
-                           Foreground="{StaticResource BodyTextBrush}"
+                           Foreground="{DynamicResource BodyTextBrush}"
                            FontSize="13"
                            VerticalAlignment="Center"
                            Margin="10,0,0,0"
-                           CaretBrush="{StaticResource BodyTextBrush}"
+                           CaretBrush="{DynamicResource BodyTextBrush}"
                            TextChanged="OnVersionSearchChanged" />
                   <ComboBox Grid.Column="2" x:Name="VersionTypeFilter"
                             SelectedIndex="1"
-                            Background="{StaticResource PanelBgBrush}"
+                            Background="{DynamicResource PanelBgBrush}"
                             BorderThickness="0"
                             CornerRadius="6"
                             Padding="10,4"
@@ -98,34 +179,23 @@
                   <ItemsControl x:Name="VersionList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:MinecraftVersion">
-                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
-                          <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource AccentDeepBrush}">
+                        <Border Classes="ItemHover" Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                          <Grid ColumnDefinitions="Auto,*">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource AccentDeepBrush}">
                               <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding DisplayName}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
                               <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="{Binding TypeDisplay}"
-                                           FontSize="12" Foreground="{StaticResource HintTextBrush}" />
-                                <TextBlock Text="·" FontSize="12" Foreground="{StaticResource DisabledTextBrush}" />
+                                           FontSize="12" Foreground="{DynamicResource HintTextBrush}" />
+                                <TextBlock Text="·" FontSize="12" Foreground="{DynamicResource DisabledTextBrush}" />
                                 <TextBlock Text="{Binding ReleaseDateDisplay}"
-                                           FontSize="12" Foreground="{StaticResource HintTextBrush}" />
+                                           FontSize="12" Foreground="{DynamicResource HintTextBrush}" />
                               </StackPanel>
                             </StackPanel>
-                            <Button Grid.Column="2"
-                                    Content="下载"
-                                    Background="{StaticResource SystemAccentColor}"
-                                    Foreground="{StaticResource WhiteBrush}"
-                                    CornerRadius="6"
-                                    Padding="16,6"
-                                    FontSize="12"
-                                    FontWeight="SemiBold"
-                                    VerticalAlignment="Center"
-                                    Cursor="Hand"
-                                    Click="OnDownloadVersionClick" />
                           </Grid>
                         </Border>
                       </DataTemplate>
@@ -134,20 +204,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="VersionCountText"
-                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
+                             FontSize="12" Foreground="{DynamicResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="VersionPrevBtn" Content="◀ 上一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnVersionPrevClick" />
                       <TextBlock x:Name="VersionPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
+                                 FontSize="13" Foreground="{DynamicResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                       <Button x:Name="VersionNextBtn" Grid.Column="2" Content="下一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnVersionNextClick" />
                     </Grid>
@@ -162,24 +232,24 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
+                      <mi:MaterialIcon Kind="Magnify" Width="14" Height="14" Foreground="{DynamicResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ModSearchBox"
                                PlaceholderText="搜索 Mod 名称..."
-                               Background="{StaticResource TransparentBrush}"
+                               Background="{DynamicResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="{StaticResource BodyTextBrush}"
+                               Foreground="{DynamicResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="{StaticResource BodyTextBrush}"
+                               CaretBrush="{DynamicResource BodyTextBrush}"
                                TextChanged="OnModSearchChanged" />
                       <ComboBox Grid.Column="2"
                                 x:Name="ModVersionFilter"
                                 PlaceholderText="所有版本"
-                                Background="{StaticResource PanelBgBrush}"
+                                Background="{DynamicResource PanelBgBrush}"
                                 BorderThickness="0"
                                 CornerRadius="6"
                                 Padding="10,4"
@@ -193,9 +263,9 @@
                   <ItemsControl x:Name="ModList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4">
-                          <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+                        <Border Classes="ItemHover" Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -206,28 +276,17 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
+                                         FontSize="12" Foreground="{DynamicResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2" Margin="0,0,10,0">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
-                            <Button Grid.Column="3"
-                                    Content="安装"
-                                    Background="{StaticResource SystemAccentColor}"
-                                    Foreground="{StaticResource WhiteBrush}"
-                                    CornerRadius="6"
-                                    Padding="14,6"
-                                    FontSize="12"
-                                    FontWeight="SemiBold"
-                                    VerticalAlignment="Center"
-                                    Cursor="Hand"
-                                    Click="OnModInstallClick" />
                           </Grid>
                         </Border>
                       </DataTemplate>
@@ -236,19 +295,19 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ModCountText"
-                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
+                             FontSize="12" Foreground="{DynamicResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">                    <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="8" Padding="16,10">                    <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ModPrevBtn" Content="◀ 上一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModPrevClick" />
                       <TextBlock x:Name="ModPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
+                                 FontSize="13" Foreground="{DynamicResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                       <Button x:Name="ModNextBtn" Grid.Column="2" Content="下一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModNextClick" />
                     </Grid>
@@ -263,19 +322,19 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
+                      <mi:MaterialIcon Kind="Magnify" Width="14" Height="14" Foreground="{DynamicResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ModpackSearchBox"
                                PlaceholderText="搜索整合包..."
-                               Background="{StaticResource TransparentBrush}"
+                               Background="{DynamicResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="{StaticResource BodyTextBrush}"
+                               Foreground="{DynamicResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="{StaticResource BodyTextBrush}"
+                               CaretBrush="{DynamicResource BodyTextBrush}"
                                TextChanged="OnModpackSearchChanged" />
                     </Grid>
                   </Border>
@@ -284,9 +343,9 @@
                   <ItemsControl x:Name="ModpackList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                        <Border Classes="ItemHover" Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource ErrorDarkBrush}" ClipToBounds="True">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource ErrorDarkBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -297,16 +356,16 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
+                                         FontSize="12" Foreground="{DynamicResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -316,20 +375,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ModpackCountText"
-                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
+                             FontSize="12" Foreground="{DynamicResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ModpackPrevBtn" Content="◀ 上一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModpackPrevClick" />
                       <TextBlock x:Name="ModpackPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
+                                 FontSize="13" Foreground="{DynamicResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                       <Button x:Name="ModpackNextBtn" Grid.Column="2" Content="下一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnModpackNextClick" />
                     </Grid>
@@ -344,19 +403,19 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
+                      <mi:MaterialIcon Kind="Magnify" Width="14" Height="14" Foreground="{DynamicResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ShaderSearchBox"
                                PlaceholderText="搜索光影包..."
-                               Background="{StaticResource TransparentBrush}"
+                               Background="{DynamicResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="{StaticResource BodyTextBrush}"
+                               Foreground="{DynamicResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="{StaticResource BodyTextBrush}"
+                               CaretBrush="{DynamicResource BodyTextBrush}"
                                TextChanged="OnShaderSearchChanged" />
                     </Grid>
                   </Border>
@@ -365,9 +424,9 @@
                   <ItemsControl x:Name="ShaderList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                        <Border Classes="ItemHover" Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource SuccessBrush}" ClipToBounds="True">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource SuccessBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -378,16 +437,16 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
+                                         FontSize="12" Foreground="{DynamicResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -397,20 +456,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ShaderCountText"
-                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
+                             FontSize="12" Foreground="{DynamicResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ShaderPrevBtn" Content="◀ 上一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnShaderPrevClick" />
                       <TextBlock x:Name="ShaderPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
+                                 FontSize="13" Foreground="{DynamicResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                       <Button x:Name="ShaderNextBtn" Grid.Column="2" Content="下一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnShaderNextClick" />
                     </Grid>
@@ -425,19 +484,19 @@
                 <StackPanel Spacing="16" Margin="24,20,24,24">
 
                   <!-- 搜索栏 -->
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*">
-                      <TextBlock Text="🔍" FontSize="14" Foreground="{StaticResource DisabledTextBrush}" VerticalAlignment="Center" />
+                      <mi:MaterialIcon Kind="Magnify" Width="14" Height="14" Foreground="{DynamicResource DisabledTextBrush}" VerticalAlignment="Center" />
                       <TextBox Grid.Column="1"
                                x:Name="ResourcepackSearchBox"
                                PlaceholderText="搜索材质包..."
-                               Background="{StaticResource TransparentBrush}"
+                               Background="{DynamicResource TransparentBrush}"
                                BorderThickness="0"
-                               Foreground="{StaticResource BodyTextBrush}"
+                               Foreground="{DynamicResource BodyTextBrush}"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               CaretBrush="{StaticResource BodyTextBrush}"
+                               CaretBrush="{DynamicResource BodyTextBrush}"
                                TextChanged="OnResourcepackSearchChanged" />
                     </Grid>
                   </Border>
@@ -446,9 +505,9 @@
                   <ItemsControl x:Name="ResourcepackList">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="models:ModrinthProject">
-                        <Border Classes="ItemHover" Background="{StaticResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
+                        <Border Classes="ItemHover" Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource BadgeBgBrush}" ClipToBounds="True">
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
                               <Grid>
                                 <TextBlock Text="{Binding TypeIcon}" FontSize="18"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -459,16 +518,16 @@
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding Title}"
-                                         FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" />
+                                         FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
                               <TextBlock Text="{Binding Description}"
-                                         FontSize="12" Foreground="{StaticResource HintTextBrush}"
+                                         FontSize="12" Foreground="{DynamicResource HintTextBrush}"
                                          TextTrimming="CharacterEllipsis" MaxLines="1" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                               <TextBlock Text="{Binding DownloadsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource BodyTextBrush}" HorizontalAlignment="Right" />
                               <TextBlock Text="{Binding FollowsDisplay}"
-                                         FontSize="11" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Right" />
+                                         FontSize="11" Foreground="{DynamicResource DisabledTextBrush}" HorizontalAlignment="Right" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -478,20 +537,20 @@
 
                   <!-- 底部提示 + 分页 -->
                   <TextBlock x:Name="ResourcepackCountText"
-                             FontSize="12" Foreground="{StaticResource DisabledTextBrush}"
+                             FontSize="12" Foreground="{DynamicResource DisabledTextBrush}"
                              HorizontalAlignment="Center" />
-                  <Border Background="{StaticResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
+                  <Border Background="{DynamicResource ControlBgBrush}" CornerRadius="8" Padding="16,10">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                       <Button x:Name="ResourcepackPrevBtn" Content="◀ 上一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnResourcepackPrevClick" />
                       <TextBlock x:Name="ResourcepackPageText" Grid.Column="1"
                                  Text="第 1 页 / 共 1 页"
-                                 FontSize="13" Foreground="{StaticResource HintTextBrush}"
+                                 FontSize="13" Foreground="{DynamicResource HintTextBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                       <Button x:Name="ResourcepackNextBtn" Grid.Column="2" Content="下一页"
-                              Background="{StaticResource PanelBgBrush}" Foreground="{StaticResource BodyTextBrush}"
+                              Background="{DynamicResource PanelBgBrush}" Foreground="{DynamicResource BodyTextBrush}"
                               CornerRadius="6" Padding="14,6" FontSize="12"
                               Cursor="Hand" Click="OnResourcepackNextClick" />
                     </Grid>
@@ -499,24 +558,323 @@
                 </StackPanel>
               </ScrollViewer>
             </TabItem>
+            <TabItem Header="Java">
+              <ScrollViewer>
+                <StackPanel Spacing="16" Margin="24,20">
 
+                  <!-- 标题区 -->
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Java 运行时管理"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource PrimaryTextBrush}" />
+                    <TextBlock x:Name="JavaPlatformText"
+                               FontSize="12"
+                               Foreground="{DynamicResource HintTextBrush}" />
+                  </StackPanel>
+
+                  <!-- 版本选择建议 -->
+                  <Border Background="{DynamicResource PanelBgBrush}"
+                          CornerRadius="14"
+                          Padding="20,16"
+                          Classes="nya-lift nya-shimmer">
+                    <StackPanel Spacing="10">
+                      <TextBlock Text="版本选择建议"
+                                 FontSize="14"
+                                 FontWeight="SemiBold"
+                                 Foreground="{DynamicResource PrimaryTextBrush}" />
+                      <Grid ColumnDefinitions="80,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+                        <TextBlock Text="Java 8"
+                                   Grid.Row="0"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource BodyTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="适用于 Minecraft 1.8 ~ 1.16.x（老版本必须使用 Java 8）" />
+
+                        <TextBlock Text="Java 11"
+                                   Grid.Row="1"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource BodyTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="适用于 1.12 ~ 1.16.x 的部分模组环境" />
+
+                        <TextBlock Text="Java 17"
+                                   Grid.Row="2"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource BodyTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="适用于 Minecraft 1.17 ~ 1.20.x 及常见模组" />
+
+                        <TextBlock Text="Java 21"
+                                   Grid.Row="3"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource BodyTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="适用于 Minecraft 1.20.5+、最新快照与 NeoForge 21.x" />
+
+                        <TextBlock Text="Java 25"
+                                   Grid.Row="4"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource BodyTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="适用于最新快照与未来版本（Zulu/Temurin 提供）" />
+                      </Grid>
+                      <TextBlock Text="下载多套 Java 不会冲突，启动器会按版本自动选择最合适的一套。"
+                                 FontSize="11"
+                                 Foreground="{DynamicResource DisabledTextBrush}" />
+                    </StackPanel>
+                  </Border>
+
+                  <!-- 下载卡片 -->
+                  <Border Background="{DynamicResource PanelBgBrush}"
+                          CornerRadius="14"
+                          Padding="20,16"
+                          Classes="nya-lift nya-shimmer">
+                    <StackPanel Spacing="12">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                          <TextBlock Text="下载 JDK"
+                                     FontSize="14"
+                                     FontWeight="SemiBold"
+                                     Foreground="{DynamicResource PrimaryTextBrush}" />
+                          <TextBlock Text="按当前平台自动选择安装包（zip / tar.gz），下载完成后校验并安装"
+                                     FontSize="11"
+                                     Foreground="{DynamicResource HintTextBrush}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Padding="12,6"
+                                CornerRadius="8"
+                                FontSize="11"
+                                Background="{DynamicResource ButtonBgBrush}"
+                                BorderBrush="{DynamicResource EmphasizedBorderBrush}"
+                                BorderThickness="1"
+                                Foreground="{DynamicResource LinkTextColorBrush}"
+                                Cursor="Hand"
+                                Click="OnRefreshJavaRuntimeClick">
+                          <StackPanel Orientation="Horizontal" Spacing="5">
+                            <mi:MaterialIcon Kind="Refresh" Width="13" Height="13"
+                                             Foreground="{DynamicResource LinkTextColorBrush}"
+                                             VerticalAlignment="Center" />
+                            <TextBlock Text="刷新列表" VerticalAlignment="Center" />
+                          </StackPanel>
+                        </Button>
+                      </Grid>
+
+                      <Grid ColumnDefinitions="200,*" ColumnSpacing="16">
+                        <!-- 左侧：JDK 提供商 -->
+                        <StackPanel Spacing="6">
+                          <TextBlock Text="JDK 提供商"
+                                     FontSize="12"
+                                     FontWeight="SemiBold"
+                                     Foreground="{DynamicResource SecondaryTextBrush}" />
+                          <ComboBox x:Name="JavaVendorComboBox"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    BorderThickness="0"
+                                    CornerRadius="8"
+                                    Padding="10,7"
+                                    FontSize="12"
+                                    SelectionChanged="OnJavaVendorChanged" />
+                          <TextBlock x:Name="JavaVendorHintText"
+                                     FontSize="11"
+                                     Foreground="{DynamicResource HintTextBrush}"
+                                     TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- 右侧：实时版本列表 -->
+                        <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+                          <TextBlock Text="可用版本（实时获取）"
+                                     FontSize="12"
+                                     FontWeight="SemiBold"
+                                     Foreground="{DynamicResource SecondaryTextBrush}" />
+                          <ListBox x:Name="JavaVersionList"
+                                   Grid.Row="1"
+                                   Margin="0,6,0,8"
+                                   MinHeight="120"
+                                   MaxHeight="220"
+                                   Background="{DynamicResource ControlBgBrush}"
+                                   BorderThickness="0"
+                                   CornerRadius="8"
+                                   Padding="6"
+                                   SelectionChanged="OnJavaVersionSelected">
+                            <ListBox.ItemTemplate>
+                              <DataTemplate DataType="{x:Type download:JavaDownloadCandidate}">
+                                <Border Background="{DynamicResource CardBgBrush}"
+                                        CornerRadius="8"
+                                        Padding="10,8"
+                                        Margin="0,2">
+                                  <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource PrimaryTextBrush}" />
+                                    <TextBlock Text="{Binding DetailText}"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource HintTextBrush}" />
+                                  </StackPanel>
+                                </Border>
+                              </DataTemplate>
+                            </ListBox.ItemTemplate>
+                          </ListBox>
+                          <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                            <TextBlock x:Name="JavaSelectionInfo"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource AccentTextColorBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="1"
+                                    x:Name="DownloadJavaButton"
+                                    Padding="14,9"
+                                    CornerRadius="8"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Background="{DynamicResource AccentBrush}"
+                                    Cursor="Hand"
+                                    Click="OnDownloadJavaClick">
+                              <StackPanel Orientation="Horizontal" Spacing="5">
+                                <mi:MaterialIcon Kind="ArrowDown"
+                                       Width="14" Height="14"
+                                       Foreground="White"
+                                       VerticalAlignment="Center" />
+                                <TextBlock Text="下载所选" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource WhiteBrush}"
+                                           VerticalAlignment="Center" />
+                              </StackPanel>
+                            </Button>
+                          </Grid>
+                        </Grid>
+                      </Grid>
+
+                      <ProgressBar x:Name="JavaDownloadProgressBar"
+                                   Minimum="0"
+                                   Maximum="100"
+                                   Value="0"
+                                   IsVisible="False"
+                                   Height="6"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   Background="{DynamicResource ControlBgBrush}" />
+                      <TextBlock x:Name="JavaDownloadStatusText"
+                                 FontSize="12"
+                                 Foreground="{DynamicResource AccentTextColorBrush}"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+
+                  <!-- 已安装列表 -->
+                  <Border Background="{DynamicResource PanelBgBrush}"
+                          CornerRadius="14"
+                          Padding="20,16"
+                          Classes="nya-lift nya-shimmer">
+                    <StackPanel Spacing="10">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="已安装的 Java 运行时"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock Text="「使用此 Java」设为全局路径；「删除」移除此运行时"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource HintTextBrush}" />
+                      </StackPanel>
+                      <ItemsControl x:Name="JavaRuntimeList">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate DataType="{x:Type download:InstalledJavaRuntime}">
+                            <Border Background="{DynamicResource CardBgBrush}"
+                                    CornerRadius="10"
+                                    Padding="14,10"
+                                    Margin="0,0,0,8">
+                              <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Text="{Binding DisplayName}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding JavaExecutablePath}"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource HintTextBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="14,0"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2"
+                                        Content="使用此 Java"
+                                        Tag="{Binding}"
+                                        Padding="12,6"
+                                        CornerRadius="8"
+                                        FontSize="11"
+                                        Margin="0,0,8,0"
+                                        Background="{DynamicResource ButtonBgBrush}"
+                                        BorderBrush="{DynamicResource EmphasizedBorderBrush}"
+                                        BorderThickness="1"
+                                        Foreground="{DynamicResource LinkTextColorBrush}"
+                                        Cursor="Hand"
+                                        Click="OnUseJavaRuntimeClick" />
+                                <Button Grid.Column="3"
+                                        Content="删除"
+                                        Tag="{Binding}"
+                                        Padding="12,6"
+                                        CornerRadius="8"
+                                        FontSize="11"
+                                        Background="{DynamicResource ButtonBgBrush}"
+                                        BorderBrush="{DynamicResource EmphasizedBorderBrush}"
+                                        BorderThickness="1"
+                                        Foreground="{DynamicResource ErrorBrush}"
+                                        Cursor="Hand"
+                                        Click="OnDeleteJavaRuntimeClick" />
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <TextBlock x:Name="JavaRuntimeEmptyText"
+                                 Text="尚未安装自动下载的 Java 运行时，选择上方供应商与版本后开始下载。"
+                                 FontSize="12"
+                                 Foreground="{DynamicResource DisabledTextBrush}" />
+                    </StackPanel>
+                  </Border>
+
+                </StackPanel>
+              </ScrollViewer>
+            </TabItem>
           </TabControl>
     </Border>
-
     <!-- 全屏加载遮罩 -->
     <Border x:Name="LoadingOverlay"
             Grid.Row="1"
-            Background="{StaticResource OverlayBgBrush}"
+            Background="{DynamicResource OverlayBgBrush}"
             CornerRadius="16"
             IsVisible="True">
       <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
-        <TextBlock x:Name="LoadingSpinner" Text="⏳" FontSize="48" HorizontalAlignment="Center"
-                   RenderTransformOrigin="50%,50%" />
+        <mi:MaterialIcon x:Name="LoadingSpinner" Kind="HourglassEmpty" Width="44" Height="44"
+                         Foreground="{DynamicResource BodyTextBrush}"
+                         HorizontalAlignment="Center" RenderTransformOrigin="50%,50%" Classes="nya-spin" />
         <TextBlock Text="正在加载资源…" FontSize="18" FontWeight="SemiBold"
-                   Foreground="{StaticResource BodyTextBrush}" HorizontalAlignment="Center" />
+                   Foreground="{DynamicResource BodyTextBrush}" HorizontalAlignment="Center" />
         <TextBlock x:Name="LoadingDetail" Text="正在连接 Modrinth API…"
-                   FontSize="13" Foreground="{StaticResource DisabledTextBrush}" HorizontalAlignment="Center" />
+                   FontSize="13" Foreground="{DynamicResource DisabledTextBrush}" HorizontalAlignment="Center" />
       </StackPanel>
     </Border>
+
+    <!-- Minecraft 下载选项遮罩宿主 -->
+    <local:ModalOverlayHost x:Name="DownloadOverlay"
+                            Grid.Row="0" Grid.RowSpan="2" />
   </Grid>
 </UserControl>

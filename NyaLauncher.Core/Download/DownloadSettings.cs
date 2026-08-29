@@ -41,10 +41,11 @@ public static class DownloadSettings
 
     /// <summary>
     /// 当前活跃下载源名称。启动时从配置恢复 <see cref="DownloadSourceProvider.Active"/>。
+    /// 未配置时默认 BMCL（国内网络友好，Mojang 官方源国内访问常超时）。
     /// </summary>
     public static string ActiveSourceName
     {
-        get => LauncherConfig.GetValue("downloadActiveSource") ?? DownloadSources.Official.Name;
+        get => LauncherConfig.GetValue("downloadActiveSource") ?? DownloadSources.Bmcl.Name;
     }
 
     /// <summary>保存活跃下载源。</summary>
@@ -93,7 +94,7 @@ public static class DownloadSettings
         var activeName = ActiveSourceName;
         DownloadSourceProvider.Active = DownloadSources.All
             .FirstOrDefault(s => string.Equals(s.Name, activeName, StringComparison.OrdinalIgnoreCase))
-            ?? DownloadSources.Official;
+            ?? DownloadSources.Bmcl;
 
         var fallbackName = FallbackSourceName;
         if (string.IsNullOrWhiteSpace(fallbackName))

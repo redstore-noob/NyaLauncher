@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="NyaLauncher.Avalonia.Controls.NyaAlertHost"
+             IsVisible="False">
+  <UserControl.Styles>
+    <Style Selector="Button.AlertClose">
+      <Setter Property="Width" Value="26" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource HintTextBrush}" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.AlertClose:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- 底部左侧警示滑条：从左侧滑入（translateX -48 → 0），强调条颜色随级别 -->
+  <Border x:Name="AlertCard"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Bottom"
+          Margin="20,0,20,46"
+          MaxWidth="440"
+          CornerRadius="14"
+          Background="{DynamicResource SurfaceBgBrush}"
+          BorderBrush="{DynamicResource DefaultBorderBrush}"
+          BorderThickness="1">
+    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,9,0,9">
+      <Border x:Name="AccentStrip"
+              Width="4"
+              Margin="0,1"
+              CornerRadius="2" />
+      <mi:MaterialIcon x:Name="AlertIcon"
+                       Grid.Column="1"
+                       Width="18"
+                       Height="18"
+                       Margin="11,0,0,0"
+                       VerticalAlignment="Center" />
+      <TextBlock x:Name="AlertText"
+                 Grid.Column="2"
+                 Margin="10,0,10,0"
+                 VerticalAlignment="Center"
+                 FontSize="12"
+                 LineHeight="17"
+                 Foreground="{DynamicResource BodyTextBrush}"
+                 TextWrapping="Wrap" />
+      <Button x:Name="CloseButton"
+              Grid.Column="3"
+              Classes="AlertClose"
+              Click="OnCloseClick">
+        <mi:MaterialIcon Kind="Close" Width="12" Height="12" />
+      </Button>
+    </Grid>
+  </Border>
+</UserControl>

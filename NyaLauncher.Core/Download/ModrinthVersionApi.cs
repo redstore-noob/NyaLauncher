@@ -31,9 +31,9 @@ public static class ModrinthVersionApi
         var url = $"{BaseUrl}/project/{projectId}/version";
         var queryParams = new List<string>();
         if (gameVersions is { Length: > 0 })
-            queryParams.Add($"game_versions=[{string.Join(",", gameVersions.Select(v => $"\"{v}\""))}]");
+            queryParams.Add($"game_versions={Uri.EscapeDataString($"[{string.Join(",", gameVersions.Select(v => $"\"{v}\""))}]")}");
         if (loaders is { Length: > 0 })
-            queryParams.Add($"loaders=[{string.Join(",", loaders.Select(l => $"\"{l}\""))}]");
+            queryParams.Add($"loaders={Uri.EscapeDataString($"[{string.Join(",", loaders.Select(l => $"\"{l}\""))}]")}");
         if (queryParams.Count > 0)
             url += "?" + string.Join("&", queryParams);
 
@@ -52,7 +52,7 @@ public static class ModrinthVersionApi
     }
 
     /// <summary>
-    /// 获取指定项目支持的 MC 版本列表（去重、降序）。
+    /// 获取指定项目支持的 MC 版本列表（去重、按版本号降序）。
     /// </summary>
     public static async Task<List<string>> GetSupportedGameVersionsAsync(
         string projectId,
@@ -63,8 +63,36 @@ public static class ModrinthVersionApi
         return versions
             .SelectMany(v => v.GameVersions)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(v => v, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(v => v, Comparer<string>.Create(CompareVersionStrings))
             .ToList();
+    }
+
+    /// <summary>
+    /// 按分段数值比较 MC 版本号（如 1.10.2 &gt; 1.9.4），替代会产生错误顺序的字符串比较。
+    /// </summary>
+    public static int CompareVersionStrings(string? a, string? b)
+    {
+        if (a is null) return b is null ? 0 : -1;
+        if (b is null) return 1;
+        var aParts = a.Split('.', '-', '_');
+        var bParts = b.Split('.', '-', '_');
+        var length = Math.Max(aParts.Length, bParts.Length);
+        for (var i = 0; i < length; i++)
+        {
+            var aPart = i < aParts.Length ? aParts[i] : "0";
+            var bPart = i < bParts.Length ? bParts[i] : "0";
+            if (int.TryParse(aPart, out var aNum) && int.TryParse(bPart, out var bNum))
+            {
+                var diff = aNum.CompareTo(bNum);
+                if (diff != 0) return diff;
+            }
+            else
+            {
+                var diff = string.CompareOrdinal(aPart, bPart);
+                if (diff != 0) return diff;
+            }
+        }
+        return 0;
     }
 
     /// <summary>

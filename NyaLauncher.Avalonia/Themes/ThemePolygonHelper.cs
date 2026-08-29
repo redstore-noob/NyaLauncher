@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Media;
-using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Themes;
 
@@ -8,19 +7,11 @@ namespace NyaLauncher.Avalonia.Themes;
 /// 多边形组件主题桥接层：从 Application.Current.Resources 读取标准主题颜色，
 /// 为 PolygonComponentView 和内置组件提供主题感知的画笔与颜色值。
 ///
-/// 所有属性直接引用标准主题绑定（CardBg、SurfaceBg、Accent 等），
+/// 组件卡片不再自带颜色：画刷一律绑定标准主题资源（ComponentBgBrush / PrimaryTextBrush 等），
 /// 新增主题时无需为 Polygon 组件单独定义颜色。
 /// </summary>
 internal static class ThemePolygonHelper
 {
-    private static string GetColor(string key, string fallback)
-    {
-        var app = Application.Current;
-        if (app?.Resources.TryGetValue(key, out var value) == true && value is Color color)
-            return color.ToString();
-        return fallback;
-    }
-
     private static IBrush GetBrush(string key, string fallback)
     {
         var app = Application.Current;
@@ -28,38 +19,6 @@ internal static class ThemePolygonHelper
             return brush;
         return Brush.Parse(fallback);
     }
-
-    public static PolygonComponentTheme CreateDefaultTheme() => new()
-    {
-        Surface = GetColor("SurfaceBgColor", "#192520"),
-        SurfaceHover = GetColor("HighlightBgColor", "#1B2822"),
-        Border = GetColor("StrongBorderColor", "#2C3E35"),
-        BorderHover = GetColor("AccentColor", "#3EC9A0"),
-        TextPrimary = GetColor("PrimaryTextColor", "#F6F7FF"),
-        TextSecondary = GetColor("TertiaryTextColor", "#A5AEC7"),
-        Accent = GetColor("AccentColor", "#3EC9A0"),
-        AccentForeground = GetColor("WhiteColor", "#FFFFFF"),
-        ProgressTrack = GetColor("MediumBorderColor", "#273830")
-    };
-
-    /// <summary>
-    /// 创建启动按钮专用主题（强调底+白字），颜色从当前主题的标准强调色梯度读取。
-    /// </summary>
-    public static PolygonComponentTheme CreateLaunchTheme() => new()
-    {
-        Surface = GetColor("AccentColor", "#3EC9A0"),
-        SurfaceHover = GetColor("AccentLightColor", "#5CDCBA"),
-        Border = GetColor("AccentBrightColor", "#60E2C0"),
-        BorderHover = GetColor("AccentBrightColor", "#60E2C0"),
-        TextPrimary = GetColor("WhiteColor", "#FFFFFF"),
-        TextSecondary = GetColor("TertiaryTextColor", "#D6E6DE"),
-        Accent = GetColor("WhiteColor", "#FFFFFF"),
-        AccentForeground = GetColor("AccentDeepDarkColor", "#1E8868"),
-        ProgressTrack = GetColor("AccentDeepColor", "#28A07A"),
-        BorderThickness = 1.5
-    };
-
-    // ---- 标准 Brush 代理（全部指向已有的主题绑定） ----
 
     public static IBrush CardBackground => GetBrush("CardBgBrush", "#141F1A");
     public static IBrush CardBorder => GetBrush("CardBorderBrush", "#273830");

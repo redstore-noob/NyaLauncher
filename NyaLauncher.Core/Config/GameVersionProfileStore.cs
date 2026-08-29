@@ -37,6 +37,11 @@ public sealed record GameVersionProfile
 
     public string[] AdditionalGameArguments { get; init; } = [];
 
+    /// <summary>
+    /// 实例图标偏好：null 表示"跟随加载器自动"；"gameicon:{key}" 表示显式选择某个
+    /// 内置图标；"custom" 表示使用自定义图标（文件由 <c>CustomInstanceIconStore</c> 管理）。
+    /// </summary>
+    public string? InstanceIconOverride { get; init; }
 }
 
 public static class GameVersionIsolation
@@ -57,15 +62,14 @@ public static class GameVersionIsolation
 
         var profile = GameVersionProfileStore.Get(snapshot.MinecraftDirectory, versionId);
 
-        // 优先使用版本自身的显式设置；若未设置则使用全局默认；都未设置则交给自动检测。
-        var isolationOverride = profile.IsVersionIsolationEnabled
-                                ?? LauncherConfig.DefaultVersionIsolation;
-
+        // 隔离判定优先级：实例显式设置 > 自动检测（PCL/MultiMC/HMCL/内容证据）> 全局默认兜底 > 共享目录。
+        // 全局默认只作兜底传入：若作为显式覆盖，其他启动器的隔离布局检测将永远不生效。
         return GameInstanceLayoutResolver.Resolve(
             snapshot.MinecraftDirectory,
             snapshot.SourcePath,
             versionId,
-            isolationOverride);
+            profile.IsVersionIsolationEnabled,
+            LauncherConfig.DefaultVersionIsolation);
     }
 
     public static bool IsEnabled(GameInstanceSnapshot snapshot, string versionId) =>
@@ -196,6 +200,54 @@ public static class GameVersionProfileStore
         }
     }
 
+    /// <summary>
+    /// 清理指定 Minecraft 目录下已不存在版本的实例配置。
+    /// 版本文件夹可能被用户在启动器外手动删除或改名，实例扫描完成后调用本方法，
+    /// 防止这些版本的隔离、内存等残留设置无限累积在 config.json 中被后续逻辑误读。
+    /// 版本存在性以扫描结果（实例列表实际展示的版本）为准，比较不区分大小写。
+    /// </summary>
+    /// <param name="minecraftDirectory">本次扫描的 Minecraft 根目录；只清理该目录下的配置。</param>
+    /// <param name="existingVersionIds">扫描到的仍实际存在的版本 Id 集合（可为空，表示全部清除）。</param>
+    /// <returns>清理掉的配置条数（0 表示无需清理）。</returns>
+    public static int PruneMissingVersions(
+        string minecraftDirectory,
+        IReadOnlyCollection<string> existingVersionIds)
+    {
+        if (string.IsNullOrWhiteSpace(minecraftDirectory))
+            return 0;
+
+        var normalizedDirectory = NormalizePathOrOriginal(minecraftDirectory);
+        // 空集合 → 目录下已无任何有效版本，该目录全部实例配置都应清除
+        var existing = new HashSet<string>(existingVersionIds, StringComparer.OrdinalIgnoreCase);
+
+        int removed;
+        lock (Gate)
+        {
+            var profiles = LoadProfiles();
+            var kept = new List<GameVersionProfile>(profiles.Count);
+            removed = 0;
+            foreach (var profile in profiles)
+            {
+                // 其他 Minecraft 目录的实例配置不受本次扫描影响
+                if (PathsEqual(profile.MinecraftDirectory, normalizedDirectory) &&
+                    !existing.Contains(profile.VersionId))
+                {
+                    removed++;
+                    continue;
+                }
+
+                kept.Add(profile);
+            }
+
+            if (removed > 0)
+                LauncherConfig.SetValue(ProfilesKey, JsonSerializer.Serialize(kept));
+        }
+
+        if (removed > 0)
+            RaiseChanged();
+        return removed;
+    }
+
     public static bool Save(GameVersionProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -212,7 +264,7 @@ public static class GameVersionProfileStore
         var normalized = profile with
         {
             MinecraftDirectory = NormalizePathOrOriginal(profile.MinecraftDirectory),
-            JavaExecutable = profile.JavaExecutable.Trim(),
+            JavaExecutable = (profile.JavaExecutable ?? string.Empty).Trim(),
             AdditionalJvmArguments = NormalizeArguments(profile.AdditionalJvmArguments),
             AdditionalGameArguments = NormalizeArguments(profile.AdditionalGameArguments)
         };
@@ -267,6 +319,38 @@ public static class GameVersionProfileStore
         }
 
         RaiseChanged();
+    }
+
+    /// <summary>
+    /// 读取实例图标偏好（见 <see cref="GameVersionProfile.InstanceIconOverride"/>）。
+    /// </summary>
+    public static string? GetInstanceIconOverride(string minecraftDirectory, string versionId) =>
+        Get(minecraftDirectory, versionId).InstanceIconOverride;
+
+    /// <summary>仅更新实例图标偏好，不触碰其他设置；失败返回 false。</summary>
+    public static bool SaveInstanceIconOverride(
+        string minecraftDirectory,
+        string versionId,
+        string? overrideValue)
+    {
+        if (string.IsNullOrWhiteSpace(minecraftDirectory) || string.IsNullOrWhiteSpace(versionId))
+            return false;
+
+        var normalized = NormalizePathOrOriginal(minecraftDirectory);
+        lock (Gate)
+        {
+            var profiles = LoadProfiles();
+            profiles.RemoveAll(candidate =>
+                PathsEqual(candidate.MinecraftDirectory, normalized) &&
+                string.Equals(candidate.VersionId, versionId, StringComparison.OrdinalIgnoreCase));
+            profiles.Add(new GameVersionProfile
+            {
+                MinecraftDirectory = normalized,
+                VersionId = versionId,
+                InstanceIconOverride = overrideValue
+            });
+            return LauncherConfig.SetValue(ProfilesKey, JsonSerializer.Serialize(profiles));
+        }
     }
 
     private static List<GameVersionProfile> LoadProfiles() =>

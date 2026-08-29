@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:animations="using:NyaLauncher.Avalonia.Animations.Helpers"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="NyaLauncher.Avalonia.Controls.NyaPromptHost"
+             IsVisible="False"
+             animations:OverlayEffects.PopIn="True">
+  <UserControl.Styles>
+    <Style Selector="Button.PromptAction">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="14,0" />
+      <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource LinkTextBrush}" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.PromptAction:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
+    </Style>
+    <Style Selector="Button.PromptDefault">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- 遮罩层：点击空白处不关闭，关闭一律由按钮发起 -->
+  <Panel Background="{DynamicResource OverlayBgBrush}">
+    <!-- M3 对话框卡片：大圆角 24、表面色、居中；出入场动效由 OverlayEffects.PopIn/PopOut 驱动 -->
+    <Border x:Name="DialogCard"
+            MinWidth="320"
+            MaxWidth="460"
+            Margin="24"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="24"
+            Background="{DynamicResource SurfaceBgBrush}"
+            BorderBrush="{DynamicResource DefaultBorderBrush}"
+            BorderThickness="1"
+            Padding="24,22">
+      <StackPanel>
+        <mi:MaterialIcon x:Name="IconGlyph"
+                         Width="28"
+                         Height="28"
+                         HorizontalAlignment="Center"
+                         Margin="0,0,0,12" />
+        <TextBlock x:Name="TitleText"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
+                   TextWrapping="Wrap" />
+        <TextBlock x:Name="MessageText"
+                   Margin="0,10,0,0"
+                   FontSize="13"
+                   LineHeight="20"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
+                   TextWrapping="Wrap" />
+        <StackPanel x:Name="ActionsPanel"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="6"
+                    Margin="0,22,0,0" />
+      </StackPanel>
+    </Border>
+  </Panel>
+</UserControl>

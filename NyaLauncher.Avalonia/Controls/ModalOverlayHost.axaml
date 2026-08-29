@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+             xmlns:helpers="using:NyaLauncher.Avalonia.Animations.Helpers"
+             x:Class="NyaLauncher.Avalonia.Controls.ModalOverlayHost"
+             IsVisible="False"
+             helpers:OverlayEffects.PopIn="True">
+  <!-- 遮罩层：点击遮罩空白处不关闭（关闭一律由内容视图的按钮/逻辑发起） -->
+  <Panel Background="{DynamicResource OverlayBgBrush}">
+    <ContentPresenter x:Name="DialogPresenter"
+                      Content="{Binding DialogContent, RelativeSource={RelativeSource AncestorType=controls:ModalOverlayHost}}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+  </Panel>
+</UserControl>

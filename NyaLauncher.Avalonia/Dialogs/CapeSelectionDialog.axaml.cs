@@ -6,6 +6,8 @@ using Avalonia.Media;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Themes;
 
+using NyaLauncher.Avalonia.Animations.Helpers;
+
 namespace NyaLauncher.Avalonia.Dialogs;
 
 public partial class CapeSelectionDialog : Window
@@ -38,7 +40,7 @@ public partial class CapeSelectionDialog : Window
             var button = new Button
             {
                 Tag = cape.Id,
-                Content = cape.IsActive ? $"✓ {label} · 当前使用" : label,
+                Content = cape.IsActive ? $"{label} · 当前使用" : label,
                 Padding = new Thickness(16, 12),
                 HorizontalContentAlignment = global::Avalonia.Layout.HorizontalAlignment.Left,
                 Background = cape.IsActive ? ThemePolygonHelper.SkinButtonBgCurrent : ThemePolygonHelper.SkinButtonBg,
@@ -54,14 +56,14 @@ public partial class CapeSelectionDialog : Window
     private void OnCapeClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string capeId })
-            Close(new CapeSelectionResult(capeId));
+            OverlayEffects.PopOut(this, () => Close(new CapeSelectionResult(capeId)));
     }
 
     private void OnDisableCapeClick(object? sender, RoutedEventArgs e) =>
-        Close(new CapeSelectionResult(null));
+        OverlayEffects.PopOut(this, () => Close(new CapeSelectionResult(null)));
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) =>
-        Close(null);
+        OverlayEffects.PopOut(this, () => Close(null));
 }
 
 internal sealed record CapeSelectionResult(string? CapeId);

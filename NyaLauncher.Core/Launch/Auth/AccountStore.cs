@@ -153,7 +153,9 @@ public static class AccountStore
     /// <summary>把当前列表写回 config.json。</summary>
     public static void Save()
     {
-        var dtos = Current.Select(account =>
+        // 先做快照再序列化：避免与 UI 线程增删账号并发时 ObservableCollection 被修改
+        var snapshot = Current.ToArray();
+        var dtos = snapshot.Select(account =>
             account.Type == "microsoft" && account.Microsoft is { } ms
                 ? new AccountDto
                 {

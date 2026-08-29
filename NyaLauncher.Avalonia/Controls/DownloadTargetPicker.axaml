@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Controls.DownloadTargetPicker">
+  <!-- 下载到：实例 / 自定义路径 / 新建独立实例（整合包） -->
+  <StackPanel Spacing="6">
+    <TextBlock Text="下载到"
+               FontSize="13" FontWeight="SemiBold"
+               Foreground="{DynamicResource SecondaryTextBrush}" />
+    <ComboBox x:Name="TargetComboBox"
+              PlaceholderText="选择目标实例…"
+              Background="{DynamicResource ControlBgBrush}"
+              BorderThickness="0"
+              CornerRadius="8"
+              Padding="12,7"
+              FontSize="13"
+              SelectionChanged="OnTargetSelectionChanged" />
+    <TextBox x:Name="TargetNameBox"
+             PlaceholderText="给新实例取个名字，例如 MyModpack"
+             Background="{DynamicResource ControlBgBrush}"
+             BorderThickness="0"
+             CornerRadius="8"
+             Padding="12,7"
+             FontSize="13"
+             MaxLength="48"
+             IsVisible="False" />
+    <TextBlock x:Name="TargetHint"
+               FontSize="11"
+               Foreground="{DynamicResource HintTextBrush}"
+               TextWrapping="Wrap" />
+  </StackPanel>
+</UserControl>

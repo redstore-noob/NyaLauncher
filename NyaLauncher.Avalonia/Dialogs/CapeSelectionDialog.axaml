@@ -7,17 +7,17 @@
         MinHeight="360"
         CanResize="True"
         ShowInTaskbar="False"
-        Background="{StaticResource BaseBgBrush}"
+        Background="{DynamicResource BaseBgBrush}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto" Margin="26">
     <StackPanel Spacing="9">
       <TextBlock Text="选择正版账号披风"
                  FontSize="21"
                  FontWeight="Bold"
-                 Foreground="{StaticResource PrimaryTextBrush}" />
+                 Foreground="{DynamicResource PrimaryTextBrush}" />
       <TextBlock Text="这里只显示该 Minecraft 正版账号已经拥有的披风。"
                  FontSize="12"
-                 Foreground="{StaticResource MutedTextBrush}" />
+                 Foreground="{DynamicResource MutedTextBrush}" />
     </StackPanel>
 
     <ScrollViewer Grid.Row="1" Margin="0,18" VerticalScrollBarVisibility="Auto">

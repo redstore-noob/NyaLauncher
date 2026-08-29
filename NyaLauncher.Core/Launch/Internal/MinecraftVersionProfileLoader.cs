@@ -74,6 +74,7 @@ internal sealed class MinecraftVersionProfileLoader
         string? assetsId = null;
         string? versionType = null;
         string? legacyArguments = null;
+        string? sourceId = null;
         int? javaMajorVersion = null;
         var jvmArguments = new List<JsonElement>();
         var gameArguments = new List<JsonElement>();
@@ -90,6 +91,12 @@ internal sealed class MinecraftVersionProfileLoader
                 versionType = typeValue;
             if (PathUtil.TryGetString(root, "minecraftArguments", out var legacyValue))
                 legacyArguments = legacyValue;
+            // 记录 version.json 声明的原始 id（链末的 Loader 版本优先）
+            if (PathUtil.TryGetString(root, "id", out var declaredId) &&
+                !string.IsNullOrWhiteSpace(declaredId))
+            {
+                sourceId = declaredId;
+            }
 
             if (root.TryGetProperty("assetIndex", out var assetIndex) &&
                 PathUtil.TryGetString(assetIndex, "id", out var assetIndexId))
@@ -151,6 +158,8 @@ internal sealed class MinecraftVersionProfileLoader
         return new MinecraftVersionProfile
         {
             Id = requestedVersionId,
+            // loader JSON 未声明 id 时回退到请求的实例名，避免沿用父（原版）版本的 id
+            SourceId = string.IsNullOrWhiteSpace(sourceId) ? requestedVersionId : sourceId,
             MainClass = mainClass,
             ClientJarVersionId = clientJarVersionId,
             AssetsId = assetsId ?? "legacy",

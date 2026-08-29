@@ -14,23 +14,62 @@ using NyaLauncher.Avalonia.Themes;
 
 namespace NyaLauncher.Avalonia.Windows;
 
+/// <summary>
+/// 个性化窗口：让用户重命名功能区、自定义简介与图标、挑选每个区域显示哪些按钮，
+/// 调整全局组件缩放，以及新建/删除自定义区域与切换配置目录。
+/// <para>
+/// 本控件以 <see cref="UserControl"/> 形式嵌入主窗口的覆盖层，不是独立 <see cref="Window"/>。
+/// 编辑过程全部在内部的草稿状态里进行，<b>只有点击保存</b>才会把结果通过
+/// <see cref="Saved"/> 交回宿主真正落盘。
+/// </para>
+/// </summary>
 public partial class PersonalizationWindow : UserControl
 {
+    /// <summary>弱化文字画刷，取自主题资源（<c>ThemePolygonHelper.Muted</c>）。</summary>
     private static readonly IBrush Muted = ThemePolygonHelper.Muted;
-    private static readonly string[] PresetGlyphs = ["◇", "▶", "◆", "✦", "⚙", "☰", "＋", "⌂", "▦", "◉"];
+
+    /// <summary>内置简约图标预设，供用户直接点选；本地图片失效时也会回退到这里。</summary>
+    private static readonly string[] PresetGlyphs =
+    [
+        "material:Apps",
+        "material:Play",
+        "material:Diamond",
+        "material:Star",
+        "material:Cog",
+        "material:Menu",
+        "material:Add",
+        "material:Home",
+        "material:ViewDashboard",
+        "material:Circle"
+    ];
     private FeatureAreaRegistry _registry = null!;
     private readonly List<AreaEditorState> _editors = [];
     private readonly HashSet<string> _draftUserAreaIds = new(StringComparer.OrdinalIgnoreCase);
     private string _storageDirectory = WorkspaceProfileStore.PlatformDefaultDirectory;
 
+    /// <summary>
+    /// 用户点击「保存」时触发，携带完整的个性化结果。
+    /// 宿主应据此调用注册表应用偏好并持久化。
+    /// </summary>
     public event EventHandler<PersonalizationResult>? Saved;
+
+    /// <summary>用户点击「取消」或关闭窗口时触发，不携带任何修改。</summary>
     public event EventHandler? Cancelled;
 
+    /// <summary>
+    /// 仅供 XAML 设计器使用的无参构造。
+    /// 运行时请使用带参构造——不注入注册表会导致后续操作空引用。
+    /// </summary>
     public PersonalizationWindow()
     {
         InitializeComponent();
     }
 
+    /// <summary>
+    /// 创建并初始化个性化窗口：绑定功能区注册表、记录配置目录、载入当前档案构建编辑区。
+    /// </summary>
+    /// <param name="registry">主窗口的功能区注册表，编辑结果将作用到它上面。</param>
+    /// <param name="storageDirectory">当前配置目录，显示在界面上并可由用户修改。</param>
     public PersonalizationWindow(
         FeatureAreaRegistry registry,
         string storageDirectory) : this()
@@ -349,7 +388,8 @@ public partial class PersonalizationWindow : UserControl
         {
             var presetButton = new Button
             {
-                Content = glyph,
+                // 预设按钮内容用 FeatureIconFactory 渲染，material: 字形显示为 MaterialIcon
+                Content = FeatureIconFactory.CreateGlyph(glyph, 15),
                 Width = 32,
                 Height = 32,
                 Padding = new Thickness(0),
@@ -505,7 +545,7 @@ public partial class PersonalizationWindow : UserControl
             Id = id,
             Title = title,
             Subtitle = "用户创建的功能区",
-            Glyph = "◇",
+            Glyph = "material:Apps",
             IconPath = null,
             Actions = []
         };
@@ -516,7 +556,7 @@ public partial class PersonalizationWindow : UserControl
             AreaId = id,
             DisplayName = title,
             Description = "用户创建的功能区",
-            IconGlyph = "◇",
+            IconGlyph = "material:Apps",
             IconPath = null,
             ActionIds = []
         });
@@ -539,6 +579,11 @@ public partial class PersonalizationWindow : UserControl
         Cancelled?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// 丢弃所有未保存的草稿改动，按注册表的当前状态重建整个编辑界面。
+    /// 点「取消」时会自动调用；宿主在外部改动了注册表后也可主动调用以同步界面。
+    /// </summary>
+    /// <param name="storageDirectory">要显示并使用的配置目录。</param>
     public void Reload(string storageDirectory)
     {
         SetStorageDirectory(storageDirectory);
@@ -547,6 +592,15 @@ public partial class PersonalizationWindow : UserControl
         BuildEditors(_registry.CreateCurrentProfile());
     }
 
+    /// <summary>一个功能区在编辑界面中的全部状态与对应控件引用。</summary>
+    /// <param name="AreaId">区域 Id。</param>
+    /// <param name="DefaultName">区域定义的原始名称，用于「恢复默认」。</param>
+    /// <param name="DefaultDescription">区域定义的原始简介。</param>
+    /// <param name="IsUserArea">是否为用户自建区域（决定能否删除）。</param>
+    /// <param name="Card">该区域对应的卡片控件。</param>
+    /// <param name="NameBox">名称输入框。</param>
+    /// <param name="DescriptionBox">简介输入框。</param>
+    /// <param name="Icon">图标编辑器状态。</param>
     private sealed record AreaEditorState(
         string AreaId,
         string DefaultName,
@@ -557,26 +611,41 @@ public partial class PersonalizationWindow : UserControl
         TextBox DescriptionBox,
         IconEditorState Icon);
 
+    /// <summary>
+    /// 单个区域的图标选择状态：在「内置预设字符」与「本地图片路径」之间二选一。
+    /// 改动会立刻同步到所有已注册的预览控件与路径标签。
+    /// </summary>
+    /// <param name="glyph">初始图标字符；为空白时回退到 <c>material:Apps</c>。</param>
+    /// <param name="iconPath">初始本地图片路径；非空时优先于 <paramref name="glyph"/>。</param>
     private sealed class IconEditorState(string glyph, string? iconPath)
     {
         private readonly List<Border> _previews = [];
         private readonly List<TextBlock> _pathLabels = [];
 
-        public string Glyph { get; private set; } = string.IsNullOrWhiteSpace(glyph) ? "◇" : glyph;
+        /// <summary>当前图标字符，支持 Material 前缀与 Emoji。</summary>
+        public string Glyph { get; private set; } = string.IsNullOrWhiteSpace(glyph) ? "material:Apps" : glyph;
+
+        /// <summary>当前本地图片路径；非空时优先于 <see cref="Glyph"/> 显示。</summary>
         public string? IconPath { get; private set; } = iconPath;
 
+        /// <summary>登记一个图标预览控件，并立即用当前选择刷新它。</summary>
+        /// <param name="preview">预览容器。</param>
         public void RegisterPreview(Border preview)
         {
             _previews.Add(preview);
             Refresh();
         }
 
+        /// <summary>登记一个显示当前图标来源的文字标签，并立即刷新。</summary>
+        /// <param name="label">路径标签控件。</param>
         public void RegisterPathLabel(TextBlock label)
         {
             _pathLabels.Add(label);
             Refresh();
         }
 
+        /// <summary>选择内置预设图标；会清空已选的本地图片路径。</summary>
+        /// <param name="selectedGlyph">预设图标字符。</param>
         public void SelectPreset(string selectedGlyph)
         {
             Glyph = selectedGlyph;
@@ -584,6 +653,8 @@ public partial class PersonalizationWindow : UserControl
             Refresh();
         }
 
+        /// <summary>选择本地图片；<see cref="Glyph"/> 保留作为图片失效时的回退。</summary>
+        /// <param name="path">本地图片绝对路径。</param>
         public void SelectLocalImage(string path)
         {
             IconPath = path;
@@ -604,6 +675,9 @@ public partial class PersonalizationWindow : UserControl
     }
 }
 
+/// <summary>个性化窗口的保存结果，经 <see cref="PersonalizationWindow.Saved"/> 交给宿主。</summary>
+/// <param name="Profile">用户编辑后的工作区档案，宿主可直接持久化。</param>
+/// <param name="StorageDirectory">用户最终选择的配置目录。</param>
 public sealed record PersonalizationResult(
     WorkspaceProfile Profile,
     string StorageDirectory);

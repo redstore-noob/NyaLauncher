@@ -8,14 +8,25 @@ using NyaLauncher.Core.Tools;
 namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
-/// Persists front-end personalization independently from launcher business data.
-/// Invalid or unreadable files fall back to the registered defaults. Supported
-/// older schemas are upgraded in memory; newer schemas are rejected unchanged.
+/// 工作区档案存储：负责 <c>workspace.json</c> 的读写、版本迁移与配置目录管理。
+/// <para>
+/// 与启动器业务数据（<c>config.json</c>）相互独立，但存放在<b>同一个目录</b>，
+/// 用户改配置目录时两份一起走。
+/// </para>
+/// <para>
+/// 容错策略：文件缺失、损坏或不可读时回退到默认档案；
+/// 支持的旧版本格式在内存中就地升级；<b>更高</b>版本则原样拒绝（不猜测、不降级覆盖）。
+/// </para>
 /// </summary>
 public sealed class WorkspaceProfileStore
 {
+    /// <summary>工作区档案文件名。</summary>
     public const string ProfileFileName = "workspace.json";
+
+    /// <summary>启动器业务配置文件名（与本档案同目录，切换目录时一并迁移）。</summary>
     public const string LauncherConfigFileName = "config.json";
+
+    /// <summary>记录用户所选配置目录的定位文件名，存放在 %APPDATA%\NyaLauncher 下，不含个性化内容。</summary>
     private const string LocationFileName = "workspace-location.txt";
 
     private static readonly string[] ConfigurationFileNames =
@@ -31,20 +42,39 @@ public sealed class WorkspaceProfileStore
     };
 
     // 默认存储目录统一引用 Core 侧配置的默认值，避免重复计算
+    /// <summary>
+    /// 平台默认配置目录。直接取自 <c>LauncherConfig.DefaultStorageDirectory</c>，
+    /// 由运行平台映射到当前用户的数据目录。
+    /// </summary>
     public static string PlatformDefaultDirectory { get; } =
         NyaLauncher.Core.Config.LauncherConfig.DefaultStorageDirectory;
 
+    /// <summary>
+    /// 定位文件的完整路径（<c>%APPDATA%\NyaLauncher\workspace-location.txt</c>）。
+    /// 它只记录用户选过的目录，不含任何个性化内容。
+    /// </summary>
     public static string LocationFilePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "NyaLauncher",
         LocationFileName);
 
+    /// <summary>当前实际使用的配置目录。切换目录后会同步更新。</summary>
     public string StorageDirectory { get; private set; }
 
+    /// <summary>当前工作区档案的完整路径。</summary>
     public string FilePath => Path.Combine(StorageDirectory, ProfileFileName);
 
     private readonly string _locationFilePath;
 
+    /// <summary>
+    /// 创建档案存储并解析配置目录。
+    /// <para>
+    /// 目录优先级：显式传入 → 定位文件记录 → 平台默认目录。
+    /// 目录由自动解析得出时（即未显式传参），会尝试从旧默认目录迁移配置。
+    /// </para>
+    /// </summary>
+    /// <param name="storageDirectory">显式指定的配置目录；为 <c>null</c> 时自动解析。</param>
+    /// <param name="locationFilePath">定位文件路径，主要用于测试；为 <c>null</c> 时使用 <see cref="LocationFilePath"/>。</param>
     public WorkspaceProfileStore(
         string? storageDirectory = null,
         string? locationFilePath = null)
@@ -54,6 +84,87 @@ public sealed class WorkspaceProfileStore
             storageDirectory ??
             LoadConfiguredDirectory(_locationFilePath) ??
             PlatformDefaultDirectory);
+        // 默认存储目录从 %LOCALAPPDATA%\NyaLauncher 迁到 %USERPROFILE%\NyaLauncher。
+        // 启动时自动迁移：复制缺失配置 → 校验新目录已就位 → 清理旧目录文件与空目录 → 清 locator。
+        // 全程 best-effort，任何失败都不阻断启动，也不影响旧配置。
+        // 仅当目录由自动解析（locator/默认值）得出时触发；显式传参构造不迁移。
+        if (storageDirectory is null)
+            MigrateLegacyDefaultConfiguration();
+    }
+
+    /// <summary>
+    /// 自动迁移旧默认目录（%LOCALAPPDATA%\NyaLauncher）中的配置到新默认目录（%USERPROFILE%\NyaLauncher）。
+    /// 仅在最终目录解析为「新平台默认」或「locator 残留指向旧默认」时触发；用户自定义目录不迁移。
+    /// </summary>
+    private void MigrateLegacyDefaultConfiguration()
+    {
+        var legacyDirectory =
+            NyaLauncher.Core.Config.LauncherConfig.LegacyDefaultStorageDirectory;
+        var isDefault = PathUtil.PathsEqual(StorageDirectory, PlatformDefaultDirectory);
+        var isLegacy = PathUtil.PathsEqual(StorageDirectory, legacyDirectory);
+        if (!isDefault && !isLegacy)
+            return;
+
+        // 旧目录本来就没有配置，无需迁移
+        if (!File.Exists(Path.Combine(legacyDirectory, ProfileFileName)) &&
+            !File.Exists(Path.Combine(legacyDirectory, LauncherConfigFileName)))
+            return;
+
+        try
+        {
+            // 1) 把旧目录缺失的配置复制到新默认目录
+            CopyMissingConfigurationFile(ProfileFileName, legacyDirectory);
+            CopyMissingConfigurationFile(LauncherConfigFileName, legacyDirectory);
+
+            // 2) 校验新目录确实持有 config.json 后才清理旧文件（避免复制失败导致误删）
+            var targetDirectory = PlatformDefaultDirectory;
+            if (!File.Exists(Path.Combine(targetDirectory, LauncherConfigFileName)))
+                return;
+
+            // 3) 清理旧目录中的配置与空目录（best-effort）
+            _ = DeleteConfigurationFiles(legacyDirectory);
+            TryDeleteEmptyDirectory(legacyDirectory);
+
+            // 4) 若 locator 残留指向旧默认目录，清掉它，使后续解析回落新默认
+            if (isLegacy)
+            {
+                TryDeleteLocatorFile();
+                StorageDirectory = NormalizeStorageDirectory(targetDirectory);
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            // 迁移失败不阻断启动：新目录缺少的文件会按默认配置重新生成，旧配置原样保留。
+        }
+    }
+
+    private void CopyMissingConfigurationFile(string fileName, string legacyDirectory)
+    {
+        var targetPath = Path.Combine(PlatformDefaultDirectory, fileName);
+        if (File.Exists(targetPath))
+            return;
+
+        var sourcePath = Path.Combine(legacyDirectory, fileName);
+        if (!File.Exists(sourcePath))
+            return;
+
+        Directory.CreateDirectory(PlatformDefaultDirectory);
+        File.Copy(sourcePath, targetPath, overwrite: false);
+    }
+
+    private void TryDeleteLocatorFile()
+    {
+        try
+        {
+            if (File.Exists(_locationFilePath))
+                File.Delete(_locationFilePath);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            // locator 清理失败不影响启动；下次解析可能再次落到旧目录并重试迁移。
+        }
     }
 
     public WorkspaceProfile Load()
@@ -612,28 +723,46 @@ public sealed class WorkspaceProfileStore
 
 }
 
+/// <summary>目标目录已有配置时的处理方式（在切换配置目录的确认对话框里由用户选择）。</summary>
 public enum ExistingConfigurationAction
 {
+    /// <summary>什么都不做：采用目标目录现有的配置，原目录配置保持不动。</summary>
     None,
+
+    /// <summary>采用目标目录配置后，删除原目录中的配置文件。</summary>
     DeletePrevious,
+
+    /// <summary>采用目标目录配置前，先把原目录配置备份到指定位置。</summary>
     BackupPrevious
 }
 
+/// <summary>对某个候选配置目录的体检结果：它里面已经存在哪些配置文件。</summary>
+/// <param name="Directory">被检查的目录。</param>
+/// <param name="ExistingFileNames">该目录中已存在的配置文件名列表。</param>
 public sealed record StorageDirectoryInspection(
     string Directory,
     IReadOnlyList<string> ExistingFileNames)
 {
+    /// <summary>目录中是否已有任意配置文件（说明它不是空目录）。</summary>
     public bool HasConfiguration => ExistingFileNames.Count > 0;
 
+    /// <summary>
+    /// 两份配置（<c>workspace.json</c> 与 <c>config.json</c>）是否都齐全。
+    /// 只有部分存在时，切换流程需要额外提示用户确认。
+    /// </summary>
     public bool HasCompleteConfiguration =>
         ExistingFileNames.Contains(WorkspaceProfileStore.ProfileFileName) &&
         ExistingFileNames.Contains(WorkspaceProfileStore.LauncherConfigFileName);
 }
 
 /// <summary>
-/// A prepared storage switch. Preparation may copy data to an empty target,
-/// but only <see cref="Complete"/> changes the startup locator and removes the
-/// previous files. Dispose-like implicit commits are intentionally avoided.
+/// 一次已经「备好」的配置目录切换。
+/// <para>
+/// 准备阶段可能已经把数据复制到了空的目标目录，但<b>只有 <see cref="Complete"/>
+/// 才会真正改写启动定位文件并删除原目录的文件</b>。
+/// 这里刻意不使用 <c>Dispose</c> 之类的隐式提交——切换目录属于破坏性操作，
+/// 必须由调用方显式确认后再提交。
+/// </para>
 /// </summary>
 public sealed class StorageDirectoryChangeTransaction
 {
@@ -662,22 +791,41 @@ public sealed class StorageDirectoryChangeTransaction
         _isNoOp = isNoOp;
     }
 
+    /// <summary>切换前的原配置目录。</summary>
     public string PreviousDirectory { get; }
 
+    /// <summary>切换后的目标配置目录。</summary>
     public string TargetDirectory { get; }
 
+    /// <summary>本次切换最终采用的档案（可能来自目标目录，也可能是被迁移过去的原档案）。</summary>
     public WorkspaceProfile AppliedProfile { get; }
 
+    /// <summary>是否采用了目标目录中<b>已存在</b>的配置，而不是把原配置迁移过去。</summary>
     public bool AppliedExistingConfiguration { get; }
 
+    /// <summary>备份目录路径；用户选择 <see cref="ExistingConfigurationAction.BackupPrevious"/> 时非空。</summary>
     public string? BackupDirectory { get; }
 
+    /// <summary>
+    /// 清理原目录配置文件时失败的文件列表。清理是「尽力而为」的，
+    /// 失败不会让整次切换失效，但需要告知用户手动处理。
+    /// </summary>
     public IReadOnlyList<string> CleanupFailures { get; private set; } = [];
 
+    /// <summary>回滚过程中失败的文件列表；为空表示回滚干净。</summary>
     public IReadOnlyList<string> RollbackFailures { get; private set; } = [];
 
+    /// <summary>目标目录在准备阶段之前是否已经存在（决定回滚时能不能删它）。</summary>
     internal bool TargetDirectoryExisted { get; }
 
+    /// <summary>
+    /// 构造一个「什么都不用做」的事务：目标目录与当前目录相同。
+    /// 提交与回滚都是空操作，用于让调用方不必分叉处理。
+    /// </summary>
+    /// <param name="owner">档案存储实例。</param>
+    /// <param name="directory">当前（也即目标）目录。</param>
+    /// <param name="profile">当前档案。</param>
+    /// <returns>已完成状态等价的空事务。</returns>
     internal static StorageDirectoryChangeTransaction CreateNoOp(
         WorkspaceProfileStore owner,
         string directory,
@@ -693,9 +841,15 @@ public sealed class StorageDirectoryChangeTransaction
             isNoOp: true);
 
     /// <summary>
-    /// Persists the target locator and only then performs best-effort cleanup of
-    /// the previous configuration files.
+    /// 提交切换：<b>先</b>写入目标目录的定位文件，确认落盘成功后，
+    /// 才对原目录的配置文件做「尽力而为」的清理。
+    /// <para>
+    /// 顺序很重要：先落定位文件可以保证即使后续清理失败，
+    /// 下次启动也只会从新目录读取，不会出现配置丢失。
+    /// 已回滚的事务再提交会抛异常。
+    /// </para>
     /// </summary>
+    /// <exception cref="InvalidOperationException">事务已回滚。</exception>
     public void Complete()
     {
         lock (_syncRoot)
@@ -712,9 +866,13 @@ public sealed class StorageDirectoryChangeTransaction
     }
 
     /// <summary>
-    /// Removes artifacts created while preparing an empty target. Existing
-    /// target configuration is never deleted; only this attempt's backup is.
+    /// 回滚切换：只清理准备阶段自己造出来的东西。
+    /// <para>
+    /// 目标目录里<b>原本就有</b>的配置绝不会被删除；
+    /// 若目标目录是本次新建的则整个删掉，只保留本次生成的备份。
+    /// </para>
     /// </summary>
+    /// <returns>回滚失败的文件列表；为空表示回滚干净。</returns>
     public IReadOnlyList<string> Rollback()
     {
         lock (_syncRoot)
@@ -732,6 +890,8 @@ public sealed class StorageDirectoryChangeTransaction
         }
     }
 
+    /// <summary>由档案存储在清理原目录后回填失败列表（内部使用，调用方无需关心）。</summary>
+    /// <param name="failures">清理失败的文件名列表。</param>
     internal void SetCleanupFailures(IReadOnlyList<string> failures) =>
         CleanupFailures = failures;
 

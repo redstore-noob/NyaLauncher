@@ -10,8 +10,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using NyaLauncher.Avalonia.Animations.Helpers;
-using NyaLauncher.Avalonia.Dialogs;
+using NyaLauncher.Avalonia.Controls;
+using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Models;
@@ -42,13 +42,25 @@ public partial class DownloadPage : UserControl
     private int _shaderPage = 1;
     private int _resourcepackPage = 1;
 
-    private int _loadingCount;
-    private const int TotalLoads = 5;
+    private string? _activeLoadHeader;
+    private bool _versionsLoaded;
+    private bool _modsLoaded;
+    private bool _modpacksLoaded;
+    private bool _shadersLoaded;
+    private bool _resourcepacksLoaded;
+    private bool _javaLoaded;
     private bool _isRefreshing;
-    private bool _initialListEffectsQueued;
+    private DateTime _lastProgressUiUpdate;
+    private bool _isJavaDownloading;
+    private bool _initializingJavaControls;
+    private IReadOnlyList<JavaDownloadCandidate> _javaCandidates = [];
+    private CancellationTokenSource? _javaQueryCts;
 
     /// <summary>当用户点击 Mod 安装按钮时触发，传递 ModrinthProject 给宿主。</summary>
     public event EventHandler<ModrinthProject>? ModInstallRequested;
+
+    /// <summary>当用户点击整合包/资源包/光影包下载按钮时触发。</summary>
+    public event EventHandler<(ModrinthProject Project, ContentDownloadKind Kind)>? ContentDownloadRequested;
 
     /// <summary>XAML 设计器 / Avalonia 反射需要无参构造；运行时由 MainWindow 使用 internal 构造。</summary>
     public DownloadPage()
@@ -62,56 +74,378 @@ public partial class DownloadPage : UserControl
         InitializeComponent();
         _downloadService.Changed += OnDownloadChanged;
         LoadingOverlay.IsVisible = true;
-        AttachedToVisualTree += OnAttachedToVisualTree;
         // 使用 AddHandler 确保 DataTemplate 内的 Tapped 事件也能被捕获
+        //（整行点击 → 弹出对应下载遮罩层，不再需要列表里的按钮）
         ModList.AddHandler(TappedEvent, OnModListTapped, handledEventsToo: true);
-        _ = LoadAllAsync();
-        StartSpinnerAnimation();
+        VersionList.AddHandler(TappedEvent, OnVersionListTapped, handledEventsToo: true);
+        ModpackList.AddHandler(TappedEvent, OnContentListTapped, handledEventsToo: true);
+        ShaderList.AddHandler(TappedEvent, OnContentListTapped, handledEventsToo: true);
+        ResourcepackList.AddHandler(TappedEvent, OnContentListTapped, handledEventsToo: true);
+        InitializeJavaControls();
+        // 默认只加载首个可见标签；其余标签在切换时才加载（懒加载）
+        LoadTabAsync(DownloadTabs.SelectedItem as TabItem);
     }
 
-    private async void OnDownloadVersionClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: MinecraftVersion version })
-            return;
+    /// <summary>
+    /// 切换到下载页的 Java 标签页（供设置页跳转使用）。
+    /// </summary>
+    public void ActivateJavaTab() => ActivateTab("Java");
 
-        if (_downloadService.Current.IsActive)
+    /// <summary>
+    /// 切换到指定头名称的标签页（供快捷组件 / 导航跳转使用），不存在时忽略。
+    /// </summary>
+    public void ActivateTab(string header)
+    {
+        if (DownloadTabs.Items.OfType<TabItem>().FirstOrDefault(t => t.Header is string h && h == header) is { } tab)
         {
-            DownloadTaskStatusText.Text =
-                $"正在下载 Minecraft {_downloadService.Current.VersionId}，请等待当前任务结束。";
+            DownloadTabs.SelectedItem = tab;
+            LoadTabAsync(tab);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Java 运行时管理
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// 初始化 JDK 供应商下拉框并触发首次版本查询。
+    /// </summary>
+    private void InitializeJavaControls()
+    {
+        _initializingJavaControls = true;
+        try
+        {
+            JavaVendorComboBox.Items.Clear();
+            foreach (JavaVendor vendor in Enum.GetValues<JavaVendor>())
+            {
+                JavaVendorComboBox.Items.Add(InstalledJavaRuntime.VendorDisplayName(vendor));
+            }
+            JavaVendorComboBox.SelectedIndex = 0; // 默认 Zulu（不触发 OnJavaVendorChanged）
+        }
+        finally
+        {
+            _initializingJavaControls = false;
+        }
+
+        JavaPlatformText.Text = $"当前平台：{JavaRuntimeInstaller.GetPlatformDisplayName()} · 将按平台自动选择安装包";
+        UpdateJavaVendorHint();
+        // 构造时不联网查询 Java 版本，改为切到 Java 标签时才加载
+    }
+
+    private void OnJavaVendorChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_initializingJavaControls)
+            return;
+        var vendor = GetSelectedVendor();
+        UpdateJavaVendorHint();
+        _ = LoadJavaVersionsAsync(vendor);
+    }
+
+    /// <summary>
+    /// 根据当前供应商更新提示文字。
+    /// </summary>
+    private void UpdateJavaVendorHint()
+    {
+        var vendor = GetSelectedVendor();
+        JavaVendorHintText.Text = vendor switch
+        {
+            JavaVendor.Zulu => "Zulu JDK（Azul 官方构建）：免费商用、更新稳定，支持全部 8/11/17/21/25。",
+            JavaVendor.Oracle => "Oracle JDK：官方商业构建，直接下载仅提供 Java 21 / 25。",
+            JavaVendor.Temurin => "Temurin JDK（Adoptium）：社区开源构建，下载带 SHA-256 完整性校验。",
+            _ => ""
+        };
+    }
+
+    private JavaVendor GetSelectedVendor()
+    {
+        var vendors = Enum.GetValues<JavaVendor>();
+        var index = JavaVendorComboBox.SelectedIndex;
+        return index >= 0 && index < vendors.Length ? vendors[index] : JavaVendor.Zulu;
+    }
+
+    /// <summary>
+    /// 实时查询当前供应商的所有可用版本并填充列表。
+    /// </summary>
+    private async Task LoadJavaVersionsAsync(JavaVendor vendor)
+    {
+        _javaQueryCts?.Cancel();
+        _javaQueryCts = new CancellationTokenSource();
+        var ct = _javaQueryCts.Token;
+
+        try
+        {
+            JavaVersionList.ItemsSource = null;
+            JavaSelectionInfo.Text = "正在查询可用版本…";
+            JavaDownloadStatusText.Text = "";
+            var candidates = await JavaRuntimeInstaller.QueryAvailableVersionsAsync(vendor, ct);
+
+            if (ct.IsCancellationRequested)
+                return;
+
+            _javaCandidates = candidates;
+            JavaVersionList.ItemsSource = candidates;
+            if (candidates.Count > 0)
+            {
+                JavaVersionList.SelectedIndex = 0;
+                JavaSelectionInfo.Text = $"找到 {candidates.Count} 个可用版本，请选择后下载。";
+            }
+            else
+            {
+                JavaSelectionInfo.Text = "该提供商当前平台下没有可用版本。";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 切换供应商时取消旧查询，属正常流程
+        }
+        catch (Exception ex)
+        {
+            if (!ct.IsCancellationRequested)
+            {
+                JavaSelectionInfo.Text = $"查询失败：{ex.Message}";
+                JavaDownloadStatusText.Text = $"查询失败：{ex.Message}";
+                JavaDownloadStatusText.Foreground = FindBrush("ErrorBrush");
+            }
+        }
+    }
+
+    private void OnJavaVersionSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (JavaVersionList.SelectedItem is JavaDownloadCandidate candidate)
+        {
+            JavaSelectionInfo.Text = $"已选 {candidate.DisplayName} · {candidate.DetailText}";
+        }
+    }
+
+    /// <summary>
+    /// 刷新已安装的 Java 运行时列表（磁盘扫描在后台执行，避免 UI 卡顿）。
+    /// </summary>
+    private async System.Threading.Tasks.Task RefreshJavaRuntimeList()
+    {
+        try
+        {
+            var runtimes = await System.Threading.Tasks.Task.Run(JavaRuntimeInstaller.GetInstalledRuntimes);
+            JavaRuntimeList.ItemsSource = runtimes;
+            JavaRuntimeEmptyText.IsVisible = runtimes.Count == 0;
+        }
+        catch
+        {
+            JavaRuntimeList.ItemsSource = null;
+            JavaRuntimeEmptyText.IsVisible = true;
+        }
+    }
+
+    private void OnRefreshJavaRuntimeClick(object? sender, RoutedEventArgs e)
+    {
+        _ = RefreshJavaRuntimeList();
+        JavaDownloadStatusText.Text = "已刷新 Java 运行时列表。";
+        JavaDownloadStatusText.Foreground = FindBrush("AccentTextColor");
+    }
+
+    private async void OnDownloadJavaClick(object? sender, RoutedEventArgs e)
+    {
+        if (JavaVersionList.SelectedItem is not JavaDownloadCandidate candidate)
+        {
+            JavaDownloadStatusText.Text = "请先在右侧列表中选择要下载的 JDK 版本。";
+            JavaDownloadStatusText.Foreground = FindBrush("AccentTextColor");
             return;
         }
 
-        // 弹出下载选项对话框：选择 Loader 类型、版本、自定义实例名
-        var dialog = new DownloadOptionsDialog(version);
-        var owner = TopLevel.GetTopLevel(this) as Window;
-        if (owner is null)
+        if (_isJavaDownloading)
+        {
+            JavaDownloadStatusText.Text = "已有 Java 下载任务进行中，请稍候。";
             return;
-        var options = await dialog.ShowDialog<DownloadOptions?>(owner);
-        if (options is null)
+        }
+
+        if (candidate.Vendor == JavaVendor.Oracle && candidate.MajorVersion < 21)
+        {
+            JavaDownloadStatusText.Text = JavaRuntimeInstaller.OracleUnsupportedMessage;
+            JavaDownloadStatusText.Foreground = FindBrush("ErrorBrush");
+            return;
+        }
+
+        var vendorDisplay = candidate.VendorName;
+        _isJavaDownloading = true;
+        try
+        {
+            JavaDownloadProgressBar.IsVisible = true;
+            JavaDownloadProgressBar.Value = 0;
+            JavaDownloadStatusText.Text = $"正在准备下载 {vendorDisplay} JDK {candidate.MajorVersion}…";
+            JavaDownloadStatusText.Foreground = FindBrush("AccentTextColor");
+
+            var installer = new JavaRuntimeInstaller();
+            var progress = new Progress<JavaRuntimeInstallProgress>(p =>
+            {
+                if (p.TotalBytes > 0)
+                {
+                    var pct = (int)Math.Clamp(p.CompletedBytes * 100.0 / p.TotalBytes, 0, 100);
+                    JavaDownloadProgressBar.Value = pct;
+                }
+                JavaDownloadStatusText.Text =
+                    $"{p.Phase}… {FormatJavaProgress(p.CompletedBytes, p.TotalBytes, p.BytesPerSecond)}";
+            });
+
+            var installed = await installer.InstallCandidateAsync(candidate, progress);
+            JavaDownloadStatusText.Text = $"{vendorDisplay} JDK {candidate.MajorVersion} 安装完成：{installed.JavaExecutablePath}";
+            JavaDownloadStatusText.Foreground = FindBrush("SuccessBrush");
+            await RefreshJavaRuntimeList();
+        }
+        catch (Exception ex)
+        {
+            JavaDownloadStatusText.Text = $"下载 {vendorDisplay} JDK {candidate.MajorVersion} 失败：{ex.Message}";
+            JavaDownloadStatusText.Foreground = FindBrush("ErrorBrush");
+        }
+        finally
+        {
+            _isJavaDownloading = false;
+            JavaDownloadProgressBar.IsVisible = false;
+        }
+    }
+
+    private void OnUseJavaRuntimeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: InstalledJavaRuntime runtime })
             return;
 
-        if (options.LoaderType == ModLoaderType.Vanilla)
+        var version = runtime.MajorVersion?.ToString() ?? "unknown";
+        if (LauncherConfig.AddJava(runtime.JavaExecutablePath, version) &&
+            LauncherConfig.SetPrimaryJava(runtime.JavaExecutablePath))
         {
-            DownloadTaskStatusText.Text = $"正在创建 Minecraft {version.Id} 下载任务…";
-            await _downloadService.StartAsync(version);
+            // 清除全局 override，让 javaPath 列表首位成为唯一权威
+            var current = GlobalLaunchSettingsStore.Load();
+            _ = GlobalLaunchSettingsStore.Save(current with { JavaExecutable = "" });
+            JavaDownloadStatusText.Text = $"已设为默认 Java：{runtime.JavaExecutablePath}";
+            JavaDownloadStatusText.Foreground = FindBrush("SuccessBrush");
         }
         else
         {
-            var loaderName = $"{options.LoaderType} {options.LoaderVersion?.LoaderVersion}";
-            DownloadTaskStatusText.Text = $"正在创建 {loaderName} 下载任务…";
-            await _downloadService.StartModLoaderAsync(
-                version,
-                options.LoaderVersion!,
-                options.InstanceName);
+            JavaDownloadStatusText.Text = "保存 Java 路径失败。";
+            JavaDownloadStatusText.Foreground = FindBrush("ErrorBrush");
+        }
+    }
+
+    private void OnDeleteJavaRuntimeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: InstalledJavaRuntime runtime })
+            return;
+
+        try
+        {
+            JavaRuntimeInstaller.DeleteRuntime(runtime.DirectoryPath);
+            JavaDownloadStatusText.Text = $"已删除 {runtime.DisplayName}。";
+            JavaDownloadStatusText.Foreground = FindBrush("SuccessBrush");
+            _ = RefreshJavaRuntimeList();
+        }
+        catch (Exception ex)
+        {
+            JavaDownloadStatusText.Text = $"删除失败：{ex.Message}";
+            JavaDownloadStatusText.Foreground = FindBrush("ErrorBrush");
+        }
+    }
+
+    private static string FormatJavaProgress(long completedBytes, long totalBytes, double bytesPerSecond)
+    {
+        var size = totalBytes > 0
+            ? $"{completedBytes / 1048576.0:0.0}/{totalBytes / 1048576.0:0.0} MiB"
+            : $"{completedBytes / 1048576.0:0.0} MiB";
+        var speed = bytesPerSecond > 0 ? $" · {bytesPerSecond / 1048576.0:0.0} MiB/s" : "";
+        return $"{size}{speed}";
+    }
+
+    /// <summary>点击 Minecraft 版本列表项 → 弹出内嵌遮罩层：选择 Loader 类型、版本、自定义实例名。</summary>
+    private async void OnVersionListTapped(object? sender, TappedEventArgs e)
+    {
+        try
+        {
+            if (e.Source is not Control control) return;
+            var version = FindDataContext<MinecraftVersion>(control);
+            if (version is null) return;
+
+            if (_downloadService.Current.IsActive)
+            {
+                DownloadTaskStatusText.Text =
+                    $"正在下载 Minecraft {_downloadService.Current.VersionId}，请等待当前任务结束。";
+                return;
+            }
+
+            var view = new MinecraftDownloadOverlay();
+            view.Setup(version);
+            var options = await DownloadOverlay.ShowAsync<DownloadOptions>(view);
+            if (options is null)
+                return;
+            await HandleDownloadAsync(options);
+        }
+        catch (Exception ex)
+        {
+            DownloadTaskStatusText.Text = $"操作失败：{ex.Message}";
+            DownloadTaskStatusText.Foreground = FindBrush("ErrorBrush");
+        }
+    }
+
+    /// <summary>执行遮罩层确认后的下载：原版直接安装，带加载器则先装加载器版本。</summary>
+    private async System.Threading.Tasks.Task HandleDownloadAsync(DownloadOptions options)
+    {
+        try
+        {
+            if (options.LoaderType == ModLoaderType.Vanilla)
+            {
+                DownloadTaskStatusText.Text = $"正在创建 Minecraft {options.Version.Id} 下载任务…";
+                await _downloadService.StartAsync(options.Version);
+            }
+            else
+            {
+                var loaderName = $"{options.LoaderType} {options.LoaderVersion?.LoaderVersion}";
+                DownloadTaskStatusText.Text = $"正在创建 {loaderName} 下载任务…";
+                await _downloadService.StartModLoaderAsync(
+                    options.Version,
+                    options.LoaderVersion!,
+                    options.InstanceName,
+                    options.SkipFabricApi);
+            }
+        }
+        catch (Exception ex)
+        {
+            DownloadTaskStatusText.Text = $"操作失败：{ex.Message}";
+            DownloadTaskStatusText.Foreground = FindBrush("ErrorBrush");
         }
     }
 
     private void OnDownloadChanged(GameDownloadSnapshot snapshot)
     {
+        // 进度节流：下载进行中每 80ms 最多刷一次 UI，
+        // 避免高频进度回调（每 128KB 一次）把 UI 线程排队拖死
+        if (snapshot.Phase == GameDownloadPhase.Downloading)
+        {
+            var now = DateTime.UtcNow;
+            if ((now - _lastProgressUiUpdate).TotalMilliseconds < 80)
+                return;
+            _lastProgressUiUpdate = now;
+        }
+
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(() => OnDownloadChanged(snapshot));
             return;
+        }
+
+        // 更新进度条与取消按钮
+        var active = snapshot.Phase is GameDownloadPhase.Preparing or GameDownloadPhase.Downloading;
+        CancelDownloadButton.IsVisible = active;
+        if (snapshot.Phase == GameDownloadPhase.Downloading)
+        {
+            DownloadProgressBar.IsVisible = true;
+            DownloadProgressBar.Value = snapshot.Percentage;
+        }
+        else if (snapshot.Phase == GameDownloadPhase.Completed)
+        {
+            DownloadProgressBar.IsVisible = false;
+            DownloadProgressBar.Value = 100;
+        }
+        else if (snapshot.Phase == GameDownloadPhase.Failed ||
+                 snapshot.Phase == GameDownloadPhase.Cancelled)
+        {
+            DownloadProgressBar.IsVisible = false;
+            DownloadProgressBar.Value = 0;
         }
 
         DownloadTaskStatusText.Text = snapshot.Phase switch
@@ -126,6 +460,15 @@ public partial class DownloadPage : UserControl
         };
     }
 
+    private void OnCancelDownloadClick(object? sender, RoutedEventArgs e)
+    {
+        if (_downloadService.CancelActive())
+        {
+            DownloadTaskStatusText.Text = "正在取消下载任务…";
+            CancelDownloadButton.IsVisible = false;
+        }
+    }
+
     private static string FormatSpeed(double bytesPerSecond)
     {
         if (!double.IsFinite(bytesPerSecond) || bytesPerSecond <= 0)
@@ -137,53 +480,130 @@ public partial class DownloadPage : UserControl
         return $"{bytesPerSecond:0} B/s";
     }
 
-    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    /// <summary>
+    /// 按标签懒加载：仅当该标签首次被选中时才拉取内容；加载过则直接复用，不再重复请求。
+    /// </summary>
+    private void LoadTabAsync(TabItem? tab)
     {
-        if (_initialListEffectsQueued)
+        if (tab?.Header is not string header || _activeLoadHeader == header || IsTabLoaded(header))
             return;
 
-        _initialListEffectsQueued = true;
-        Dispatcher.UIThread.Post(() =>
+        switch (header)
         {
-            QueueListItemEffects(VersionList);
-            QueueListItemEffects(ModList);
-            QueueListItemEffects(ModpackList);
-            QueueListItemEffects(ShaderList);
-            QueueListItemEffects(ResourcepackList);
-        }, DispatcherPriority.Loaded);
+            case "Minecraft 本体":
+                _ = RunTabLoadAsync("Minecraft 本体", LoadVersionsAsync, () => _versionsLoaded = true);
+                break;
+            case "Mod":
+                _ = RunTabLoadAsync("Mod",
+                    () => LoadCategoryAsync("Mod", v => _allMods = v, ModList, ModCountText, ModrinthSearch.GetModsAsync),
+                    () => _modsLoaded = true);
+                break;
+            case "整合包":
+                _ = RunTabLoadAsync("整合包",
+                    () => LoadCategoryAsync("整合包", v => _allModpacks = v, ModpackList, ModpackCountText, ModrinthSearch.GetModpacksAsync),
+                    () => _modpacksLoaded = true);
+                break;
+            case "光影包":
+                _ = RunTabLoadAsync("光影包",
+                    () => LoadCategoryAsync("光影包", v => _allShaders = v, ShaderList, ShaderCountText, ModrinthSearch.GetShadersAsync),
+                    () => _shadersLoaded = true);
+                break;
+            case "材质包":
+                _ = RunTabLoadAsync("材质包",
+                    () => LoadCategoryAsync("材质包", v => _allResourcepacks = v, ResourcepackList, ResourcepackCountText, ModrinthSearch.GetResourcePacksAsync),
+                    () => _resourcepacksLoaded = true);
+                break;
+            case "Java":
+                _ = RunTabLoadAsync("Java", LoadJavaAsync, () => _javaLoaded = true);
+                break;
+        }
     }
 
-    private void StartSpinnerAnimation()
+    /// <summary>该标签是否已加载过内容（用于避免切换回已加载标签时重复拉取）。</summary>
+    private bool IsTabLoaded(string header) => header switch
     {
-        var spinnerRotate = new RotateTransform();
-        LoadingSpinner.RenderTransform = spinnerRotate;
+        "Minecraft 本体" => _versionsLoaded,
+        "Mod" => _modsLoaded,
+        "整合包" => _modpacksLoaded,
+        "光影包" => _shadersLoaded,
+        "材质包" => _resourcepacksLoaded,
+        "Java" => _javaLoaded,
+        _ => false
+    };
 
-        var timer = new global::Avalonia.Threading.DispatcherTimer
+    /// <summary>
+    /// 包装单次标签加载：显示遮罩 → 执行加载 → 隐藏遮罩，并带 30s 超时兜底。
+    /// 仅当本标签仍为"当前激活加载项"时才隐藏遮罩，避免快速切标签时遮罩被提前关闭。
+    /// </summary>
+    private async System.Threading.Tasks.Task RunTabLoadAsync(
+        string header, Func<System.Threading.Tasks.Task> loadAction, Action? onLoaded = null)
+    {
+        _activeLoadHeader = header;
+        DispatcherTimer? timeout = null;
+        void OnTimeout(object? _, EventArgs __)
         {
-            Interval = TimeSpan.FromMilliseconds(30)
-        };
-        var angle = 0.0;
-        timer.Tick += (_, _) =>
+            timeout?.Stop();
+            if (_activeLoadHeader == header)
+                _activeLoadHeader = null;
+            LoadingOverlay.IsVisible = false;
+            LoadingDetail.Text = "部分内容加载超时，可点击右上角刷新重试。";
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            angle = (angle + 6) % 360;
-            spinnerRotate.Angle = angle;
-        };
-        timer.Start();
+            LoadingOverlay.IsVisible = true;
+            LoadingDetail.Text = $"正在加载{header}…";
+            timeout = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            timeout.Tick += OnTimeout;
+            timeout.Start();
+        });
+
+        try
+        {
+            await loadAction();
+            onLoaded?.Invoke();
+        }
+        finally
+        {
+            timeout?.Stop();
+            if (_activeLoadHeader == header)
+            {
+                _activeLoadHeader = null;
+                await Dispatcher.UIThread.InvokeAsync(() => LoadingOverlay.IsVisible = false);
+            }
+        }
     }
 
-    private async System.Threading.Tasks.Task LoadAllAsync()
+    /// <summary>Java 标签的加载：刷新已安装运行时列表 + 联网查询可下载版本。</summary>
+    private async System.Threading.Tasks.Task LoadJavaAsync()
     {
-        Interlocked.Exchange(ref _loadingCount, 0);
+        await RefreshJavaRuntimeList();
+        await LoadJavaVersionsAsync(GetSelectedVendor());
+    }
 
-        await System.Threading.Tasks.Task.WhenAll(
-            LoadVersionsAsync(),
-            LoadCategoryAsync("Mod", v => _allMods = v, ModList, ModCountText, ModrinthSearch.GetModsAsync),
-            LoadCategoryAsync("整合包", v => _allModpacks = v, ModpackList, ModpackCountText, ModrinthSearch.GetModpacksAsync),
-            LoadCategoryAsync("光影包", v => _allShaders = v, ShaderList, ShaderCountText, ModrinthSearch.GetShadersAsync),
-            LoadCategoryAsync("材质包", v => _allResourcepacks = v, ResourcepackList, ResourcepackCountText, ModrinthSearch.GetResourcePacksAsync)
-        );
+    /// <summary>重置某标签的已加载标记，使刷新时能强制重新拉取。</summary>
+    private void ResetTabLoaded(string header)
+    {
+        switch (header)
+        {
+            case "Minecraft 本体": _versionsLoaded = false; break;
+            case "Mod": _modsLoaded = false; break;
+            case "整合包": _modpacksLoaded = false; break;
+            case "光影包": _shadersLoaded = false; break;
+            case "材质包": _resourcepacksLoaded = false; break;
+            case "Java": _javaLoaded = false; break;
+        }
+    }
 
-        await Dispatcher.UIThread.InvokeAsync(() => LoadingOverlay.IsVisible = false);
+    private void OnDownloadTabChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        // XAML 在 EndInit 阶段会先触发一次默认选中的 SelectionChanged，
+        // 此时 DownloadTabs 字段尚未赋值，直接忽略该初始化期事件，
+        // 首屏加载由构造函数显式触发。
+        if (!IsInitialized || DownloadTabs is null)
+            return;
+
+        LoadTabAsync(DownloadTabs.SelectedItem as TabItem);
     }
 
     private async System.Threading.Tasks.Task LoadVersionsAsync()
@@ -204,11 +624,10 @@ public partial class DownloadPage : UserControl
                 _allVersions = versions;
                 _versionPage = 1;
                 ApplyFilter();
-                PopulateModVersionFilter();
                 RefreshButton.IsEnabled = true;
-                RefreshButton.Content = "⟳ 刷新";
-                SignalLoadComplete();
+                RefreshButton.Content = "刷新";
             });
+            await PopulateModVersionFilterAsync();
         }
         catch (Exception ex)
         {
@@ -216,8 +635,7 @@ public partial class DownloadPage : UserControl
             {
                 VersionCountText.Text = $"版本加载失败: {ex.Message}";
                 RefreshButton.IsEnabled = true;
-                RefreshButton.Content = "⟳ 刷新";
-                SignalLoadComplete();
+                RefreshButton.Content = "刷新";
             });
         }
     }
@@ -244,8 +662,6 @@ public partial class DownloadPage : UserControl
                 storeFunc(items);
                 countText.Text = $"来自 Modrinth · 共 {items.Count} 个{categoryName}";
                 listControl.ItemsSource = new ObservableCollection<ModrinthProject>(items);
-                QueueListItemEffects(listControl);
-                SignalLoadComplete();
             });
         }
         catch (Exception ex)
@@ -253,16 +669,8 @@ public partial class DownloadPage : UserControl
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 countText.Text = $"{categoryName}加载失败: {ex.Message}";
-                SignalLoadComplete();
             });
         }
-    }
-
-    private void SignalLoadComplete()
-    {
-        var completed = Interlocked.Increment(ref _loadingCount);
-        if (completed >= TotalLoads)
-            LoadingOverlay.IsVisible = false;
     }
 
     private static void UpdatePageUI(TextBlock pageText, Button prevBtn, Button nextBtn, int page, int totalPages)
@@ -284,26 +692,34 @@ public partial class DownloadPage : UserControl
         return selected;
     }
 
-    private void PopulateModVersionFilter()
+    /// <summary>填充版本过滤器下拉：已安装版本（后台扫描磁盘）+ 兜底最新清单。</summary>
+    private async System.Threading.Tasks.Task PopulateModVersionFilterAsync()
     {
         if (ModVersionFilter is null) return;
 
         ModVersionFilter.Items.Clear();
         ModVersionFilter.Items.Add("所有版本");
 
-        // 优先用已安装的版本
+        // 优先用已安装的版本（磁盘扫描在后台执行，避免 UI 卡顿）
+        List<string> installed;
         try
         {
-            var snapshot = GameInstanceStore.Current;
-            if (!string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory))
+            installed = await System.Threading.Tasks.Task.Run(() =>
             {
-                var installed = MinecraftDirectoryLocator
-                    .GetInstalledVersionIds(snapshot.MinecraftDirectory);
-                foreach (var id in installed)
-                    ModVersionFilter.Items.Add(id);
-            }
+                var snapshot = GameInstanceStore.Current;
+                return string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory)
+                    ? []
+                    : MinecraftDirectoryLocator
+                        .GetInstalledVersionIds(snapshot.MinecraftDirectory)
+                        .ToList();
+            });
         }
-        catch { }
+        catch
+        {
+            installed = [];
+        }
+        foreach (var id in installed)
+            ModVersionFilter.Items.Add(id);
 
         // 如果没有已安装版本，用 Mojang 版本清单的最新几个
         if (ModVersionFilter.Items.Count <= 1 && _allVersions is not null)
@@ -345,7 +761,6 @@ public partial class DownloadPage : UserControl
 
         VersionList.ItemsSource = new ObservableCollection<MinecraftVersion>(
             _versionFiltered.Skip((_versionPage - 1) * PageSize).Take(PageSize));
-        QueueListItemEffects(VersionList);
         VersionCountText.Text = $"共 {_versionFiltered.Count} 个版本 · 第 {_versionPage}/{totalPages} 页";
         UpdatePageUI(VersionPageText, VersionPrevBtn, VersionNextBtn, _versionPage, totalPages);
     }
@@ -369,7 +784,6 @@ public partial class DownloadPage : UserControl
 
         var totalPages = Math.Max(1, (filteredStore.Count + PageSize - 1) / PageSize);
         listControl.ItemsSource = new ObservableCollection<ModrinthProject>(filteredStore.Take(PageSize));
-        QueueListItemEffects(listControl);
         countText.Text = $"来自 Modrinth · 共 {filteredStore.Count} 个{categoryName} · 第 1/{totalPages} 页";
         UpdatePageUI(pageText, prevBtn, nextBtn, 1, totalPages);
     }
@@ -415,7 +829,6 @@ public partial class DownloadPage : UserControl
 
         listControl.ItemsSource = new ObservableCollection<ModrinthProject>(
             filteredStore.Skip((page - 1) * PageSize).Take(PageSize));
-        QueueListItemEffects(listControl);
         countText.Text = $"来自 Modrinth · 共 {filteredStore.Count} 个{categoryName} · 第 {page}/{totalPages} 页";
         UpdatePageUI(pageText, prevBtn, nextBtn, page, totalPages);
     }
@@ -596,19 +1009,30 @@ public partial class DownloadPage : UserControl
         }
     }
 
-    private void OnModInstallClick(object? sender, RoutedEventArgs e)
+    // ------------------------------------------------------------------
+    // 整合包 / 光影包 / 材质包 列表项点击 → 弹出内容下载遮罩层
+    // ------------------------------------------------------------------
+
+    private void OnContentListTapped(object? sender, TappedEventArgs e)
     {
         try
         {
-            if (sender is not Button button) return;
-            var project = button.DataContext as ModrinthProject
-                          ?? FindDataContext<ModrinthProject>(button);
+            if (e.Source is not Control control) return;
+            var project = FindDataContext<ModrinthProject>(control);
             if (project is null) return;
-            ModInstallRequested?.Invoke(this, project);
+
+            var kind = ReferenceEquals(sender, ModpackList) ? ContentDownloadKind.Modpack
+                : ReferenceEquals(sender, ShaderList) ? ContentDownloadKind.Shaderpack
+                : ContentDownloadKind.Resourcepack;
+
+            ContentDownloadRequested?.Invoke(this, (project, kind));
         }
         catch (Exception ex)
         {
-            ModCountText.Text = $"操作失败：{ex.Message}";
+            var countText = ReferenceEquals(sender, ModpackList) ? ModpackCountText
+                : ReferenceEquals(sender, ShaderList) ? ShaderCountText
+                : ResourcepackCountText;
+            countText.Text = $"操作失败：{ex.Message}";
         }
     }
 
@@ -717,17 +1141,32 @@ public partial class DownloadPage : UserControl
     private async void OnRefreshClick(object? sender, RoutedEventArgs e)
     {
         if (_isRefreshing) return;
+        if (DownloadTabs.SelectedItem is not TabItem tab || tab.Header is not string header)
+            return;
+
         _isRefreshing = true;
-        LoadingOverlay.IsVisible = true;
-        await LoadAllAsync();
-        _isRefreshing = false;
+        try
+        {
+            // 仅刷新当前标签：重置已加载标记后重新拉取
+            ResetTabLoaded(header);
+            LoadTabAsync(tab);
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
     }
 
-    private void QueueListItemEffects(ItemsControl listControl)
+    private IBrush FindBrush(string key)
     {
-        _ = BounceBehavior.AttachListItemEffectsAsync(listControl, 1.03, RippleBehavior.GlobalRippleLayer);
-        Dispatcher.UIThread.Post(
-            () => _ = BounceBehavior.AttachListItemEffectsAsync(listControl, 1.03, RippleBehavior.GlobalRippleLayer),
-            DispatcherPriority.Loaded);
+        if (global::Avalonia.Application.Current?.TryGetResource(key, null, out var value) == true)
+        {
+            if (value is IBrush brush)
+                return brush;
+            // 部分主题键是 Color 而非 SolidColorBrush，代码侧需包装成画刷
+            if (value is Color color)
+                return new SolidColorBrush(color);
+        }
+        return Brushes.Gray;
     }
 }

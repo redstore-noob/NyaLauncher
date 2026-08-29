@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NyaLauncher.Avalonia.Controls"
+             x:Class="NyaLauncher.Avalonia.Controls.SaveEntryItem"
+             x:CompileBindings="False">
+  <Border Background="{DynamicResource SurfaceBgBrush}"
+          BorderBrush="{DynamicResource MediumBorderBrush}"
+          BorderThickness="1"
+          CornerRadius="9"
+          Padding="11"
+          Margin="0,0,0,7">
+    <Border.ContextMenu>
+      <ContextMenu>
+        <MenuItem Header="导出存档…" Click="OnExportClick" />
+        <MenuItem Header="备份存档" Click="OnBackupClick" />
+        <Separator />
+        <MenuItem Header="删除存档" Foreground="Red" Click="OnDeleteClick" />
+      </ContextMenu>
+    </Border.ContextMenu>
+    <Grid ColumnDefinitions="48,12,*">
+      <Border Width="48" Height="48" CornerRadius="8" Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
+        <Grid>
+          <TextBlock Text="{Binding FallbackGlyph}"
+                     FontSize="22"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+          <local:AsyncImage SourceUrl="{Binding IconPath}"
+                            Width="48"
+                            Height="48"
+                            Stretch="Uniform" />
+        </Grid>
+      </Border>
+      <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Name}"
+                   FontSize="13"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
+                   TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding MetadataLine}"
+                   FontSize="10"
+                   Foreground="{DynamicResource MutedTextBrush}"
+                   TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Description}"
+                   FontSize="10"
+                   Foreground="{DynamicResource DisabledTextBrush}"
+                   TextTrimming="CharacterEllipsis"
+                   MaxLines="2" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

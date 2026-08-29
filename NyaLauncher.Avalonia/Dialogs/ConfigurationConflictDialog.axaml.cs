@@ -2,6 +2,8 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using NyaLauncher.Avalonia.Framework;
 
+using NyaLauncher.Avalonia.Animations.Helpers;
+
 namespace NyaLauncher.Avalonia.Dialogs;
 
 public partial class ConfigurationConflictDialog : Window
@@ -22,13 +24,13 @@ public partial class ConfigurationConflictDialog : Window
     }
 
     private void OnDeleteClick(object? sender, RoutedEventArgs e) =>
-        Close(ConfigurationConflictChoice.DeletePrevious);
+        OverlayEffects.PopOut(this, () => Close(ConfigurationConflictChoice.DeletePrevious));
 
     private void OnBackupClick(object? sender, RoutedEventArgs e) =>
-        Close(ConfigurationConflictChoice.BackupPrevious);
+        OverlayEffects.PopOut(this, () => Close(ConfigurationConflictChoice.BackupPrevious));
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) =>
-        Close(ConfigurationConflictChoice.Cancel);
+        OverlayEffects.PopOut(this, () => Close(ConfigurationConflictChoice.Cancel));
 }
 
 public enum ConfigurationConflictChoice

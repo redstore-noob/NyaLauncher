@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Plugin.Abstractions.Components;
 
 namespace NyaLauncher.Avalonia.Controls;
@@ -84,7 +85,10 @@ internal sealed class ComponentStateSnapshotter
                 string.IsNullOrWhiteSpace(item.Text) ||
                 item.Text.Length > MaximumMenuTextLength ||
                 item.SecondaryText?.Length > MaximumMenuSecondaryTextLength ||
-                item.Glyph?.Length > MaximumMenuGlyphLength ||
+                // "material:Kind" 字形会渲染为 Material 图标而非文字，跳过长度限制
+                (item.Glyph is { } glyph &&
+                 glyph.Length > MaximumMenuGlyphLength &&
+                 !glyph.StartsWith(FeatureIconFactory.MaterialPrefix, StringComparison.OrdinalIgnoreCase)) ||
                 string.IsNullOrWhiteSpace(item.ActionId) ||
                 !knownIds.Add(item.Id) || !_knownActionIds.Contains(item.ActionId))
             {

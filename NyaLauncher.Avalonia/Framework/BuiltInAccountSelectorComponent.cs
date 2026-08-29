@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Launch.Auth;
 using NyaLauncher.Plugin.Abstractions.Components;
@@ -12,31 +13,40 @@ namespace NyaLauncher.Avalonia.Framework;
 
 internal static class BuiltInAccountSelectorComponent
 {
+    /// <summary>组件 Id：<c>nyalauncher.builtin/account-selector</c>。全局唯一且必须保持稳定，用户的工作区布局与个性化配置靠它引用本组件。</summary>
     public const string ComponentId = "nyalauncher.builtin/account-selector";
     private const string AddAccountActionId = "add-account";
     private const string SelectAccountActionId = "select-account";
+    private const string RefreshAvatarActionId = "refresh-avatar";
     private const string AccountKeyArgument = "accountKey";
 
-    public static PolygonComponentRegistration Create(Action<string> navigate)
+    public static PolygonComponentRegistration Create(
+        Action<string> navigate,
+        MinecraftProfileService profileService)
     {
         ArgumentNullException.ThrowIfNull(navigate);
+        ArgumentNullException.ThrowIfNull(profileService);
 
         var definition = new PolygonComponentBuilder(ComponentId, "账号选择")
             .WithDescription("查看当前账号与登录模式，并快速添加或切换账号")
-            .WithGlyph("☺")
+            .WithGlyph("material:AccountCircle")
             .WithSize(260, 72)
             .WithSizeLimits(220, 64, 360, 92)
             .WithShape(PolygonShapeDefinition.Rectangle())
             .WithDragHandle(new ComponentRect(0.025, 0.24, 0.075, 0.52))
-            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
+            .WithTheme(new PolygonComponentTheme())
             .AddAction(AddAccountActionId)
             .AddAction(SelectAccountActionId)
-            .AddText(
+            .AddAction(RefreshAvatarActionId)
+            .AddImage(
                 "account-glyph",
                 new ComponentRect(0.115, 0.25, 0.085, 0.5),
-                "☺",
-                ComponentTextRole.Emphasis,
-                fontSize: 17)
+                fallbackText: "material:AccountCircle",
+                stretch: ComponentImageStretch.Uniform,
+                cornerRadius: 6,
+                pixelated: true,
+                // 皮肤贴图自动合成为双层头像（脸层 + 帽层）
+                isSkinHead: true)
             .AddText(
                 "account-name",
                 new ComponentRect(0.215, 0.17, 0.59, 0.34),
@@ -59,8 +69,17 @@ internal static class BuiltInAccountSelectorComponent
                         Id = "add-account",
                         Text = "账号管理",
                         SecondaryText = "点击此处进入账号管理界面。",
-                        Glyph = "⚙️",
+                        Glyph = "material:Cog",
                         ActionId = AddAccountActionId,
+                        SeparatorAfter = true
+                    },
+                    new ComponentMenuItem
+                    {
+                        Id = "refresh-avatar",
+                        Text = "刷新头像",
+                        SecondaryText = "重新下载并缓存所有账号的皮肤头像。",
+                        Glyph = "material:Refresh",
+                        ActionId = RefreshAvatarActionId,
                         SeparatorAfter = true
                     }
                 ])
@@ -70,38 +89,43 @@ internal static class BuiltInAccountSelectorComponent
         {
             Definition = definition,
             Factory = new DelegatePolygonComponentFactory(
-                _ => new AccountSelectorInstance(navigate))
+                _ => new AccountSelectorInstance(navigate, profileService))
         };
     }
 
-    private sealed class AccountSelectorInstance : IPolygonComponentInstance
+    private sealed class AccountSelectorInstance : PolygonComponentInstanceBase
     {
         private readonly Action<string> _navigate;
-        private ComponentStateSnapshot _currentState;
-        private long _revision;
-        private int _isDisposed;
+        private MinecraftProfileService _profileService;
+        private CancellationTokenSource? _avatarCancellation;
+        private long _avatarRefreshVersion;
+        private IReadOnlyDictionary<string, string>? _lastSkinByKey;
 
-        public AccountSelectorInstance(Action<string> navigate)
+        public AccountSelectorInstance(
+            Action<string> navigate,
+            MinecraftProfileService profileService)
         {
             _navigate = navigate;
-            _currentState = CreateState(Interlocked.Increment(ref _revision));
+            _profileService = profileService;
+            SetState(CreateState());
             AccountStore.Changed += OnAccountsChanged;
+            StartAvatarLoad();
         }
 
-        public ComponentStateSnapshot CurrentState => Volatile.Read(ref _currentState);
-
-        public event EventHandler<ComponentStateChangedEventArgs>? StateChanged;
-
-        public async ValueTask<ComponentActionResult> InvokeAsync(
+        public override async ValueTask<ComponentActionResult> InvokeAsync(
             ComponentActionInvocation invocation,
             CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return ComponentActionResult.Failed("账号选择组件已释放。");
 
             cancellationToken.ThrowIfCancellationRequested();
             switch (invocation.ActionId)
             {
+                case RefreshAvatarActionId:
+                    RefreshAvatars();
+                    return ComponentActionResult.Completed("正在刷新账号头像…");
+
                 case AddAccountActionId:
                     await Dispatcher.UIThread.InvokeAsync(() => _navigate("account-login"));
                     return ComponentActionResult.Completed();
@@ -124,57 +148,181 @@ internal static class BuiltInAccountSelectorComponent
             }
         }
 
-        public ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _isDisposed, 1) == 0)
-            {
-                AccountStore.Changed -= OnAccountsChanged;
-                StateChanged = null;
-            }
-
-            return ValueTask.CompletedTask;
+            AccountStore.Changed -= OnAccountsChanged;
+            _avatarCancellation?.Cancel();
+            _avatarCancellation?.Dispose();
+            return base.DisposeAsync();
         }
 
         private void OnAccountsChanged()
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return;
 
-            var next = CreateState(Interlocked.Increment(ref _revision));
-            Volatile.Write(ref _currentState, next);
-            StateChanged?.Invoke(this, new ComponentStateChangedEventArgs(next));
+            SetState(CreateState());
+            StartAvatarLoad();
         }
 
-        private ComponentStateSnapshot CreateState(long revision)
+        /// <summary>
+        /// 后台逐个解析账号皮肤头像：离线账号来自 <see cref="OfflineSkinCatalog"/>，
+        /// 正版账号来自 <see cref="MinecraftProfileService"/> 的档案皮肤（复用账户管理页逻辑）。
+        /// </summary>
+        private void StartAvatarLoad()
+        {
+            _avatarCancellation?.Cancel();
+            _avatarCancellation?.Dispose();
+            if (IsDisposed)
+                return;
+
+            var cancellation = new CancellationTokenSource();
+            _avatarCancellation = cancellation;
+            _ = EnrichAvatarsAsync(cancellation);
+        }
+
+        /// <summary>
+        /// 手动刷新：清空已加载头像的本地缓存并强制重新解析、重新下载。
+        /// </summary>
+        private void RefreshAvatars()
+        {
+            if (_lastSkinByKey is { } skins)
+            {
+                foreach (var source in skins.Values)
+                {
+                    if (!string.IsNullOrWhiteSpace(source))
+                        ComponentImageLoader.InvalidateRemoteCache(source);
+                }
+            }
+
+            Interlocked.Increment(ref _avatarRefreshVersion);
+            StartAvatarLoad();
+        }
+
+        private async Task EnrichAvatarsAsync(CancellationTokenSource cancellation)
+        {
+            try
+            {
+                var skinByKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var account in AccountStore.Current)
+                {
+                    if (cancellation.IsCancellationRequested ||
+                        IsDisposed)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        string? source;
+                        if (account.Type == "offline")
+                        {
+                            source = await OfflineSkinCatalog.ResolveTextureSourceAsync(
+                                    account.OfflineSkinId,
+                                    cancellation.Token)
+                                .ConfigureAwait(false);
+                        }
+                        else if (account.Type == "microsoft" && account.Microsoft is not null)
+                        {
+                            var profile = await _profileService.GetProfileAsync(
+                                    account,
+                                    cancellation.Token)
+                                .ConfigureAwait(false);
+                            source = profile.ActiveSkin?.Url;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(source))
+                        {
+                            skinByKey[AccountStore.GetStableKey(account)] = source;
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    catch (Exception exception)
+                    {
+                        // 单个账号皮肤头像加载失败不影响其它账号与菜单功能
+                        System.Diagnostics.Debug.WriteLine($"账号皮肤头像加载失败：{exception}");
+                    }
+                }
+
+                if (cancellation.IsCancellationRequested ||
+                    IsDisposed)
+                {
+                    return;
+                }
+
+                _lastSkinByKey = skinByKey;
+                SetState(CreateState(skinByKey));
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        private ComponentStateSnapshot CreateState(
+            IReadOnlyDictionary<string, string>? skinByKey = null)
         {
             var selected = AccountStore.Selected;
+            var selectedKey = selected is not null
+                ? AccountStore.GetStableKey(selected)
+                : null;
+            var selectedSkin = selectedKey is not null &&
+                               skinByKey is not null &&
+                               skinByKey.TryGetValue(selectedKey, out var skin)
+                ? skin
+                : null;
             var accountItems = AccountStore.Current
-                .Select((account, index) => new ComponentMenuItem
+                .Select((account, index) =>
                 {
-                    Id = $"account-{index}",
-                    Text = account.DisplayName,
-                    SecondaryText = account.LoginModeLabel,
-                    Glyph = account.Type switch
+                    var key = AccountStore.GetStableKey(account);
+                    return new ComponentMenuItem
                     {
-                        "microsoft" => "◆",
-                        "offline" => "○",
-                        _ => "◇"
-                    },
-                    ActionId = SelectAccountActionId,
-                    Arguments = new Dictionary<string, string>
-                    {
-                        [AccountKeyArgument] = AccountStore.GetStableKey(account)
-                    },
-                    IsSelected = ReferenceEquals(account, selected)
+                        Id = $"account-{index}",
+                        Text = account.DisplayName,
+                        SecondaryText = account.LoginModeLabel,
+                        // 玩家皮肤作为头像（异步解析后填充 IconSource），未加载到时回退登录类型字形
+                        Glyph = account.Type switch
+                        {
+                            "microsoft" => "material:Diamond",
+                            "offline" => "material:CircleOutline",
+                            _ => "material:DiamondOutline"
+                        },
+                        IconSource = skinByKey is not null &&
+                                     skinByKey.TryGetValue(key, out var skin)
+                            ? skin
+                            : null,
+                        // 皮肤贴图只显示脸部头像区域
+                        IsSkinHead = true,
+                        ActionId = SelectAccountActionId,
+                        Arguments = new Dictionary<string, string>
+                        {
+                            [AccountKeyArgument] = key
+                        },
+                        IsSelected = ReferenceEquals(account, selected)
+                    };
                 })
                 .ToArray();
 
             return new ComponentStateSnapshot
             {
-                Revision = revision,
                 Elements = new Dictionary<string, ComponentElementState>(
                     StringComparer.OrdinalIgnoreCase)
                 {
+                    ["account-glyph"] = new()
+                    {
+                        // 未加载到头像时回退账号图标
+                        Text = "material:AccountCircle",
+                        // 玩家皮肤作为头像（左上 1/8 脸部，Image 元素自带裁剪与像素风）
+                        ImageSource = selectedSkin,
+                        // 手动刷新时递增，强制重新下载头像
+                        ImageRefreshToken = Interlocked.Read(ref _avatarRefreshVersion)
+                    },
                     ["account-name"] = new()
                     {
                         Text = selected?.DisplayName ?? "未选择账号"

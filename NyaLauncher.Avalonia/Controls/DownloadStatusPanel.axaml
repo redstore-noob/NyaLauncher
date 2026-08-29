@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="using:NyaLauncher.Avalonia.Animations.Helpers"
+             x:Class="NyaLauncher.Avalonia.Controls.DownloadStatusPanel">
+  <Border Padding="14,12"
+          Background="{DynamicResource ControlBgBrush}"
+          CornerRadius="12">
+      <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <TextBlock x:Name="FileText"
+                   Text="准备就绪"
+                   FontSize="12"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
+                   TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center" />
+        <!-- 环形进度：圆环 + 中间百分比（替代普通进度条） -->
+        <Grid Grid.Row="1" HorizontalAlignment="Center">
+          <helpers:RingProgressControl x:Name="RingProgress"
+                                       Width="46" Height="46" Thickness="6" />
+          <TextBlock x:Name="PercentText"
+                     FontSize="12" FontWeight="Bold"
+                     Foreground="{DynamicResource AccentBrush}"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+        </Grid>
+      <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+        <TextBlock x:Name="DetailText"
+                   FontSize="11"
+                   Foreground="{DynamicResource HintTextBrush}"
+                   TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center" />
+        <Button x:Name="OpenFolderButton"
+                Grid.Column="1"
+                Content="打开文件夹"
+                Padding="12,5" FontSize="11"
+                CornerRadius="7"
+                Background="{DynamicResource ButtonBgBrush}"
+                BorderThickness="0"
+                Click="OnOpenFolderClick"
+                IsVisible="False"
+                Cursor="Hand" />
+        <Button x:Name="CancelButton"
+                Grid.Column="2"
+                Content="取消"
+                Padding="14,5" FontSize="11"
+                CornerRadius="7"
+                Background="{DynamicResource ButtonBgBrush}"
+                BorderThickness="0"
+                Click="OnCancelClick"
+                IsVisible="False"
+                Cursor="Hand" />
+      </Grid>
+    </Grid>
+  </Border>
+</UserControl>

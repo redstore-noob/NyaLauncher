@@ -2,13 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Themes;
 
@@ -272,6 +275,7 @@ public partial class DockWorkspace
         visual.Handle.PointerReleased += (_, args) => EndSidebarDrag(args);
         visual.Handle.PointerCaptureLost += (_, _) => CancelSidebarDrag();
         sidebar.Host.Child = CreateSidebarShell(sidebar, visual.Card);
+        AnimateSidebarContentReveal(sidebar, sidebar.Edge);
         AnimateSidebarTrack(sidebar, sidebar.RevealSize);
     }
 
@@ -281,20 +285,112 @@ public partial class DockWorkspace
             return;
 
         sidebar.IsRevealed = false;
-        AnimateSidebarTrack(sidebar, CollapsedRailSize, () =>
+        // M3 退出先于位移：内容先向宿主边缘滑出淡出，轨道再加速收缩
+        AnimateSidebarContentHide(sidebar, sidebar.Edge);
+        AnimateSidebarTrack(sidebar, CollapsedRailSize, accelerate: true, () =>
         {
             if (!sidebar.IsRevealed && sidebar.Host is not null)
             {
                 sidebar.Host.Child = CreateCollapsedRail(sidebar);
                 sidebar.Desktop = null;
+                sidebar.ContentWrap = null;
             }
         });
     }
 
+    /// <summary>
+    /// 侧边栏内容入场：沿宿主边缘方向轻微滑入并淡入（渲染线程 Transitions）。
+    /// 轨道尺寸动画见 <see cref="AnimateSidebarTrack"/> 的 GridLength 特例说明，
+    /// 内容层全部走 Transitions 以遵守动画规范。
+    /// </summary>
+    private static void AnimateSidebarContentReveal(SidebarState sidebar, DockEdge edge)
+    {
+        var wrap = sidebar.ContentWrap;
+        if (wrap is null)
+            return;
+
+        if (!AnimationGate.Enabled)
+            return;
+
+        var offset = EdgeOffset(edge, -14);
+        wrap.Opacity = 0;
+        wrap.RenderTransform = TransformOperations.Parse(offset);
+        wrap.Transitions = new Transitions
+        {
+            new DoubleTransition
+            {
+                Property = Visual.OpacityProperty,
+                Duration = TimeSpan.FromMilliseconds(
+                    MaterialMotion.MediumTransitionMs * MaterialMotion.FadeEndFraction),
+                Easing = MaterialMotion.LinearEasing
+            },
+            new TransformOperationsTransition
+            {
+                Property = Visual.RenderTransformProperty,
+                Duration = TimeSpan.FromMilliseconds(MaterialMotion.MediumTransitionMs),
+                Easing = MaterialMotion.EmphasizedDecelerateEasing
+            }
+        };
+
+        // 先渲染一帧初始状态，再赋目标值，Transitions 才能观察到属性变化
+        Dispatcher.UIThread.Post(() =>
+        {
+            // 悬停瞬间可能已触发收起，丢弃过期的展开目标
+            if (!sidebar.IsRevealed)
+                return;
+            wrap.Opacity = 1;
+            wrap.RenderTransform = TransformOperations.Parse("translate(0px, 0px)");
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>侧边栏内容退场：向宿主边缘滑出并快速淡出（M3：退出快于入场）。</summary>
+    private static void AnimateSidebarContentHide(SidebarState sidebar, DockEdge edge)
+    {
+        var wrap = sidebar.ContentWrap;
+        if (wrap is null)
+            return;
+
+        if (!AnimationGate.Enabled)
+            return;
+
+        const int exitDurationMs = 150;
+        wrap.Transitions = new Transitions
+        {
+            new DoubleTransition
+            {
+                Property = Visual.OpacityProperty,
+                Duration = TimeSpan.FromMilliseconds(exitDurationMs * MaterialMotion.FadeEndFractionExit),
+                Easing = MaterialMotion.LinearEasing
+            },
+            new TransformOperationsTransition
+            {
+                Property = Visual.RenderTransformProperty,
+                Duration = TimeSpan.FromMilliseconds(exitDurationMs),
+                Easing = MaterialMotion.EmphasizedAccelerateEasing
+            }
+        };
+        wrap.Opacity = 0;
+        wrap.RenderTransform = TransformOperations.Parse(EdgeOffset(edge, -12));
+    }
+
+    /// <summary>按宿主边缘生成位移向量，正值为离边缘向外，负值为向边缘收拢。</summary>
+    private static string EdgeOffset(DockEdge edge, double magnitude) => edge switch
+    {
+        DockEdge.Left => $"translate({magnitude}px, 0px)",
+        DockEdge.Right => $"translate({-magnitude}px, 0px)",
+        DockEdge.Top => $"translate(0px, {magnitude}px)",
+        _ => $"translate(0px, {-magnitude}px)"
+    };
+
     private Control CreateSidebarShell(SidebarState sidebar, Control content)
     {
+        // 内容统一包一层 Border 作为动效载体：内容卡自身可能带有 hover lift 的
+        // 共享 transform，直接在其上做入场位移动画会互相覆盖。
+        var contentWrap = new Border { Child = content };
+        sidebar.ContentWrap = contentWrap;
+
         var shell = new Grid();
-        shell.Children.Add(content);
+        shell.Children.Add(contentWrap);
 
         var grip = new Border
         {
@@ -340,6 +436,7 @@ public partial class DockWorkspace
             sidebar.IsRevealed = false;
             sidebar.Host = null;
             sidebar.Desktop = null;
+            sidebar.ContentWrap = null;
         }
 
         LeftSidebarColumn.Width = new GridLength(
@@ -384,9 +481,18 @@ public partial class DockWorkspace
         };
     }
 
+    /// <summary>
+    /// 侧边栏轨道尺寸动画。
+    /// 技术特例说明：Avalonia 的 ColumnDefinition/RowDefinition 继承自 AvaloniaObject
+    /// 而非 Animatable，GridLength 无法挂载 Transitions（渲染线程）驱动，
+    /// 因此轨道尺寸插值只能用 DispatcherTimer 在 UI 线程逐帧完成——这是全项目
+    /// one-shot 动画中唯一允许的帧循环例外；内容层的淡入淡出/位移一律走 Transitions。
+    /// </summary>
+    /// <param name="accelerate">收起时使用 accelerate（M3：退出越收越快），展开用 decelerate。</param>
     private void AnimateSidebarTrack(
         SidebarState sidebar,
         double targetSize,
+        bool accelerate = false,
         Action? completed = null)
     {
         sidebar.TrackAnimation?.Stop();
@@ -395,6 +501,14 @@ public partial class DockWorkspace
         var target = Math.Max(CollapsedRailSize, targetSize);
         if (Math.Abs(startSize - target) < 0.5)
         {
+            SetSidebarTrackSize(sidebar.Edge, target);
+            completed?.Invoke();
+            return;
+        }
+
+        if (!AnimationGate.Enabled)
+        {
+            // 关闭动画时直接跳到目标尺寸
             SetSidebarTrackSize(sidebar.Edge, target);
             completed?.Invoke();
             return;
@@ -419,7 +533,7 @@ public partial class DockWorkspace
                 SidebarAnimationDurationMilliseconds,
                 0,
                 1);
-            var eased = 1 - Math.Pow(1 - progress, 3);
+            var eased = accelerate ? progress * progress * progress : 1 - Math.Pow(1 - progress, 3);
             SetSidebarTrackSize(
                 sidebar.Edge,
                 startSize + ((target - startSize) * eased));
@@ -969,6 +1083,7 @@ public partial class DockWorkspace
         public double RevealSize { get; set; } = revealSize;
         public Border? Host { get; set; }
         public Canvas? Desktop { get; set; }
+        public Border? ContentWrap { get; set; }
         public bool IsRevealed { get; set; }
         public DispatcherTimer? TrackAnimation { get; set; }
         public DispatcherTimer? ComponentDragLeaveTimer { get; set; }

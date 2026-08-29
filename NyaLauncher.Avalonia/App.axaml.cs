@@ -17,13 +17,14 @@ public partial class App : Application
         global::Avalonia.DeveloperToolsExtensions.AttachDeveloperTools(this);
 #endif
         
-        // 1. 读取用户选择的主题风格和明暗模式（主题家族与明暗模式完全解耦）
+        // 1. 读取用户选择的主题风格和明暗模式（主题家族与明暗模式完全解耦；
+        //    「跟随系统」模式在此解析为操作系统当前的具体明暗）
         var themeFamily = ThemeSettings.LoadThemeFamily();
-        var themeMode = ThemeSettings.LoadThemeMode();
+        var themeMode = ThemeSettings.ResolveThemeMode();
 
         System.Diagnostics.Debug.WriteLine($"[App] themeFamily={themeFamily}, themeMode={themeMode}");
 
-        // 2. 设置 FluentTheme 的明暗模式（影响 ComboBox、TextBox 等标准控件）
+        // 2. 设置全局明暗模式（Material 基础控件跟随 RequestedThemeVariant）
         System.Diagnostics.Debug.WriteLine($"[App] Setting RequestedThemeVariant={themeMode}");
         RequestedThemeVariant = themeMode == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
 
@@ -37,6 +38,20 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // 窗口创建前再次应用主题：确保 Material 控件（Slider/CheckBox 等）在首次渲染
+            // 时 CurrentTheme 已就绪，避免显示为默认灰色禁用态。
+            // （Initialize 中已调用一次，此处幂等重复，保证时序）
+            try
+            {
+                StyleAlter.ApplyTheme(
+                    ThemeSettings.LoadThemeFamily(),
+                    ThemeSettings.ResolveThemeMode());
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[App] 二次应用主题失败：{ex}");
+            }
+
             desktop.MainWindow = new MainWindow();
         }
 

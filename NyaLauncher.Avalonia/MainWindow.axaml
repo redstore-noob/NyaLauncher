@@ -3,6 +3,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+        xmlns:animations="using:NyaLauncher.Avalonia.Animations.Helpers"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         mc:Ignorable="d"
         d:DesignWidth="1280"
         d:DesignHeight="760"
@@ -10,20 +12,20 @@
         Title="NyaLauncher"
         Width="1280"
         Height="760"
-        MinWidth="980"
-        MinHeight="620"
+        MinWidth="800"
+        MinHeight="600"
         WindowDecorations="None"
         WindowStartupLocation="CenterScreen"
+        Icon="avares://NyaLauncher.Avalonia/Resources/WindowIcon.png"
         Loaded="Control_OnLoaded">
-
   <Window.Styles>
     <Style Selector="Button.WindowButton">
       <Setter Property="Width" Value="42" />
       <Setter Property="Height" Value="34" />
       <Setter Property="Padding" Value="0" />
-      <Setter Property="Background" Value="{StaticResource TransparentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Foreground" Value="{StaticResource SubtextTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SubtextTextBrush}" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="FontSize" Value="15" />
       <Setter Property="Cursor" Value="Hand" />
@@ -31,46 +33,82 @@
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.WindowButton:pointerover">
-      <Setter Property="Background" Value="{StaticResource ControlBgBrush}" />
-      <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     </Style>
     <Style Selector="Button.CloseButton:pointerover">
-      <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
-      <Setter Property="Foreground" Value="{StaticResource WhiteBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ErrorBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource WhiteBrush}" />
     </Style>
     <Style Selector="Button.NavigationBackButton">
       <Setter Property="Height" Value="32" />
       <Setter Property="Padding" Value="13,0" />
-      <Setter Property="Background" Value="{StaticResource SurfaceBgBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource StrongBorderBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="{StaticResource BodyTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button.AddComponentButton">
       <Setter Property="Height" Value="24" />
       <Setter Property="Padding" Value="10,0" />
-      <Setter Property="Background" Value="{StaticResource ButtonBgBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource EmphasizedBorderBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EmphasizedBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="{StaticResource LinkTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource LinkTextBrush}" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="FontSize" Value="10" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Cursor" Value="Hand" />
     </Style>
+    <Style Selector="Button#SettingsQuickButton:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
+    </Style>
   </Window.Styles>
 
-  <Grid x:Name="WindowRoot" RowDefinitions="58,*,30">
+  <Grid x:Name="WindowRoot" RowDefinitions="58,*,30"
+        Classes="nya-ambient nya-sparkles">
+    <!-- ============================================================
+         右侧「组件库」抽屉面板
+         ZIndex 介于 Workspace (默认 0) 和 PageSurface (300) 之间，
+         展开时覆盖工作区右侧，但不遮挡页面导航与模态遮罩。
+         宽度用 Transitions 驱动：0 → 400，M3 emphasized 曲线；
+         拖动组件卡瞬间由代码把宽度归零（渲染线程继续播完动画）。
+         ============================================================ -->
+    <Border x:Name="ComponentLibraryScrim"
+            Grid.RowSpan="3"
+            Background="{DynamicResource OverlayBgBrush}"
+            ZIndex="240"
+            IsVisible="False" />
+    <Border x:Name="ComponentLibraryDrawer"
+            Grid.RowSpan="3"
+            HorizontalAlignment="Right"
+            Width="0"
+            Background="{DynamicResource WindowBgBrush}"
+            BorderBrush="{DynamicResource DefaultBorderBrush}"
+            BorderThickness="1,0,0,0"
+            ZIndex="250"
+            IsVisible="False"
+            ClipToBounds="True">
+      <Border.Transitions>
+        <Transitions>
+          <DoubleTransition Property="Width"
+                            Duration="0:0:0.300"
+                            Easing="{x:Static animations:MaterialMotion.EmphasizedEasing}" />
+        </Transitions>
+      </Border.Transitions>
+      <controls:ComponentLibraryView x:Name="ComponentLibraryView" />
+    </Border>
+
     <!-- The top bar is deliberately separate from feature areas. -->
     <Border Grid.Row="0"
-            Background="{StaticResource BaseBgBrush}"
-            BorderBrush="{StaticResource SubtleBorderBrush}"
+            Background="{DynamicResource BaseBgBrush}"
+            BorderBrush="{DynamicResource SubtleBorderBrush}"
             BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="14,0,8,0">
         <Border x:Name="TitleBarIdentity"
-                Background="{StaticResource TransparentBrush}"
+                Background="{DynamicResource TransparentBrush}"
                 Padding="3,0,22,0"
                 PointerPressed="OnTitleBarPointerPressed">
           <StackPanel Orientation="Horizontal"
@@ -79,18 +117,22 @@
             <Border Width="36"
                     Height="36"
                     CornerRadius="11"
-                    Background="{StaticResource AccentDarkBrush}">
+                    Background="{DynamicResource AccentDarkBrush}">
               <Grid>
                 <Border Margin="3"
                         CornerRadius="9"
-                        BorderBrush="{StaticResource MediumBorderBrush}"
+                        BorderBrush="{DynamicResource MediumBorderBrush}"
                         BorderThickness="1" />
-                <TextBlock Text="N"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="{StaticResource WhiteBrush}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center" />
+                <Border Width="28"
+                        Height="28"
+                        CornerRadius="7"
+                        ClipToBounds="True"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                  <Image Source="avares://NyaLauncher.Avalonia/Resources/WindowIcon.png"
+                         Width="28"
+                         Height="28" />
+                </Border>
               </Grid>
             </Border>
 
@@ -99,36 +141,36 @@
                 <TextBlock Text="NyaLauncher"
                            FontSize="15"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource PrimaryTextBrush}" />
-                <Border Background="{StaticResource BadgeBgBrush}"
+                           Foreground="{DynamicResource PrimaryTextBrush}" />
+                <Border Background="{DynamicResource BadgeBgBrush}"
                         CornerRadius="7"
                         Padding="7,2"
                         VerticalAlignment="Center">
                   <TextBlock Text="PREVIEW 预览版本"
                              FontSize="8"
                              FontWeight="Bold"
-                             Foreground="{StaticResource AccentTextBrush}" />
+                             Foreground="{DynamicResource AccentTextBrush}" />
                 </Border>
               </StackPanel>
               <TextBlock Text="0.1.0-preview4"
                          FontSize="10"
-                         Foreground="{StaticResource HintTextBrush}" />
+                         Foreground="{DynamicResource HintTextBrush}" />
             </StackPanel>
           </StackPanel>
         </Border>
 
         <Border Grid.Column="1"
-                Background="{StaticResource TransparentBrush}"
+                Background="{DynamicResource TransparentBrush}"
                 PointerPressed="OnTitleBarPointerPressed">
           <StackPanel Orientation="Horizontal"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
                       Spacing="9">
-            <Border Width="7" Height="7" CornerRadius="4" Background="{StaticResource SuccessBrush}" />
+            <Border Width="7" Height="7" CornerRadius="4" Background="{DynamicResource SuccessBrush}" />
             <TextBlock x:Name="HeaderStatusText"
                        Text="工作区已就绪"
                        FontSize="11"
-                       Foreground="{StaticResource SubtextTextBrush}"
+                       Foreground="{DynamicResource SubtextTextBrush}"
                        VerticalAlignment="Center" />
           </StackPanel>
         </Border>
@@ -139,25 +181,25 @@
                     VerticalAlignment="Center">
           <Button Classes="WindowButton" ToolTip.Tip="最小化" Click="OnMinimizeClick">
             <Path Width="12" Height="12" Stretch="None"
-                  Fill="{StaticResource SubtextTextBrush}"
+                  Fill="{DynamicResource SubtextTextBrush}"
                   Data="M 0.5,8.8 L 11.5,8.8 L 11.5,10.6 L 0.5,10.6 Z" />
           </Button>
           <Button Classes="WindowButton" ToolTip.Tip="最大化或还原" Click="OnMaximizeClick">
             <Grid Width="12" Height="12">
               <Path x:Name="WorkspaceMaximizeIcon" Classes="WindowGlyph"
                     Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                    Stroke="{StaticResource SubtextTextBrush}"
+                    Stroke="{DynamicResource SubtextTextBrush}"
                     Data="M 1.5,1.5 L 10.5,1.5 L 10.5,10.5 L 1.5,10.5 Z" />
               <Path x:Name="WorkspaceRestoreIcon" Classes="WindowGlyph"
                     Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                    Stroke="{StaticResource SubtextTextBrush}"
+                    Stroke="{DynamicResource SubtextTextBrush}"
                     Data="M 3.5,1.5 L 10.5,1.5 L 10.5,8.5 M 1.5,3.5 L 8.5,3.5 L 8.5,10.5 L 1.5,10.5 Z"
                     IsVisible="False" />
             </Grid>
           </Button>
           <Button Classes="WindowButton CloseButton" ToolTip.Tip="关闭" Click="OnCloseClick">
             <Path Classes="WindowGlyph" Width="12" Height="12" Stretch="Uniform"
-                  Stroke="{StaticResource SubtextTextBrush}"
+                  Stroke="{DynamicResource SubtextTextBrush}"
                   StrokeThickness="1.4" StrokeLineCap="Square"
                   Data="M 2,2 L 10,10 M 10,2 L 2,10" />
           </Button>
@@ -170,43 +212,48 @@
     </Grid>
 
     <Border Grid.Row="2"
-            Background="{StaticResource BaseBgBrush}"
-            BorderBrush="{StaticResource SubtleBorderBrush}"
+            Background="{DynamicResource BaseBgBrush}"
+            BorderBrush="{DynamicResource SubtleBorderBrush}"
             BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0">
-        <StackPanel Orientation="Horizontal"
-                    Spacing="8"
-                    VerticalAlignment="Center">
-          <Image Source="avares://NyaLauncher.Avalonia/Resources/Icons/ic_fluent_broad_activity_feed_24_filled.png"
-                 Width="14" Height="14" VerticalAlignment="Center" />
-          <TextBlock Text="组件可拖动到其他功能区；Esc 可随时进入设置"
-                     FontSize="10"
-                     Foreground="{StaticResource HintTextBrush}" />
-          <Button Classes="AddComponentButton"
-                  Content="组件库"
-                  ToolTip.Tip="打开组件库；可添加组件，也可拖回组件库移除"
-                  Click="OnComponentLibraryClick" />
-          <Button
-              Content="设定"
-              Click="Button_OnClick"/>
-        </StackPanel>
-
         <TextBlock x:Name="StatusText"
-                   Grid.Column="1"
-                   Text="新界面框架已载入"
+                   Text="状态栏准备就绪"
                    FontSize="10"
-                   Foreground="{StaticResource MutedTextBrush}"
-                   HorizontalAlignment="Center"
+                   Foreground="{DynamicResource MutedTextBrush}"
                    VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis" />
 
-        <TextBlock Grid.Column="2"
-                   Text="v0.1.0-gp3"
-                   FontFamily="Consolas"
-                   FontSize="9"
-                   Foreground="{StaticResource PlaceholderTextBrush}"
-                   x:Name="MainWindowVersionText"
-                   VerticalAlignment="Center" />
+        <StackPanel Grid.Column="2"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    VerticalAlignment="Center">
+          <TextBlock Text="v0.1.0-preview5"
+                     FontSize="9"
+                     Foreground="{DynamicResource PlaceholderTextBrush}"
+                     x:Name="MainWindowVersionText"
+                     VerticalAlignment="Center" />
+          <Button Classes="AddComponentButton"
+                  Content="组件库"
+                  ToolTip.Tip="打开组件库抽屉；拖动组件时抽屉自动收起"
+                  Click="OnComponentLibraryClick" />
+          <Button x:Name="SettingsQuickButton"
+                  Width="22"
+                  Height="22"
+                  Padding="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center"
+                  Background="{DynamicResource TransparentBrush}"
+                  BorderThickness="0"
+                  CornerRadius="11"
+                  Cursor="Hand"
+                  ToolTip.Tip="打开设置"
+                  Click="OnSettingsQuickClick">
+            <mi:MaterialIcon Kind="Cog"
+                             Width="13"
+                             Height="13"
+                             Foreground="{DynamicResource SubtextTextBrush}" />
+          </Button>
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -215,24 +262,30 @@
     <Grid x:Name="PageSurface"
           Grid.RowSpan="3"
           RowDefinitions="48,*"
-          Background="{StaticResource WindowBgBrush}"
+          Background="{DynamicResource WindowBgBrush}"
           IsVisible="False"
           ZIndex="300">
       <Border Grid.Row="0"
-              Background="{StaticResource BaseBgBrush}"
-              BorderBrush="{StaticResource SubtleBorderBrush}"
+              Background="{DynamicResource BaseBgBrush}"
+              BorderBrush="{DynamicResource SubtleBorderBrush}"
               BorderThickness="0,0,0,1">
         <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,0,8,0">
           <Button Classes="NavigationBackButton"
-                  Content="←  返回工作区"
-                  Click="OnBackToWorkspaceClick" />
+                  Click="OnBackToWorkspaceClick">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <mi:MaterialIcon Kind="ArrowLeft" Width="14" Height="14"
+                               Foreground="{DynamicResource SubtextTextBrush}"
+                               VerticalAlignment="Center" />
+              <TextBlock Text="返回工作区" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
           <Border Grid.Column="1"
-                  Background="{StaticResource TransparentBrush}"
+                  Background="{DynamicResource TransparentBrush}"
                   PointerPressed="OnTitleBarPointerPressed">
             <TextBlock x:Name="CurrentPageTitle"
                        FontSize="13"
                        FontWeight="SemiBold"
-                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Foreground="{DynamicResource SecondaryTextBrush}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center" />
           </Border>
@@ -240,32 +293,27 @@
                       Orientation="Horizontal"
                       Spacing="4"
                       VerticalAlignment="Center">
-            <TextBlock Text="Esc：设置"
-                       FontSize="10"
-                       Foreground="{StaticResource DisabledTextBrush}"
-                       Margin="0,0,8,0"
-                       VerticalAlignment="Center" />
             <Button Classes="WindowButton" ToolTip.Tip="最小化" Click="OnMinimizeClick">
               <Path Width="12" Height="12" Stretch="None"
-                    Fill="{StaticResource SubtextTextBrush}"
+                    Fill="{DynamicResource SubtextTextBrush}"
                     Data="M 0.5,8.8 L 11.5,8.8 L 11.5,10.6 L 0.5,10.6 Z" />
             </Button>
             <Button Classes="WindowButton" ToolTip.Tip="最大化或还原" Click="OnMaximizeClick">
               <Grid Width="12" Height="12">
                 <Path x:Name="PageMaximizeIcon" Classes="WindowGlyph"
                       Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                      Stroke="{StaticResource SubtextTextBrush}"
+                      Stroke="{DynamicResource SubtextTextBrush}"
                       Data="M 1.5,1.5 L 10.5,1.5 L 10.5,10.5 L 1.5,10.5 Z" />
                 <Path x:Name="PageRestoreIcon" Classes="WindowGlyph"
                       Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.4"
-                      Stroke="{StaticResource SubtextTextBrush}"
+                      Stroke="{DynamicResource SubtextTextBrush}"
                       Data="M 3.5,1.5 L 10.5,1.5 L 10.5,8.5 M 1.5,3.5 L 8.5,3.5 L 8.5,10.5 L 1.5,10.5 Z"
                       IsVisible="False" />
               </Grid>
             </Button>
             <Button Classes="WindowButton CloseButton" ToolTip.Tip="关闭" Click="OnCloseClick">
               <Path Classes="WindowGlyph" Width="12" Height="12" Stretch="Uniform"
-                    Stroke="{StaticResource SubtextTextBrush}"
+                    Stroke="{DynamicResource SubtextTextBrush}"
                     StrokeThickness="1.4" StrokeLineCap="Square"
                     Data="M 2,2 L 10,10 M 10,2 L 2,10" />
             </Button>
@@ -285,8 +333,8 @@
             HorizontalAlignment="Right"
             VerticalAlignment="Bottom"
             ZIndex="900"
-            Background="{StaticResource AccentDeepBrush}"
-            BorderBrush="{StaticResource AccentBrightBrush}"
+            Background="{DynamicResource AccentDeepBrush}"
+            BorderBrush="{DynamicResource AccentBrightBrush}"
             BorderThickness="2"
             CornerRadius="31"
             Cursor="Hand"
@@ -295,54 +343,59 @@
             AutomationProperties.Name="查看当前任务详情"
             Click="OnTaskActivityClick">
       <Grid IsHitTestVisible="False">
-        <TextBlock x:Name="TaskActivityGlyph"
-                   Text="…"
-                   FontSize="22"
-                   FontWeight="Bold"
-                   Foreground="{StaticResource WhiteBrush}"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center" />
+        <ContentControl x:Name="TaskActivityIcon"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center" />
         <ProgressBar x:Name="TaskActivityProgress"
                      Width="34"
                      Height="3"
                      Margin="0,0,0,9"
                      VerticalAlignment="Bottom"
                      IsIndeterminate="True"
-                     Foreground="{StaticResource WhiteBrush}"
-                     Background="{StaticResource AccentDeepDarkBrush}" />
+                     Foreground="{DynamicResource WhiteBrush}"
+                     Background="{DynamicResource AccentDeepDarkBrush}" />
       </Grid>
     </Button>
 
     <!-- Borderless-window resize grips.  They stay above both the workspace
          and navigated pages while remaining visually transparent. -->
     <Border Grid.RowSpan="3" Width="6" HorizontalAlignment="Left" ZIndex="1000"
-            Background="{StaticResource TransparentBrush}" Cursor="SizeWestEast"
+            Background="{DynamicResource TransparentBrush}" Cursor="SizeWestEast"
             PointerPressed="OnResizeWestPressed" />
     <Border Grid.RowSpan="3" Width="6" HorizontalAlignment="Right" ZIndex="1000"
-            Background="{StaticResource TransparentBrush}" Cursor="SizeWestEast"
+            Background="{DynamicResource TransparentBrush}" Cursor="SizeWestEast"
             PointerPressed="OnResizeEastPressed" />
     <Border Height="6" VerticalAlignment="Top" ZIndex="1000"
-            Background="{StaticResource TransparentBrush}" Cursor="SizeNorthSouth"
+            Background="{DynamicResource TransparentBrush}" Cursor="SizeNorthSouth"
             PointerPressed="OnResizeNorthPressed" />
     <Border Grid.Row="2" Height="6" VerticalAlignment="Bottom" ZIndex="1000"
-            Background="{StaticResource TransparentBrush}" Cursor="SizeNorthSouth"
+            Background="{DynamicResource TransparentBrush}" Cursor="SizeNorthSouth"
             PointerPressed="OnResizeSouthPressed" />
     <Border Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top"
-            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="TopLeftCorner"
+            ZIndex="1001" Background="{DynamicResource TransparentBrush}" Cursor="TopLeftCorner"
             PointerPressed="OnResizeNorthWestPressed" />
     <Border Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top"
-            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="TopRightCorner"
+            ZIndex="1001" Background="{DynamicResource TransparentBrush}" Cursor="TopRightCorner"
             PointerPressed="OnResizeNorthEastPressed" />
     <Border Grid.Row="2" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="BottomLeftCorner"
+            ZIndex="1001" Background="{DynamicResource TransparentBrush}" Cursor="BottomLeftCorner"
             PointerPressed="OnResizeSouthWestPressed" />
     <Border Grid.Row="2" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-            ZIndex="1001" Background="{StaticResource TransparentBrush}" Cursor="BottomRightCorner"
+            ZIndex="1001" Background="{DynamicResource TransparentBrush}" Cursor="BottomRightCorner"
             PointerPressed="OnResizeSouthEastPressed" />
 
-    <!-- Mod 下载遮罩层 -->
-    <controls:ModDownloadOverlay x:Name="ModOverlay"
-                                  Grid.RowSpan="3"
-                                  ZIndex="800" />
+    <!-- 内容下载遮罩宿主（Mod / 整合包 / 资源包 / 光影包） -->
+    <controls:ModalOverlayHost x:Name="ModalHost"
+                               Grid.RowSpan="3"
+                               ZIndex="800" />
+
+    <!-- 全局通知框架：NyaAlert 底部警示滑条（ZIndex 940）+ NyaPrompt Material 对话框（950）。
+         函数触发见 Framework/NyaNotice.cs，任何线程调用均可。 -->
+    <controls:NyaAlertHost x:Name="AlertHost"
+                           Grid.RowSpan="3"
+                           ZIndex="940" />
+    <controls:NyaPromptHost x:Name="PromptHost"
+                            Grid.RowSpan="3"
+                            ZIndex="950" />
   </Grid>
 </Window>

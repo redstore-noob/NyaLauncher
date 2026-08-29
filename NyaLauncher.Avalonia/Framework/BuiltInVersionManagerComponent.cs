@@ -11,6 +11,7 @@ namespace NyaLauncher.Avalonia.Framework;
 
 internal static class BuiltInVersionManagerComponent
 {
+    /// <summary>组件 Id：<c>nyalauncher.builtin/version-manager</c>。全局唯一且必须保持稳定，用户的工作区布局与个性化配置靠它引用本组件。</summary>
     public const string ComponentId = "nyalauncher.builtin/version-manager";
     private const string OpenActionId = "open-version-manager";
 
@@ -19,18 +20,18 @@ internal static class BuiltInVersionManagerComponent
         ArgumentNullException.ThrowIfNull(navigate);
         var definition = new PolygonComponentBuilder(ComponentId, "版本选择与管理")
             .WithDescription("进入版本管理页面，管理文件夹、实例、内容与启动设置")
-            .WithGlyph("▦")
+            .WithGlyph("material:Layers")
             .WithSize(280, 100)
             .WithSizeLimits(230, 84, 390, 138)
             .WithShape(PolygonShapeDefinition.Rectangle())
             .WithDragHandle(new ComponentRect(0.035, 0.16, 0.08, 0.32))
-            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
+            .WithTheme(new PolygonComponentTheme())
             .AddAction(OpenActionId)
             .UseSurfaceAction(OpenActionId)
             .AddText(
                 "manager-glyph",
                 new ComponentRect(0.08, 0.24, 0.13, 0.5),
-                "▦",
+                "material:Layers",
                 ComponentTextRole.Emphasis,
                 fontSize: 24)
             .AddText(
@@ -55,29 +56,22 @@ internal static class BuiltInVersionManagerComponent
         };
     }
 
-    private sealed class VersionManagerInstance : IPolygonComponentInstance
+    private sealed class VersionManagerInstance : PolygonComponentInstanceBase
     {
         private readonly Action<string> _navigate;
-        private ComponentStateSnapshot _currentState;
-        private long _revision;
-        private int _isDisposed;
 
         public VersionManagerInstance(Action<string> navigate)
         {
             _navigate = navigate;
-            _currentState = CreateState(Interlocked.Increment(ref _revision));
+            SetState(CreateState());
             GameInstanceStore.Changed += OnInstancesChanged;
         }
 
-        public ComponentStateSnapshot CurrentState => Volatile.Read(ref _currentState);
-
-        public event EventHandler<ComponentStateChangedEventArgs>? StateChanged;
-
-        public async ValueTask<ComponentActionResult> InvokeAsync(
+        public override async ValueTask<ComponentActionResult> InvokeAsync(
             ComponentActionInvocation invocation,
             CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return ComponentActionResult.Failed("版本管理组件已释放。");
             if (!string.Equals(invocation.ActionId, OpenActionId, StringComparison.OrdinalIgnoreCase))
                 return ComponentActionResult.Failed($"未知版本管理动作：{invocation.ActionId}");
@@ -87,38 +81,31 @@ internal static class BuiltInVersionManagerComponent
             return ComponentActionResult.Completed();
         }
 
-        public ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _isDisposed, 1) == 0)
-            {
-                GameInstanceStore.Changed -= OnInstancesChanged;
-                StateChanged = null;
-            }
-            return ValueTask.CompletedTask;
+            GameInstanceStore.Changed -= OnInstancesChanged;
+            return base.DisposeAsync();
         }
 
         private void OnInstancesChanged(GameInstanceSnapshot snapshot)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return;
-            var state = CreateState(Interlocked.Increment(ref _revision));
-            Volatile.Write(ref _currentState, state);
-            StateChanged?.Invoke(this, new ComponentStateChangedEventArgs(state));
+            SetState(CreateState());
         }
 
-        private static ComponentStateSnapshot CreateState(long revision)
+        private static ComponentStateSnapshot CreateState()
         {
             var snapshot = GameInstanceStore.Current;
             var status = snapshot.IsLoading
-                ? "正在扫描版本文件夹…"
+                ? string.Empty
                 : snapshot.ErrorMessage is not null
                     ? "文件夹无效，点击进入检查"
-                    : snapshot.SelectedVersionId is { Length: > 0 } versionId
-                        ? $"当前：{versionId}"
-                        : "点击添加并选择版本";
+                    : snapshot.VersionIds.Count == 0
+                        ? "还没有实例，点击添加并选择版本"
+                        : $"共 {snapshot.VersionIds.Count} 个实例";
             return new ComponentStateSnapshot
             {
-                Revision = revision,
                 Elements = new Dictionary<string, ComponentElementState>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["manager-status"] = new() { Text = status }

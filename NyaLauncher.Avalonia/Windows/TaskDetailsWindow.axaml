@@ -7,10 +7,10 @@
         MinWidth="720"
         MinHeight="450"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BaseBgBrush}">
+        Background="{DynamicResource BaseBgBrush}">
   <Grid ColumnDefinitions="176,*">
-    <Border Background="{StaticResource WindowBgBrush}"
-            BorderBrush="{StaticResource MediumBorderBrush}"
+    <Border Background="{DynamicResource WindowBgBrush}"
+            BorderBrush="{DynamicResource MediumBorderBrush}"
             BorderThickness="0,0,1,0"
             Padding="14,20">
       <Grid RowDefinitions="Auto,*,Auto">
@@ -18,10 +18,10 @@
           <TextBlock Text="任务详情"
                      FontSize="18"
                      FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
           <TextBlock Text="下载与启动状态"
                      FontSize="10"
-                     Foreground="{StaticResource SubtextTextBrush}" />
+                     Foreground="{DynamicResource SubtextTextBrush}" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Spacing="8">
@@ -30,8 +30,8 @@
                   Height="42"
                   HorizontalContentAlignment="Left"
                   Padding="14,0"
-                  Background="{StaticResource ButtonBgBrush}"
-                  Foreground="{StaticResource PrimaryTextBrush}"
+                  Background="{DynamicResource ButtonBgBrush}"
+                  Foreground="{DynamicResource PrimaryTextBrush}"
                   CornerRadius="9"
                   Click="OnDownloadViewClick" />
           <Button x:Name="LaunchViewButton"
@@ -39,8 +39,8 @@
                   Height="42"
                   HorizontalContentAlignment="Left"
                   Padding="14,0"
-                  Background="{StaticResource SurfaceBgBrush}"
-                  Foreground="{StaticResource BodyTextBrush}"
+                  Background="{DynamicResource SurfaceBgBrush}"
+                  Foreground="{DynamicResource BodyTextBrush}"
                   CornerRadius="9"
                   Click="OnLaunchViewClick" />
         </StackPanel>
@@ -48,10 +48,10 @@
         <Button Grid.Row="2"
                 Content="关闭窗口"
                 Padding="12,8"
-                Background="{StaticResource TransparentBrush}"
-                BorderBrush="{StaticResource StrongBorderBrush}"
+                Background="{DynamicResource TransparentBrush}"
+                BorderBrush="{DynamicResource StrongBorderBrush}"
                 BorderThickness="1"
-                Foreground="{StaticResource SubtextTextBrush}"
+                Foreground="{DynamicResource SubtextTextBrush}"
                 CornerRadius="8"
                 Click="OnCloseClick" />
       </Grid>
@@ -65,16 +65,16 @@
                        Text="Minecraft 下载进度"
                        FontSize="21"
                        FontWeight="SemiBold"
-                       Foreground="{StaticResource PrimaryTextBrush}" />
+                       Foreground="{DynamicResource PrimaryTextBrush}" />
             <TextBlock x:Name="DownloadDetailText"
                        Text="等待下载任务…"
                        FontSize="11"
-                       Foreground="{StaticResource SubtextTextBrush}"
+                       Foreground="{DynamicResource SubtextTextBrush}"
                        TextWrapping="Wrap" />
           </StackPanel>
           <Border Grid.Column="1"
-                  Background="{StaticResource ButtonBgBrush}"
-                  BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                  Background="{DynamicResource ButtonBgBrush}"
+                  BorderBrush="{DynamicResource EmphasizedBorderBrush}"
                   BorderThickness="1"
                   CornerRadius="10"
                   Padding="12,7"
@@ -83,13 +83,13 @@
                        Text="空闲"
                        FontSize="11"
                        FontWeight="SemiBold"
-                       Foreground="{StaticResource AccentTextBrush}" />
+                       Foreground="{DynamicResource AccentTextBrush}" />
           </Border>
         </Grid>
 
         <Border Grid.Row="1"
-                Background="{StaticResource PanelBgBrush}"
-                BorderBrush="{StaticResource StrongBorderBrush}"
+                Background="{DynamicResource PanelBgBrush}"
+                BorderBrush="{DynamicResource StrongBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
                 Padding="16"
@@ -98,33 +98,33 @@
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Text="总体下载进度"
                          FontSize="12"
-                         Foreground="{StaticResource BodyTextBrush}" />
+                         Foreground="{DynamicResource BodyTextBrush}" />
               <TextBlock x:Name="DownloadPercentageText"
                          Grid.Column="1"
                          Text="0.0%"
                          FontSize="12"
                          FontWeight="SemiBold"
-                         Foreground="{StaticResource AccentTextBrush}" />
+                         Foreground="{DynamicResource AccentTextBrush}" />
             </Grid>
             <ProgressBar x:Name="DownloadProgressBar"
                          Height="9"
                          Minimum="0"
                          Maximum="100"
                          Value="0"
-                         Foreground="{StaticResource AccentDarkBrush}"
-                         Background="{StaticResource ControlBgBrush}" />
+                         Foreground="{DynamicResource AccentDarkBrush}"
+                         Background="{DynamicResource ControlBgBrush}" />
             <Grid ColumnDefinitions="*,*,*">
               <StackPanel Spacing="2">
-                <TextBlock Text="下载速度" FontSize="9" Foreground="{StaticResource DisabledTextBrush}" />
-                <TextBlock x:Name="DownloadSpeedText" Text="正在测速" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" />
+                <TextBlock Text="下载速度" FontSize="9" Foreground="{DynamicResource DisabledTextBrush}" />
+                <TextBlock x:Name="DownloadSpeedText" Text="正在测速" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" />
               </StackPanel>
               <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock Text="数据进度" FontSize="9" Foreground="{StaticResource DisabledTextBrush}" />
-                <TextBlock x:Name="DownloadBytesText" Text="0 B / 0 B" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" />
+                <TextBlock Text="数据进度" FontSize="9" Foreground="{DynamicResource DisabledTextBrush}" />
+                <TextBlock x:Name="DownloadBytesText" Text="0 B / 0 B" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" />
               </StackPanel>
               <StackPanel Grid.Column="2" Spacing="2">
-                <TextBlock Text="文件进度" FontSize="9" Foreground="{StaticResource DisabledTextBrush}" />
-                <TextBlock x:Name="DownloadFilesText" Text="0 / 0" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" />
+                <TextBlock Text="文件进度" FontSize="9" Foreground="{DynamicResource DisabledTextBrush}" />
+                <TextBlock x:Name="DownloadFilesText" Text="0 / 0" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" />
               </StackPanel>
             </Grid>
           </StackPanel>
@@ -134,27 +134,17 @@
                    Text="安装阶段"
                    FontSize="12"
                    FontWeight="SemiBold"
-                   Foreground="{StaticResource TertiaryTextBrush}"
+                   Foreground="{DynamicResource TertiaryTextBrush}"
                    Margin="2,0,0,8" />
 
         <Border Grid.Row="3"
-                Background="{StaticResource WindowBgBrush}"
-                BorderBrush="{StaticResource MediumBorderBrush}"
+                Background="{DynamicResource WindowBgBrush}"
+                BorderBrush="{DynamicResource MediumBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
                 Padding="14">
           <ScrollViewer>
-            <ItemsControl x:Name="DownloadStagesList">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <TextBlock Text="{Binding}"
-                             FontFamily="Consolas"
-                             FontSize="11"
-                             Foreground="{StaticResource BodyTextBrush}"
-                             Margin="2,4" />
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <ItemsControl x:Name="DownloadStagesList" />
           </ScrollViewer>
         </Border>
 
@@ -164,10 +154,10 @@
                 HorizontalAlignment="Right"
                 Margin="0,14,0,0"
                 Padding="18,8"
-                Background="{StaticResource ErrorDarkBrush}"
-                BorderBrush="{StaticResource ErrorBrush}"
+                Background="{DynamicResource ErrorDarkBrush}"
+                BorderBrush="{DynamicResource ErrorBrush}"
                 BorderThickness="1"
-                Foreground="{StaticResource PrimaryTextBrush}"
+                Foreground="{DynamicResource PrimaryTextBrush}"
                 CornerRadius="9"
                 Click="OnCancelDownloadClick" />
       </Grid>
@@ -178,16 +168,16 @@
             <TextBlock Text="Minecraft 启动日志"
                        FontSize="21"
                        FontWeight="SemiBold"
-                       Foreground="{StaticResource PrimaryTextBrush}" />
+                       Foreground="{DynamicResource PrimaryTextBrush}" />
             <TextBlock x:Name="LaunchLogStatusText"
                        Text="尚未启动游戏"
                        FontSize="11"
-                       Foreground="{StaticResource SubtextTextBrush}"
+                       Foreground="{DynamicResource SubtextTextBrush}"
                        TextWrapping="Wrap" />
           </StackPanel>
           <Border Grid.Column="1"
-                  Background="{StaticResource ButtonBgBrush}"
-                  BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                  Background="{DynamicResource ButtonBgBrush}"
+                  BorderBrush="{DynamicResource EmphasizedBorderBrush}"
                   BorderThickness="1"
                   CornerRadius="10"
                   Padding="12,7"
@@ -196,13 +186,13 @@
                        Text="空闲"
                        FontSize="11"
                        FontWeight="SemiBold"
-                       Foreground="{StaticResource AccentTextBrush}" />
+                       Foreground="{DynamicResource AccentTextBrush}" />
           </Border>
         </Grid>
 
         <Border Grid.Row="1"
-                Background="{StaticResource WindowBgBrush}"
-                BorderBrush="{StaticResource MediumBorderBrush}"
+                Background="{DynamicResource WindowBgBrush}"
+                BorderBrush="{DynamicResource MediumBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
                 Padding="12">
@@ -213,8 +203,8 @@
                    TextWrapping="NoWrap"
                    FontFamily="Consolas"
                    FontSize="11"
-                   Foreground="{StaticResource SecondaryTextBrush}"
-                   Background="{StaticResource TransparentBrush}"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
+                   Background="{DynamicResource TransparentBrush}"
                    BorderThickness="0"
                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
                    ScrollViewer.VerticalScrollBarVisibility="Auto" />
@@ -223,7 +213,7 @@
         <TextBlock Grid.Row="2"
                    Text="启动日志仅保留本次启动最近 2000 行；打开后不会因游戏退出而自动关闭"
                    FontSize="10"
-                   Foreground="{StaticResource DisabledTextBrush}"
+                   Foreground="{DynamicResource DisabledTextBrush}"
                    Margin="2,14,0,0" />
       </Grid>
     </Grid>

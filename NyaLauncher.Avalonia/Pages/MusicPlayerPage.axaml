@@ -1,32 +1,47 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:music="using:NyaLauncher.Core.Music"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="NyaLauncher.Avalonia.Pages.MusicPlayerPage"
-             Background="{StaticResource WindowBgBrush}">
+             Background="{DynamicResource WindowBgBrush}">
   <Grid RowDefinitions="Auto,*,Auto">
 
     <!-- 顶部栏 -->
     <Border Grid.Row="0"
-            Background="{StaticResource BaseBgBrush}"
-            BorderBrush="{StaticResource SubtleBorderBrush}"
+            Background="{DynamicResource BaseBgBrush}"
+            BorderBrush="{DynamicResource SubtleBorderBrush}"
             BorderThickness="0,0,0,1"
-            Padding="24,14">
+            Padding="24,14"
+            Classes="nya-fade nya-shimmer">
       <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="12">
-        <TextBlock Text="音乐播放器"
-                   FontSize="20" FontWeight="Bold"
-                   Foreground="{StaticResource PrimaryTextBrush}"
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Border Width="40" Height="40" CornerRadius="10"
+                  Background="{DynamicResource AccentBrush}">
+            <mi:MaterialIcon Kind="MusicNote"
+                   Width="20" Height="20"
+                   Foreground="White"
+                   HorizontalAlignment="Center"
                    VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1"
-                   x:Name="TrackCountText"
-                   Text="未选择文件夹"
-                   FontSize="12"
-                   Foreground="{StaticResource HintTextBrush}"
-                   VerticalAlignment="Center" />
+          </Border>
+          <StackPanel VerticalAlignment="Center" Spacing="2">
+            <TextBlock Text="音乐播放器"
+                       FontSize="18" FontWeight="Bold"
+                       Foreground="{DynamicResource PrimaryTextBrush}" />
+            <TextBlock x:Name="TrackCountText"
+                       Text="请点击「选择文件夹」加载音乐"
+                       FontSize="11"
+                       Foreground="{DynamicResource HintTextBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       MaxWidth="380" />
+          </StackPanel>
+        </StackPanel>
+
         <Button Grid.Column="2"
                 x:Name="FolderButton"
                 Content="选择文件夹"
                 Padding="14,6" CornerRadius="8" FontSize="12"
-                Background="{StaticResource ButtonBgBrush}"
-                BorderBrush="{StaticResource EmphasizedBorderBrush}"
+                Background="{DynamicResource ButtonBgBrush}"
+                BorderBrush="{DynamicResource EmphasizedBorderBrush}"
                 BorderThickness="1"
                 Click="OnSelectFolderClick" />
         <Button Grid.Column="3"
@@ -36,7 +51,7 @@
                 Click="OnRefreshClick" />
         <ComboBox Grid.Column="4"
                   x:Name="SortComboBox"
-                  Background="{StaticResource ControlBgBrush}"
+                  Background="{DynamicResource ControlBgBrush}"
                   BorderThickness="0" CornerRadius="8"
                   Padding="10,4" FontSize="12" Width="130"
                   SelectionChanged="OnSortChanged" />
@@ -46,96 +61,208 @@
     <!-- 搜索 + 列表 -->
     <Grid Grid.Row="1" Margin="24,16,24,0">
       <Grid RowDefinitions="Auto,*">
+
         <!-- 搜索栏 -->
-        <Border Background="{StaticResource ControlBgBrush}"
+        <Border Background="{DynamicResource ControlBgBrush}"
                 CornerRadius="10" Padding="14,10" Margin="0,0,0,12">
           <Grid ColumnDefinitions="Auto,*">
-            <TextBlock Text="🔍" FontSize="14"
-                       Foreground="{StaticResource DisabledTextBrush}"
-                       VerticalAlignment="Center" />
+            <mi:MaterialIcon Kind="Magnify" Width="16" Height="16"
+                             Foreground="{DynamicResource DisabledTextBrush}"
+                             VerticalAlignment="Center" />
             <TextBox Grid.Column="1"
                      x:Name="SearchBox"
                      PlaceholderText="搜索歌曲..."
-                     Background="{StaticResource TransparentBrush}"
+                     Background="{DynamicResource TransparentBrush}"
                      BorderThickness="0"
-                     Foreground="{StaticResource BodyTextBrush}"
+                     Foreground="{DynamicResource BodyTextBrush}"
                      FontSize="13"
                      VerticalAlignment="Center"
                      Margin="10,0,0,0"
-                     CaretBrush="{StaticResource BodyTextBrush}"
+                     CaretBrush="{DynamicResource BodyTextBrush}"
                      TextChanged="OnSearchChanged" />
           </Grid>
         </Border>
 
         <!-- 播放列表 -->
         <Border Grid.Row="1"
-                Background="{StaticResource PanelBgBrush}"
+                Background="{DynamicResource PanelBgBrush}"
                 CornerRadius="12" ClipToBounds="True">
           <ListBox x:Name="TrackList"
-                   Background="{StaticResource TransparentBrush}"
+                   Classes="nya-stagger"
+                   Background="{DynamicResource TransparentBrush}"
                    BorderThickness="0"
-                   SelectionChanged="OnTrackSelected" />
+                   SelectionChanged="OnTrackSelected">
+            <ListBox.ItemTemplate>
+              <DataTemplate DataType="music:MusicTrack">
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="10,6" ColumnSpacing="12">
+                  <Border Width="38" Height="38" CornerRadius="9"
+                          Background="{DynamicResource ControlBgBrush}"
+                          VerticalAlignment="Center">
+                    <mi:MaterialIcon Kind="MusicNote"
+                           Width="17" Height="17"
+                           Foreground="White"
+                           Opacity="0.65"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding MetaDisplay}"
+                               FontSize="11"
+                               Foreground="{DynamicResource HintTextBrush}" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
         </Border>
       </Grid>
     </Grid>
 
     <!-- 底部播放控制栏 -->
     <Border Grid.Row="2"
-            Background="{StaticResource BaseBgBrush}"
-            BorderBrush="{StaticResource SubtleBorderBrush}"
+            Background="{DynamicResource BaseBgBrush}"
+            BorderBrush="{DynamicResource SubtleBorderBrush}"
             BorderThickness="0,1,0,0"
-            Padding="24,16">
-      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
-        <!-- 播放控制按钮 -->
-        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Button x:Name="PrevButton" Content="⏮"
-                  Width="36" Height="36" CornerRadius="18"
-                  Background="{StaticResource ButtonBgBrush}"
-                  BorderThickness="0" FontSize="14"
-                  Click="OnPrevClick" />
-          <Button x:Name="PlayPauseButton" Content="▶"
-                  Width="44" Height="44" CornerRadius="22"
-                  Background="{StaticResource SystemAccentColor}"
-                  Foreground="{StaticResource WhiteBrush}"
-                  BorderThickness="0" FontSize="18" FontWeight="Bold"
-                  Click="OnPlayPauseClick" />
-          <Button x:Name="NextButton" Content="⏭"
-                  Width="36" Height="36" CornerRadius="18"
-                  Background="{StaticResource ButtonBgBrush}"
-                  BorderThickness="0" FontSize="14"
-                  Click="OnNextClick" />
-          <Button x:Name="StopButton" Content="⏹"
-                  Width="36" Height="36" CornerRadius="18"
-                  Background="{StaticResource ButtonBgBrush}"
-                  BorderThickness="0" FontSize="14"
-                  Click="OnStopClick" />
-        </StackPanel>
+            Padding="24,14,24,18">
+      <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
 
-        <!-- 当前曲目信息 -->
-        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-          <TextBlock x:Name="NowPlayingTitle"
-                     Text="未在播放"
-                     FontSize="14" FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}"
-                     TextTrimming="CharacterEllipsis" />
-          <TextBlock x:Name="NowPlayingInfo"
-                     Text=""
-                     FontSize="11"
-                     Foreground="{StaticResource HintTextBrush}" />
-        </StackPanel>
+        <!-- 进度条 + 时间 -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+          <TextBlock x:Name="TimeCurrentText"
+                     Text="--:--"
+                     FontSize="11" FontFamily="Consolas,Menlo,monospace"
+                     Foreground="{DynamicResource MutedTextBrush}"
+                     VerticalAlignment="Center" MinWidth="38" />
+          <Slider Grid.Column="1"
+                  x:Name="ProgressSlider"
+                  Minimum="0" Maximum="100" Value="0"
+                  IsEnabled="False"
+                  VerticalAlignment="Center"
+                  ValueChanged="OnProgressValueChanged"
+                  PointerPressed="OnProgressPointerPressed"
+                  PointerReleased="OnProgressPointerReleased"
+                  PointerCaptureLost="OnProgressPointerCaptureLost" />
+          <TextBlock Grid.Column="2"
+                     x:Name="TimeTotalText"
+                     Text="--:--"
+                     FontSize="11" FontFamily="Consolas,Menlo,monospace"
+                     Foreground="{DynamicResource MutedTextBrush}"
+                     VerticalAlignment="Center" MinWidth="38"
+                     HorizontalAlignment="Right" />
+        </Grid>
 
-        <!-- 音量 -->
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Text="🔊" FontSize="14" VerticalAlignment="Center" />
-          <Slider x:Name="VolumeSlider"
-                  Minimum="0" Maximum="100" Value="80"
-                  Width="100"
-                  ValueChanged="OnVolumeChanged" />
-          <TextBlock x:Name="VolumeText"
-                     Text="80%"
-                     FontSize="11" Foreground="{StaticResource MutedTextBrush}"
-                     VerticalAlignment="Center" MinWidth="35" />
-        </StackPanel>
+        <!-- 控制按钮 + 曲目信息 + 音量 -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+          <!-- 播放控制按钮 -->
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button x:Name="PrevButton"
+                    Width="36" Height="36" CornerRadius="18"
+                    Background="{DynamicResource ButtonBgBrush}"
+                    BorderThickness="0"
+                    Click="OnPrevClick" Cursor="Hand">
+              <mi:MaterialIcon Kind="SkipPrevious" Width="16" Height="16"
+                               Foreground="{DynamicResource PrimaryTextBrush}" />
+              <Button.Styles>
+                <Style Selector="Button:pointerover /template/ ContentPresenter">
+                  <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+                </Style>
+              </Button.Styles>
+            </Button>
+            <Button x:Name="PlayPauseButton"
+                    Width="46" Height="46" CornerRadius="23"
+                    Background="{DynamicResource AccentBrush}"
+                    BorderThickness="0"
+                    Click="OnPlayPauseClick" Cursor="Hand">
+              <!-- 播放/暂停共用单一图标，代码中按状态切换 Kind -->
+              <mi:MaterialIcon x:Name="PlayPauseIcon" Kind="Play" Width="19" Height="19"
+                               Foreground="{DynamicResource WhiteBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Button.Styles>
+                <Style Selector="Button:pointerover /template/ ContentPresenter">
+                  <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+                </Style>
+              </Button.Styles>
+            </Button>
+            <Button x:Name="NextButton"
+                    Width="36" Height="36" CornerRadius="18"
+                    Background="{DynamicResource ButtonBgBrush}"
+                    BorderThickness="0"
+                    Click="OnNextClick" Cursor="Hand">
+              <mi:MaterialIcon Kind="FastForward" Width="16" Height="16"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Button.Styles>
+                <Style Selector="Button:pointerover /template/ ContentPresenter">
+                  <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+                </Style>
+              </Button.Styles>
+            </Button>
+            <Button x:Name="StopButton"
+                    Width="36" Height="36" CornerRadius="18"
+                    Background="{DynamicResource ButtonBgBrush}"
+                    BorderThickness="0"
+                    Click="OnStopClick" Cursor="Hand">
+              <mi:MaterialIcon Kind="Stop" Width="15" Height="15"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Button.Styles>
+                <Style Selector="Button:pointerover /template/ ContentPresenter">
+                  <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+                </Style>
+              </Button.Styles>
+            </Button>
+            <Button x:Name="ModeButton"
+                    Width="36" Height="36" CornerRadius="18"
+                    Background="{DynamicResource ButtonBgBrush}"
+                    BorderThickness="0"
+                    Click="OnModeClick" Cursor="Hand"
+                    ToolTip.Tip="顺序播放">
+              <mi:MaterialIcon x:Name="ModeGlyph" Kind="PlaylistPlay" Width="16" Height="16"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <Button.Styles>
+                <Style Selector="Button:pointerover /template/ ContentPresenter">
+                  <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+                </Style>
+              </Button.Styles>
+            </Button>
+          </StackPanel>
+
+          <!-- 当前曲目信息 -->
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+            <TextBlock x:Name="NowPlayingTitle"
+                       Text="未在播放"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource PrimaryTextBrush}"
+                       TextTrimming="None"
+                       Classes="nya-marquee" />
+            <TextBlock x:Name="NowPlayingInfo"
+                       Text=""
+                       FontSize="11"
+                       Foreground="{DynamicResource HintTextBrush}"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+
+          <!-- 音量 -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <mi:MaterialIcon Kind="VolumeHigh" Width="16" Height="16"
+                             Foreground="{DynamicResource MutedTextBrush}"
+                             VerticalAlignment="Center" />
+            <Slider x:Name="VolumeSlider"
+                    Minimum="0" Maximum="100" Value="80"
+                    Width="100"
+                    VerticalAlignment="Center"
+                    ValueChanged="OnVolumeChanged" />
+            <TextBlock x:Name="VolumeText"
+                       Text="80%"
+                       FontSize="11" Foreground="{DynamicResource MutedTextBrush}"
+                       VerticalAlignment="Center" MinWidth="35" />
+          </StackPanel>
+        </Grid>
       </Grid>
     </Border>
   </Grid>

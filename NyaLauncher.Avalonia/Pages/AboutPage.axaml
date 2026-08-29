@@ -1,7 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="using:NyaLauncher.Avalonia.Animations.Helpers"
              x:Class="NyaLauncher.Avalonia.Pages.AboutPage"
              Loaded="Control_OnLoaded">
+  <Grid x:Name="RootGrid">
   <ScrollViewer>
     <StackPanel Spacing="16" Margin="32,28">
 
@@ -10,50 +12,69 @@
         <TextBlock Text="关于"
                    FontSize="28"
                    FontWeight="Bold"
-                   Foreground="{StaticResource PrimaryTextBrush}" />
+                   Foreground="{DynamicResource PrimaryTextBrush}" />
         <TextBlock Text="NyaLauncher 开发团队、第三方组件与项目信息"
                    FontSize="13"
-                   Foreground="{StaticResource HintTextBrush}" />
+                   Foreground="{DynamicResource HintTextBrush}" />
       </StackPanel>
 
-      <!-- 开发者名单 -->
-      <Border Background="{StaticResource PanelBgBrush}"
+      <!-- 开发者名单（3D 翻转：hover 翻面显示致谢，最后一个子元素为背面）。
+           注意：不能与 nya-shimmer 同挂——OverlayHost 会包一层 wrapper 把正/背面结构打乱。
+           连点卡片 7 次触发「猫娘登场」彩蛋（DevCard_OnPointerPressed） -->
+      <Border Background="{DynamicResource PanelBgBrush}"
               CornerRadius="16"
-              Padding="24,20">
-        <StackPanel Spacing="12">
-          <TextBlock Text="开发者名单"
-                     FontSize="18"
-                     FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
-          <TextBlock FontSize="13"
-                     Foreground="{StaticResource BodyTextBrush}"
-                     TextWrapping="Wrap">
-            <Run Text="redstore_noob" FontWeight="SemiBold" /><LineBreak />
-            <Run Text="TouristH" FontWeight="SemiBold" /><LineBreak />
-            <Run Text="ReGlaze" FontWeight="SemiBold" />
-          </TextBlock>
-        </StackPanel>
+              Padding="24,20"
+              Classes="nya-flip"
+              PointerPressed="DevCard_OnPointerPressed">
+        <Grid>
+          <StackPanel Spacing="12">
+            <TextBlock Text="开发者名单"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource PrimaryTextBrush}" />
+            <TextBlock FontSize="13"
+                       Foreground="{DynamicResource BodyTextBrush}"
+                       TextWrapping="Wrap">
+              <Run Text="redstore_noob" FontWeight="SemiBold" /><LineBreak />
+              <Run Text="TouristH" FontWeight="SemiBold" /><LineBreak />
+              <Run Text="ReGlaze" FontWeight="SemiBold" />
+            </TextBlock>
+          </StackPanel>
+          <StackPanel Spacing="10" IsVisible="False"
+                      helpers:Flip.IsBack="True">
+            <TextBlock Text="喵～感谢每一位使用者"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource PrimaryTextBrush}" />
+            <TextBlock FontSize="13"
+                       Foreground="{DynamicResource HintTextBrush}"
+                       TextWrapping="Wrap">
+              如果喜欢这个启动器，去 GitHub 给项目点个 Star 就是最大的支持啦～
+            </TextBlock>
+          </StackPanel>
+        </Grid>
       </Border>
 
       <!-- 引用的库与资源 -->
-      <Border Background="{StaticResource PanelBgBrush}"
+      <Border Background="{DynamicResource PanelBgBrush}"
               CornerRadius="16"
-              Padding="24,20">
+              Padding="24,20"
+              Classes="nya-lift nya-shimmer">
         <StackPanel Spacing="12">
           <TextBlock Text="引用的库与资源"
                      FontSize="18"
                      FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
           <Grid ColumnDefinitions="160,*"
-                RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                 ColumnSpacing="8"
                 RowSpacing="6">
             <TextBlock Text="Avalonia UI"
                        Grid.Row="0" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Row="0" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               12.1.1 · 跨平台 UI 框架（MIT License）
               https://github.com/AvaloniaUI/Avalonia
@@ -61,72 +82,191 @@
 
             <TextBlock Text="CommunityToolkit"
                        Grid.Row="1" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               Mvvm 8.4.2 · MVVM 组件库（MIT License）
               
             </TextBlock>
 
-            <TextBlock Text="HarmonyOS Sans"
-                       Grid.Row="2" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+            <TextBlock Text="Material.Avalonia"
+                       Grid.Row="4" FontSize="13"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
-            <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+            <TextBlock Grid.Row="4" Grid.Column="1" FontSize="13"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
-              Regular · 界面正文字体（Huawei License）
-              https://developer.huawei.com/consumer/cn/design/resource-V1/
+              3.19.0 · Material Design 风格与控件库（MIT License）
+              https://github.com/AvaloniaCommunity/Material.Avalonia
             </TextBlock>
 
-            <TextBlock Text="Noto Color Emoji"
-                       Grid.Row="3" FontSize="13"
-                       Foreground="{StaticResource MutedTextBrush}"
+            <TextBlock Text="Material.Icons.Avalonia"
+                       Grid.Row="5" FontSize="13"
+                       Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
-            <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13"
-                       Foreground="{StaticResource BodyTextBrush}"
+            <TextBlock Grid.Row="5" Grid.Column="1" FontSize="13"
+                       Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
-              表情符号字体（Apache-2.0 License）
-              https://github.com/googlefonts/noto-emoji
+              3.0.2 · Material Design 图标库（MIT License）
+              https://github.com/SKProCH/Material.Icons
+            </TextBlock>
+
+            <TextBlock Text="OpenAI"
+                       Grid.Row="6" FontSize="13"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="6" Grid.Column="1" FontSize="13"
+                       Foreground="{DynamicResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              2.13.0 · AI 对话接口调用（OpenAI 官方 .NET SDK）
+              https://github.com/openai/openai-dotnet
+            </TextBlock>
+
+            <TextBlock Text="BMCLAPI"
+                       Grid.Row="7" FontSize="13"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="7" Grid.Column="1" FontSize="13"
+                       Foreground="{DynamicResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              Minecraft 下载镜像服务（bangbang93）
+              https://bmclapi2.bangbang93.com
             </TextBlock>
           </Grid>
         </StackPanel>
       </Border>
 
       <!-- 项目信息 -->
-      <Border Background="{StaticResource PanelBgBrush}"
+      <Border Background="{DynamicResource PanelBgBrush}"
               CornerRadius="16"
-              Padding="24,20">
+              Padding="24,20"
+              Classes="nya-lift nya-shimmer">
         <StackPanel Spacing="12">
           <TextBlock Text="项目信息"
                      FontSize="18"
                      FontWeight="SemiBold"
-                     Foreground="{StaticResource PrimaryTextBrush}" />
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
           <TextBlock Text="NyaLauncher"
                      FontSize="14"
                      x:Name="LauncherText"
-                     Foreground="{StaticResource BodyTextBrush}" />
+                     Background="Transparent"
+                     PointerPressed="LauncherText_OnPointerPressed"
+                     Foreground="{DynamicResource BodyTextBrush}" />
+          <TextBlock x:Name="EasterEggHint"
+                     IsVisible="False"
+                     FontSize="11"
+                     Foreground="{DynamicResource HintTextBrush}"
+                     Margin="0,4,0,0" />
           <TextBlock FontSize="14"
                      x:Name="LatestDate"
-                     Foreground="{StaticResource BodyTextBrush}">
+                     Foreground="{DynamicResource BodyTextBrush}">
             最后补丁日期:
           </TextBlock>
           <TextBlock FontSize="14"
-                     Foreground="{StaticResource BodyTextBrush}"
+                     Foreground="{DynamicResource BodyTextBrush}"
                      TextWrapping="Wrap">
             除闭源模块外，该软件基于 Apache License 2.0 分发。
+          </TextBlock>
+          <TextBlock FontSize="14"
+                     Foreground="{DynamicResource BodyTextBrush}">
+              该软件为NyaLauncher team编写，与Mojang Studios与Microsoft没有直接联系。
           </TextBlock>
           <TextBlock Text="https://github.com/redstore-noob/NyaLauncher"
                      FontSize="13"
                      x:Name="VersionText"
-                     Foreground="{StaticResource HintTextBrush}" />
+                     Foreground="{DynamicResource HintTextBrush}"
+                     Classes="nya-marquee" />
           <HyperlinkButton NavigateUri="https://github.com/redstore-noob/NyaLauncher"
-                           Content="为我们的项目点上 Star✨" />
+                           Content="项目链接喵~Ciallo～(∠・ω&lt; )⌒★" />
         </StackPanel>
       </Border>
 
     </StackPanel>
   </ScrollViewer>
+
+  <!-- 彩蛋覆盖层：连点项目链接五次后触发；点猫猫可以 rua，点空白处关闭 -->
+  <Border x:Name="EasterEggOverlay"
+          IsVisible="False"
+          Background="#CC000000"
+          PointerPressed="EasterEggOverlay_OnPointerPressed">
+    <Grid>
+      <!-- 画布可命中测试：猫猫 TextBlock 才能收到 rua 点击；空白处点击冒泡到 Border 关闭 -->
+      <Canvas x:Name="NyaCanvas" IsHitTestVisible="True" />
+      <StackPanel x:Name="PartyPanel"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Spacing="12"
+                  IsHitTestVisible="False">
+        <StackPanel.RenderTransform>
+          <TransformGroup>
+            <ScaleTransform />
+            <RotateTransform />
+          </TransformGroup>
+        </StackPanel.RenderTransform>
+        <TextBlock Text="🎉"
+                   FontSize="48"
+                   HorizontalAlignment="Center" />
+        <TextBlock x:Name="PartyTitle"
+                   Text="秘密派对！"
+                   FontSize="24"
+                   FontWeight="Bold"
+                   Foreground="White"
+                   HorizontalAlignment="Center" />
+        <TextBlock x:Name="PetCountText"
+                   IsVisible="False"
+                   Text="已rua × 0"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="#FF9EC4"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="你发现了 NyaLauncher 的隐藏猫猫！"
+                   FontSize="15"
+                   Foreground="#CCCCCC"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="No party, No life! ~ nya~"
+                   FontSize="13"
+                   Foreground="#999999"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="点猫猫可以 rua 它 · 点空白处关闭"
+                   FontSize="11"
+                   Foreground="#666666"
+                   HorizontalAlignment="Center"
+                   Margin="0,12,0,0" />
+      </StackPanel>
+    </Grid>
+  </Border>
+
+  <!-- 猫娘彩蛋覆盖层：连点开发者卡片 7 次触发；点击任意处关闭 -->
+  <Border x:Name="NekoOverlay"
+          IsVisible="False"
+          Background="#AA000000"
+          PointerPressed="NekoOverlay_OnPointerPressed">
+    <Border x:Name="NekoCard"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="20"
+            Padding="18"
+            Background="{DynamicResource PanelBgBrush}"
+            BorderBrush="{DynamicResource DefaultBorderBrush}"
+            BorderThickness="1">
+      <StackPanel Spacing="10">
+        <Image Source="avares://NyaLauncher.Avalonia/Resources/Images/neko-girl.png"
+               MaxHeight="500"
+               Stretch="Uniform" />
+        <TextBlock Text="奈娅(Nya)美图🥰"
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
+                   HorizontalAlignment="Center" />
+        
+        <TextBlock Text="点击任意处关闭"
+                   FontSize="11"
+                   Foreground="{DynamicResource HintTextBrush}"
+                   HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Border>
+  </Grid>
 </UserControl>

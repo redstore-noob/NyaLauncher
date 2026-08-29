@@ -5,22 +5,47 @@ using System.Linq;
 namespace NyaLauncher.Avalonia.Framework;
 
 /// <summary>
-/// Upgrades persisted workspace profiles and normalizes their in-memory shape.
-/// Version-specific migrations use fixed target versions so adding a future
-/// schema version cannot accidentally replay an older migration.
+/// 工作区档案迁移器：把旧版本的 <c>workspace.json</c> 就地升级到当前版本，
+/// 并统一规整内存中的形状（去空值、钳制越界数值、去重摆放项）。
+/// <para>
+/// 每一步迁移都写死自己的<b>目标版本</b>，而不是简单地递增，
+/// 这样将来新增版本时不会误把某一步老迁移重放一遍。
+/// </para>
 /// </summary>
 internal static class WorkspaceProfileMigrator
 {
+    /// <summary>v2：把业务含义的区域 Id（launch/resources/launcher）换成中性编号 area-00X。</summary>
     private const int CanonicalAreaIdsVersion = 2;
+
+    /// <summary>v3：引入多边形组件（账号选择器、皮肤披风编辑器）。</summary>
     private const int PolygonComponentsVersion = 3;
+
+    /// <summary>v4：引入游戏实例选择器组件。</summary>
     private const int GameInstanceSelectorVersion = 4;
+
+    /// <summary>v5：启动组件改用规范的组件 Id。</summary>
     private const int GameLaunchComponentVersion = 5;
+
+    /// <summary>v6：引入版本管理器组件。</summary>
     private const int VersionManagerComponentVersion = 6;
-    // testplug uses v7 for its plugin-list migration. The non-plugin branch can
-    // safely read that sibling format, discard unavailable component IDs through
-    // the registry, and write its own canonical v6 profile on the next save.
+
+    // testplug 分支用 v7 做插件列表迁移。非插件分支可以安全地读取这份「兄弟格式」：
+    // 注册不上的组件 Id 会被注册表丢弃，下次保存时再写出自己的标准 v6 档案。
+    /// <summary>v7：插件分支的兼容格式，本分支只读不写，下次保存时降级回标准 v6。</summary>
     private const int CompatiblePluginProfileVersion = 7;
 
+    /// <summary>
+    /// 把档案迁移到 <see cref="WorkspaceProfile.CurrentVersion"/>。
+    /// <para>
+    /// 版本<b>高于</b>当前支持的最大版本时直接抛异常（不猜测、不降级覆盖），
+    /// 避免出现「新版本配置被旧启动器写坏」的情况。
+    /// </para>
+    /// </summary>
+    /// <param name="profile">读到的档案，会被就地修改。</param>
+    /// <returns>同一个档案实例（已迁移并规整）。</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="profile"/> 为 <c>null</c>。</exception>
+    /// <exception cref="NotSupportedException">档案版本高于当前支持的版本。</exception>
+    /// <exception cref="InvalidOperationException">缺少到当前版本的迁移步骤。</exception>
     public static WorkspaceProfile Migrate(WorkspaceProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);

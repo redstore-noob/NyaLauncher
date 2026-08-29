@@ -5,19 +5,18 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Content;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Core.Tools;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Controls;
+using NyaLauncher.Avalonia.Framework;
 
 namespace NyaLauncher.Avalonia.Pages;
 
@@ -27,6 +26,7 @@ public partial class VersionManagerPage : UserControl
     private bool _synchronizingVersions;
     private bool _synchronizingMemorySliders;
     private bool _synchronizingAdvancedSettings = true;
+    private bool _synchronizingIconCombo;
     private CancellationTokenSource? _detailsCancellation;
     private CancellationTokenSource? _instanceVisualCancellation;
     private GameVersionDetails? _currentDetails;
@@ -39,9 +39,11 @@ public partial class VersionManagerPage : UserControl
     public VersionManagerPage()
     {
         InitializeComponent();
+        InstanceIconCombo.ItemsSource = _iconChoices;
         GameInstanceStore.Changed += OnInstancesChanged;
         GameVersionProfileStore.Changed += OnProfilesChanged;
         ModsList.AddHandler(ContentEntryItem.ModFileChangedEvent, OnModFileChanged);
+        SavesList.AddHandler(SaveEntryItem.SaveChangedEvent, OnSaveChanged);
         ReloadFolders();
     }
 
@@ -69,37 +71,6 @@ public partial class VersionManagerPage : UserControl
         {
             _synchronizingFolders = false;
         }
-    }
-
-    private async void OnAddFolderClick(object? sender, RoutedEventArgs e)
-    {
-        var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
-        if (storageProvider is null)
-            return;
-        var folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "添加 Minecraft 版本文件夹",
-            AllowMultiple = false
-        });
-        var path = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (string.IsNullOrWhiteSpace(path))
-            return;
-
-        if (!GameInstanceStore.CanResolveSource(path))
-        {
-            StatusText.Text = "无法添加该文件夹：未找到标准 Minecraft 版本或可识别的第三方实例元数据。";
-            return;
-        }
-
-        if (!GameVersionProfileStore.AddFolder(path))
-        {
-            StatusText.Text = "版本文件夹保存失败。";
-            return;
-        }
-
-        LauncherConfig.SaveGameDirectory(path);
-        ReloadFolders();
-        await GameInstanceStore.RefreshAsync(path);
     }
 
     private async void OnFolderSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -131,7 +102,7 @@ public partial class VersionManagerPage : UserControl
             _instanceVisualCancellation?.Cancel();
             _detailsCancellation?.Cancel();
             ShowEmptyDetails();
-            StatusText.Text = "正在扫描版本文件夹…";
+            StatusText.Text = string.Empty;
             return;
         }
         if (!string.IsNullOrWhiteSpace(snapshot.ErrorMessage))
@@ -246,7 +217,8 @@ public partial class VersionManagerPage : UserControl
         DetailsSubtitleText.Text =
             $"Minecraft {details.BaseGameVersion} · {loaderDisplay} · " +
                                    (details.IsIsolated ? "版本隔离" : "共享目录");
-        DetailsIconGlyphText.Text = details.InstanceIconGlyph;
+        // 实例回退字形："material:Kind" 渲染为 Material 图标，其余回退文字（原字号 23）
+        DetailsIconGlyph.Content = FeatureIconFactory.CreateGlyph(details.InstanceIconGlyph, 23);
         DetailsIconImage.SourceUrl = details.InstanceIconPath;
         VersionIdText.Text = details.VersionId;
         BaseGameVersionText.Text = details.BaseGameVersion;
@@ -277,6 +249,7 @@ public partial class VersionManagerPage : UserControl
         ShadersList.ItemsSource = details.Shaders;
         SavesSummaryText.Text = $"{details.Saves.Count} 个游戏存档";
         SavesList.ItemsSource = details.Saves;
+        SyncIconComboSelection(snapshot, details.VersionId);
     }
 
     private void ShowEmptyDetails()
@@ -300,10 +273,32 @@ public partial class VersionManagerPage : UserControl
         await LoadDetailsAsync(snapshot, versionId);
     }
 
+    /// <summary>存档操作（导出/删除/备份）完成后：显示状态并刷新列表。</summary>
+    private async void OnSaveChanged(object? sender, RoutedEventArgs e)
+    {
+        if (sender is SaveEntryItem item && item.PendingOperationStatus is { } status)
+            StatusText.Text = status;
+
+        var snapshot = GameInstanceStore.Current;
+        var versionId = _currentDetails?.VersionId
+                        ?? snapshot.SelectedVersionId;
+        if (snapshot.IsLoading ||
+            snapshot.ErrorMessage is not null ||
+            string.IsNullOrWhiteSpace(versionId) ||
+            string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory))
+        {
+            return;
+        }
+        await LoadDetailsAsync(snapshot, versionId);
+    }
+
     private async void OnSaveSettingsClick(object? sender, RoutedEventArgs e)
     {
         var snapshot = GameInstanceStore.Current;
-        if (_currentDetails is null)
+        // 捕获到局部变量：await 期间 RefreshAsync 的 loading 事件会把 _currentDetails 置 null，
+        // 继续引用字段会 NullReferenceException（async void 未捕获异常会直接崩溃）。
+        var details = _currentDetails;
+        if (details is null)
         {
             return;
         }
@@ -317,37 +312,7 @@ public partial class VersionManagerPage : UserControl
         var minimumMemory = (int)MinimumMemorySlider.Value;
         var maximumMemory = (int)MaximumMemorySlider.Value;
 
-        var requestedVersionId = VersionNameBox.Text?.Trim() ?? string.Empty;
-        var versionId = _currentDetails.VersionId;
-        if (_currentDetails.IsExternallyManaged &&
-            !string.Equals(versionId, requestedVersionId, StringComparison.Ordinal))
-        {
-            StatusText.Text = "外部启动器实例的物理重命名需要由原启动器完成。";
-            return;
-        }
-        if (!string.Equals(versionId, requestedVersionId, StringComparison.Ordinal))
-        {
-            StatusText.Text = $"正在将 {versionId} 重命名为 {requestedVersionId}…";
-            try
-            {
-                var oldVersionDirectory = _currentDetails.VersionDirectory;
-                versionId = await GameVersionRenameService.RenameAsync(
-                    snapshot.MinecraftDirectory,
-                    versionId,
-                    requestedVersionId);
-                var sourcePath = PathUtil.PathsEqual(snapshot.SourcePath, oldVersionDirectory)
-                    ? Path.Combine(snapshot.MinecraftDirectory, "versions", versionId)
-                    : snapshot.SourcePath;
-                await GameInstanceStore.RefreshAsync(sourcePath);
-                GameInstanceStore.Select(versionId);
-                snapshot = GameInstanceStore.Current;
-            }
-            catch (Exception exception)
-            {
-                StatusText.Text = $"版本重命名失败：{exception.Message}";
-                return;
-            }
-        }
+        var versionId = details.VersionId;
 
         var profile = new GameVersionProfile
         {
@@ -357,7 +322,7 @@ public partial class VersionManagerPage : UserControl
             MaximumMemoryMb = maximumMemory,
             WindowWidth = _draftWindowWidth,
             WindowHeight = _draftWindowHeight,
-            IsVersionIsolationEnabled = _currentDetails.IsExternallyManaged
+            IsVersionIsolationEnabled = details.IsExternallyManaged
                 ? null
                 : VersionIsolationCheckBox.IsChecked == true,
             UseIndependentMemorySettings = IndependentMemoryCheckBox.IsChecked == true,
@@ -432,20 +397,239 @@ public partial class VersionManagerPage : UserControl
     }
 
     // ------------------------------------------------------------------
-    // 右键菜单公共接口（由 InstanceListItem 调用）
+    // 「编辑实例」标签页：重命名 / 导出（占位） / 删除
     // ------------------------------------------------------------------
 
-    /// <summary>选中指定版本并将焦点移到名称输入框（触发重命名）。</summary>
-    public void RequestRename(string versionId)
+    /// <summary>按「编辑实例」标签页中的名称输入框重命名当前实例。</summary>
+    private async void OnRenameInstanceClick(object? sender, RoutedEventArgs e)
     {
-        GameInstanceStore.Select(versionId);
-        _ = LoadDetailsAsync(GameInstanceStore.Current, versionId);
-        VersionNameBox.Focus();
-        StatusText.Text = "修改上方名称后点击保存即可重命名。";
+        var snapshot = GameInstanceStore.Current;
+        // 捕获局部变量：await 期间刷新事件可能把 _currentDetails 置 null
+        var details = _currentDetails;
+        if (details is null)
+            return;
+
+        var versionId = details.VersionId;
+        var requestedVersionId = VersionNameBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(requestedVersionId))
+        {
+            NyaAlert.Warning("实例名称不能为空。");
+            return;
+        }
+        if (string.Equals(versionId, requestedVersionId, StringComparison.Ordinal))
+        {
+            StatusText.Text = "名称未发生变化。";
+            return;
+        }
+        if (details.IsExternallyManaged)
+        {
+            NyaAlert.Warning("外部启动器实例的物理重命名需要由原启动器完成。");
+            return;
+        }
+
+        StatusText.Text = $"正在将 {versionId} 重命名为 {requestedVersionId}…";
+        try
+        {
+            var newVersionId = await GameVersionRenameService.RenameAsync(
+                snapshot.MinecraftDirectory,
+                versionId,
+                requestedVersionId);
+            var sourcePath = PathUtil.PathsEqual(snapshot.SourcePath, details.VersionDirectory)
+                ? Path.Combine(snapshot.MinecraftDirectory, "versions", newVersionId)
+                : snapshot.SourcePath;
+            await GameInstanceStore.RefreshAsync(sourcePath);
+            GameInstanceStore.Select(newVersionId);
+            NyaAlert.Success($"已将 {versionId} 重命名为 {newVersionId}。");
+        }
+        catch (Exception exception)
+        {
+            NyaAlert.Error($"实例重命名失败：{exception.Message}");
+        }
     }
 
+    /// <summary>删除当前选中的实例（内部弹出确认对话框）。</summary>
+    private void OnDeleteInstanceClick(object? sender, RoutedEventArgs e)
+    {
+        var versionId = GameInstanceStore.Current.SelectedVersionId;
+        if (string.IsNullOrWhiteSpace(versionId))
+        {
+            StatusText.Text = "当前没有选中的实例。";
+            return;
+        }
+        RequestDelete(versionId);
+    }
+
+    /// <summary>图标选择下拉框选中项发生变化。</summary>
+    private async void OnInstanceIconComboChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingIconCombo)
+            return;
+
+        var versionId = _currentDetails?.VersionId;
+        var snapshot = GameInstanceStore.Current;
+        if (string.IsNullOrWhiteSpace(versionId) ||
+            string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory))
+            return;
+
+        if (InstanceIconCombo.SelectedItem is not IconChoice choice)
+            return;
+
+        if (choice == CustomIconEntry)
+        {
+            await SetCustomIconAsync(snapshot, versionId);
+        }
+        else
+        {
+            // 内置图标：将偏好持久化为 "gameicon:{key}"；null 表示跟随加载器自动
+            var overrideValue = choice.Key is null ? null : $"gameicon:{choice.Key}";
+            GameVersionProfileStore.SaveInstanceIconOverride(
+                snapshot.MinecraftDirectory, versionId, overrideValue);
+            if (choice.Key is null)
+                NyaAlert.Info($"{versionId} 将跟随加载器自动选择图标。");
+            else
+                NyaAlert.Success($"{versionId} 已使用内置图标：{choice.Label}。");
+            if (choice.Key is null)
+                CustomInstanceIconStore.Remove(snapshot.MinecraftDirectory, versionId);
+            ApplyIconOverrideToDetails(choice);
+            RefreshInstancesView();
+            SyncIconComboSelection(snapshot, versionId);
+        }
+    }
+
+    /// <summary>把新选的内置图标即时应用到当前详情标题左侧大图标。</summary>
+    private void ApplyIconOverrideToDetails(IconChoice choice)
+    {
+        if (choice.Key is null)
+            return;
+        if (DetailsIconImage is not null)
+        {
+            DetailsIconImage.SourceUrl = $"gameicon:{choice.Key}";
+            DetailsIconImage.InvalidateVisual();
+        }
+    }
+
+    /// <summary>「恢复默认」按钮：清除图标偏好并刷新。</summary>
+    private void OnClearInstanceIconClick(object? sender, RoutedEventArgs e)
+    {
+        var versionId = _currentDetails?.VersionId;
+        var snapshot = GameInstanceStore.Current;
+        if (string.IsNullOrWhiteSpace(versionId) ||
+            string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory))
+            return;
+
+        GameVersionProfileStore.SaveInstanceIconOverride(
+            snapshot.MinecraftDirectory, versionId, null);
+        CustomInstanceIconStore.Remove(snapshot.MinecraftDirectory, versionId);
+        NyaAlert.Info($"{versionId} 已恢复为跟随加载器自动图标。");
+        if (DetailsIconImage is not null)
+            DetailsIconImage.SourceUrl = null;
+        RefreshInstancesView();
+        SyncIconComboSelection(snapshot, versionId);
+    }
+
+    /// <summary>为指定版本打开文件选择器并设置自定义图标。</summary>
+    private async Task SetCustomIconAsync(GameInstanceSnapshot snapshot, string versionId)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider is null)
+            return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"选择 {versionId} 的自定义图标",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("图片")
+                {
+                    Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp", "*.gif"]
+                }
+            ]
+        });
+        if (files.Count == 0)
+        {
+            // 取消选择：恢复下拉框到实际图标来源
+            SyncIconComboSelection(snapshot, versionId);
+            return;
+        }
+        if (files[0].TryGetLocalPath() is not { } localPath)
+        {
+            SyncIconComboSelection(snapshot, versionId);
+            return;
+        }
+
+        var saved = CustomInstanceIconStore.Set(snapshot.MinecraftDirectory, versionId, localPath);
+        if (saved is null)
+        {
+            NyaAlert.Error("图标设置失败：仅支持 png/jpg/webp/bmp/gif，且不超过 8MB。");
+            return;
+        }
+
+        // 自定义图标偏好用 "custom" 标记优先读取
+        GameVersionProfileStore.SaveInstanceIconOverride(
+            snapshot.MinecraftDirectory, versionId, "custom");
+        NyaAlert.Success($"已设置 {versionId} 的自定义图标。");
+        RefreshInstancesView();
+        SyncIconComboSelection(snapshot, versionId);
+    }
+
+    /// <summary>依据当前实例的图标偏好，同步下拉框选中项。</summary>
+    private void SyncIconComboSelection(GameInstanceSnapshot snapshot, string versionId)
+    {
+        _synchronizingIconCombo = true;
+        try
+        {
+            var overrideValue = GameVersionProfileStore.GetInstanceIconOverride(
+                snapshot.MinecraftDirectory, versionId);
+            IconChoice? selected = null;
+            if (string.Equals(overrideValue, "custom", StringComparison.Ordinal))
+            {
+                selected = CustomIconEntry;
+            }
+            else if (overrideValue is { Length: > 0 } &&
+                     overrideValue.StartsWith("gameicon:", StringComparison.Ordinal))
+            {
+                var key = overrideValue["gameicon:".Length..];
+                selected = _iconChoices.FirstOrDefault(c => string.Equals(c.Key, key, StringComparison.Ordinal));
+            }
+            InstanceIconCombo.SelectedItem = selected ?? AutoIconEntry;
+        }
+        finally
+        {
+            _synchronizingIconCombo = false;
+        }
+    }
+
+    /// <summary>重建实例列表并异步补全图标（设置/清除图标后调用）。</summary>
+    private void RefreshInstancesView()
+    {
+        var snapshot = GameInstanceStore.Current;
+        if (snapshot.IsLoading || snapshot.ErrorMessage is not null)
+            return;
+        OnInstancesChanged(snapshot);
+    }
+
+    /// <summary>图标下拉框选项；Key 为内置 GameIcons 键（null 表示跟随加载器自动）。</summary>
+    private sealed record IconChoice(string? Key, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    private static readonly IconChoice AutoIconEntry = new(null, "跟随加载器自动");
+    private static readonly IconChoice CustomIconEntry = new("custom", "自定义图标…");
+    private static readonly IReadOnlyList<IconChoice> _iconChoices =
+    [
+        AutoIconEntry,
+        new IconChoice("vanilla", "原版（草方块）"),
+        new IconChoice("forge", "Forge"),
+        new IconChoice("neoforge", "NeoForge"),
+        new IconChoice("fabric", "Fabric"),
+        new IconChoice("command_block", "通用（命令方块）"),
+        CustomIconEntry
+    ];
+
     /// <summary>删除指定版本（含确认对话框）。自动清理孤立的依赖版本。</summary>
-    public async void RequestDelete(string versionId)
+    private async void RequestDelete(string versionId)
     {
         var snapshot = GameInstanceStore.Current;
         if (string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory)) return;
@@ -455,66 +639,31 @@ public partial class VersionManagerPage : UserControl
                 snapshot.SourcePath, out var external) &&
             string.Equals(external.InstanceId, versionId, StringComparison.OrdinalIgnoreCase))
         {
-            StatusText.Text = "外部启动器实例请通过原启动器删除。";
+            NyaAlert.Warning("外部启动器实例请通过原启动器删除。");
             return;
         }
 
         var versionDir = Path.Combine(snapshot.MinecraftDirectory, "versions", versionId);
         if (!Directory.Exists(versionDir))
         {
-            StatusText.Text = $"版本目录不存在：{versionDir}";
+            NyaAlert.Error($"版本目录不存在：{versionDir}");
             return;
         }
 
         // 读取 inheritsFrom，用于后续清理孤立依赖
         var parentId = ReadInheritsFrom(snapshot.MinecraftDirectory, versionId);
 
-        // 确认对话框
-        var dialog = new Window
-        {
-            Title = "删除实例",
-            Width = 400,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            ShowInTaskbar = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-        var stack = new StackPanel { Spacing = 12, Margin = new Thickness(24) };
-        stack.Children.Add(new TextBlock
-        {
-            Text = $"确定删除实例 {versionId}？",
-            FontSize = 16,
-            FontWeight = FontWeight.SemiBold
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = parentId is not null
-                ? $"此操作将永久删除该版本及其依赖版本 {parentId} 的所有文件，且无法恢复。"
-                : "此操作将永久删除该版本的所有文件（包括存档、Mod、资源包等），且无法恢复。",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Foreground = Brushes.Gray
-        });
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        var cancelBtn = new Button { Content = "取消", Padding = new Thickness(18, 8) };
-        cancelBtn.Click += (_, _) => dialog.Close(false);
-        var deleteBtn = new Button
-        {
-            Content = "删除",
-            Padding = new Thickness(18, 8),
-            Background = Brushes.Red,
-            Foreground = Brushes.White
-        };
-        deleteBtn.Click += (_, _) => dialog.Close(true);
-        buttons.Children.Add(cancelBtn);
-        buttons.Children.Add(deleteBtn);
-        stack.Children.Add(buttons);
-        dialog.Content = stack;
-
-        var owner = TopLevel.GetTopLevel(this) as Window;
-        if (owner is null) return;
-        var result = await dialog.ShowDialog<bool>(owner);
-        if (!result) return;
+        // 确认对话框（NyaPrompt 遮罩提示框）
+        var message = parentId is not null
+            ? $"此操作将永久删除实例 {versionId} 及其依赖版本 {parentId} 的所有文件，且无法恢复。"
+            : $"此操作将永久删除实例 {versionId} 的所有文件（包括存档、Mod、资源包等），且无法恢复。";
+        var confirmed = await NyaPrompt.ConfirmAsync(
+            "删除实例",
+            message,
+            confirm: "删除",
+            cancel: "取消",
+            NyaNoticeSeverity.Error);
+        if (!confirmed) return;
 
         try
         {
@@ -527,23 +676,23 @@ public partial class VersionManagerPage : UserControl
                 if (Directory.Exists(parentDir) && IsOrphanedDependency(snapshot.MinecraftDirectory, parentId))
                 {
                     Directory.Delete(parentDir, recursive: true);
-                    StatusText.Text = $"已删除实例 {versionId} 及孤立依赖 {parentId}。";
+                    NyaAlert.Success($"已删除实例 {versionId} 及孤立依赖 {parentId}。");
                 }
                 else
                 {
-                    StatusText.Text = $"已删除实例 {versionId}。";
+                    NyaAlert.Success($"已删除实例 {versionId}。");
                 }
             }
             else
             {
-                StatusText.Text = $"已删除实例 {versionId}。";
+                NyaAlert.Success($"已删除实例 {versionId}。");
             }
 
             await GameInstanceStore.RefreshAsync(snapshot.SourcePath);
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"删除失败：{ex.Message}";
+            NyaAlert.Error($"删除失败：{ex.Message}");
         }
     }
 
@@ -816,7 +965,7 @@ public partial class VersionManagerPage : UserControl
                 ? $"版本隔离 · {layout.Provider} · {Path.GetFileName(layout.ContentDirectory)}"
                 : $"共享 Minecraft 游戏目录 · {layout.Provider}",
             null,
-            "▦");
+            "material:Apps");
     }
 
     private async Task EnrichInstanceVisualsAsync(

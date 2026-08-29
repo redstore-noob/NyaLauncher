@@ -21,12 +21,26 @@ public interface IJavaRuntimeLocator
         string? configuredPath = null,
         int? requiredMajorVersion = null,
         string? runtimeDirectory = null);
+
+    /// <summary>
+    /// 在不进行"最低版本"回退的前提下，查找主版本精确匹配 <paramref name="requiredMajorVersion"/> 的 Java。
+    /// 找不到时返回 null（不抛异常），供调用方决定是否自动下载所需 Java。
+    /// 显式配置的精确匹配优先于自动探测的精确匹配。
+    /// </summary>
+    string? FindExactMatchJava(
+        string? configuredPath,
+        int requiredMajorVersion,
+        string? runtimeDirectory = null);
 }
 
 /// <summary>
 /// 默认的 Java 运行时定位器实现。
 /// 按优先级依次从"显式配置、NYALAUNCHER_JAVA、Minecraft runtime、JAVA_HOME、PATH"寻找 java，
-/// 在要求最低版本时通过执行 <c>java -version</c> 校验版本，并优先选择显式配置、其次选择最接近最低要求的版本。
+/// 在要求版本时通过执行 <c>java -version</c> 探测版本，并按以下优先级选择：
+/// 1) 主版本精确匹配 requiredMajorVersion（避免用 Java 25 启动要求 Java 17 的旧加载器，
+///    如 Forge 1.20.x 在 Java 21+ 上会因 JPMS 模块冲突崩溃）；
+/// 2) 显式配置且 ≥ 最低要求；
+/// 3) 自动探测中最低且 ≥ 最低要求。
 /// </summary>
 public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
 {
@@ -43,7 +57,151 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
         int? requiredMajorVersion = null,
         string? runtimeDirectory = null)
     {
-        // 收集所有候选 java 路径；IsPreferred 表示该来源是否为"显式配置"（优先返回）
+        var candidates = BuildCandidates(configuredPath, runtimeDirectory);
+
+        var required = requiredMajorVersion;
+        var discoveredVersions = new List<int>();
+        // (Path, MajorVersion, Index, IsPreferred)
+        var probed = new List<(string Path, int MajorVersion, int Index, bool IsPreferred)>();
+        var visitedPaths = new HashSet<string>(PathUtil.PathComparer);
+        for (var index = 0; index < candidates.Count; index++)
+        {
+            var candidate = candidates[index];
+            if (string.IsNullOrWhiteSpace(candidate.Path))
+                continue;
+
+            // 展开环境变量（%VAR%/$VAR），去重（同一路径只处理一次），并确认文件存在
+            var expandedPath = Environment.ExpandEnvironmentVariables(candidate.Path);
+            if (!visitedPaths.Add(expandedPath) || !File.Exists(expandedPath))
+                continue;
+
+            var fullPath = Path.GetFullPath(expandedPath);
+
+            // 不要求特定版本时，直接返回第一个找到的 java
+            if (required is null)
+                return fullPath;
+
+            // 要求版本时，执行 java -version 探测实际主版本
+            var detectedVersion = TryGetJavaMajorVersion(fullPath);
+            if (detectedVersion is int majorVersion)
+            {
+                discoveredVersions.Add(majorVersion);
+                probed.Add((fullPath, majorVersion, index, candidate.IsPreferred));
+            }
+        }
+
+        if (probed.Count == 0)
+        {
+            var requirement = required is int rv
+                ? $"该 Minecraft 版本至少需要 Java {rv}。"
+                : string.Empty;
+            throw new MinecraftLaunchException(
+                $"{requirement}未找到可用的 Java 运行时。请在启动器下载页安装 Java，或配置 JAVA_HOME / NYALAUNCHER_JAVA。");
+        }
+
+        if (required is not int requiredVersion)
+            return probed[0].Path; // 理论不可达（required 为 null 时已在循环内返回）
+
+        // 优先：主版本精确匹配——避免用 Java 25 启动要求 Java 17 的旧版本/加载器
+        // （如 Forge 1.20.x 在 Java 21+ 上会因 JPMS 模块冲突崩溃）。
+        // 精确匹配中显式配置优先，其次来源顺序。
+        var exact = probed
+            .Where(c => c.MajorVersion == requiredVersion)
+            .OrderBy(c => c.IsPreferred ? 0 : 1)
+            .ThenBy(c => c.Index)
+            .ToList();
+        if (exact.Count > 0)
+            return exact[0].Path;
+
+        // 次选：显式配置且 ≥ 最低要求（尊重用户指定，只要不低于最低版本）
+        var preferredCompatible = probed
+            .Where(c => c.IsPreferred && c.MajorVersion >= requiredVersion)
+            .OrderBy(c => c.Index)
+            .ToList();
+        if (preferredCompatible.Count > 0)
+            return preferredCompatible[0].Path;
+
+        // 再次：自动探测中最低且 ≥ 最低要求（最接近最低要求）
+        var autoCompatible = probed
+            .Where(c => c.MajorVersion >= requiredVersion)
+            .OrderBy(c => c.MajorVersion)
+            .ThenBy(c => c.Index)
+            .ToList();
+        if (autoCompatible.Count > 0)
+            return autoCompatible[0].Path;
+
+        // 全部低于最低要求
+        throw new MinecraftLaunchException(
+            $"该 Minecraft 版本至少需要 Java {requiredVersion}。" +
+            $" 已检测到 Java {string.Join("、", discoveredVersions.Distinct().Order())}。" +
+            " 请在启动器下载页安装兼容的 Java 运行时，或配置 JAVA_HOME / NYALAUNCHER_JAVA。");
+    }
+
+    /// <inheritdoc />
+    public string? FindExactMatchJava(
+        string? configuredPath,
+        int requiredMajorVersion,
+        string? runtimeDirectory = null)
+    {
+        var candidates = BuildCandidates(configuredPath, runtimeDirectory);
+        var visitedPaths = new HashSet<string>(PathUtil.PathComparer);
+        string? preferredExact = null;
+
+        for (var index = 0; index < candidates.Count; index++)
+        {
+            var candidate = candidates[index];
+            if (string.IsNullOrWhiteSpace(candidate.Path))
+                continue;
+
+            var expandedPath = Environment.ExpandEnvironmentVariables(candidate.Path);
+            if (!visitedPaths.Add(expandedPath) || !File.Exists(expandedPath))
+                continue;
+
+            var fullPath = Path.GetFullPath(expandedPath);
+            if (TryGetJavaMajorVersion(fullPath) is int major &&
+                major == requiredMajorVersion)
+            {
+                // 显式配置的精确匹配优先返回；否则记录第一个自动探测的精确匹配
+                if (candidate.IsPreferred)
+                    return fullPath;
+                preferredExact ??= fullPath;
+            }
+        }
+
+        return preferredExact;
+    }
+
+    /// <summary>
+    /// 列出所有可用的 Java 可执行文件路径（去重、存在性过滤），
+    /// 供设置页「自动检索」一次性全部加入管理列表。
+    /// </summary>
+    public IReadOnlyList<string> FindAllJavaExecutables(string? runtimeDirectory = null)
+    {
+        var candidates = BuildCandidates(configuredPath: null, runtimeDirectory);
+        var results = new List<string>();
+        var visitedPaths = new HashSet<string>(PathUtil.PathComparer);
+
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate.Path))
+                continue;
+
+            var expandedPath = Environment.ExpandEnvironmentVariables(candidate.Path);
+            if (!visitedPaths.Add(expandedPath) || !File.Exists(expandedPath))
+                continue;
+
+            results.Add(Path.GetFullPath(expandedPath));
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 收集所有候选 java 路径；IsPreferred 表示该来源是否为"显式配置"（优先返回）。
+    /// </summary>
+    private List<(string? Path, bool IsPreferred)> BuildCandidates(
+        string? configuredPath, string? runtimeDirectory)
+    {
         var candidates = new List<(string? Path, bool IsPreferred)>();
 
         // 1. 用户显式指定的路径（来自启动选项 JavaExecutable）
@@ -79,62 +237,7 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
                     ((string?)Path.Combine(directory.Trim().Trim('"'), GetExecutableName()), false)));
         }
 
-        var discoveredVersions = new List<int>();
-        var compatibleCandidates = new List<(string Path, int MajorVersion, int Index)>();
-        var visitedPaths = new HashSet<string>(PathUtil.PathComparer);
-        for (var index = 0; index < candidates.Count; index++)
-        {
-            var candidate = candidates[index];
-            if (string.IsNullOrWhiteSpace(candidate.Path))
-                continue;
-
-            // 展开环境变量（%VAR%/$VAR），去重（同一路径只处理一次），并确认文件存在
-            var expandedPath = Environment.ExpandEnvironmentVariables(candidate.Path);
-            if (!visitedPaths.Add(expandedPath) || !File.Exists(expandedPath))
-                continue;
-
-            var fullPath = Path.GetFullPath(expandedPath);
-
-            // 不要求特定版本时，直接返回第一个找到的 java
-            if (requiredMajorVersion is null)
-                return fullPath;
-
-            // 要求最低版本时，执行 java -version 探测实际主版本
-            var detectedVersion = TryGetJavaMajorVersion(fullPath);
-            if (detectedVersion is int majorVersion)
-            {
-                discoveredVersions.Add(majorVersion);
-                // 版本低于最低要求则跳过
-                if (majorVersion < requiredMajorVersion)
-                    continue;
-
-                // 显式配置优先；自动探测则在扫描完成后选择最接近最低要求的版本。
-                if (candidate.IsPreferred)
-                    return fullPath;
-
-                compatibleCandidates.Add((fullPath, majorVersion, index));
-            }
-        }
-
-        // 在自动探测的候选中，选择"版本最低但满足要求"（最接近最低要求）且来源顺序靠前的
-        if (compatibleCandidates.Count > 0)
-        {
-            return compatibleCandidates
-                .OrderBy(candidate => candidate.MajorVersion)
-                .ThenBy(candidate => candidate.Index)
-                .First()
-                .Path;
-        }
-
-        // 全部不满足：构造包含需求与已检测版本信息的错误提示
-        var requirement = requiredMajorVersion is int required
-            ? $"该 Minecraft 版本至少需要 Java {required}。"
-            : string.Empty;
-        var discovered = discoveredVersions.Count > 0
-            ? $" 已检测到 Java {string.Join("、", discoveredVersions.Distinct().Order())}。"
-            : string.Empty;
-        throw new MinecraftLaunchException(
-            $"{requirement}{discovered} 请配置兼容版本的 JAVA_HOME、NYALAUNCHER_JAVA 或 runtime 目录。");
+        return candidates;
     }
 
     /// <summary>
@@ -173,9 +276,17 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
     }
 
     /// <summary>
+    /// 探测指定 java 可执行文件的主版本号；无法执行或解析失败时返回 null。
+    /// 供设置页等 UI 在添加 Java 路径时即时识别版本。
+    /// </summary>
+    public static int? TryDetectMajorVersion(string javaExecutable) =>
+        TryGetJavaMajorVersion(javaExecutable);
+
+    /// <summary>
     /// 执行 <c>java -version</c> 探测 Java 的主版本号。
     /// 兼容新旧两种版本号格式：新式 "21.0.1" 直接取主版本 21；
     /// 旧式 "1.8.0_202" 的主版本为 1、次版本为 8，需要返回次版本 8 作为实际主版本。
+    /// 先等待退出（3 秒超时）再读流，避免同步 ReadToEnd 在 JVM 挂起时无限阻塞。
     /// 探测失败（进程无法启动、超时、输出无法解析）时返回 null，不影响整体查找流程。
     /// </summary>
     private static int? TryGetJavaMajorVersion(string javaExecutable)
@@ -196,16 +307,15 @@ public sealed class JavaRuntimeLocator : IJavaRuntimeLocator
             if (process is null)
                 return null;
 
-            // java -version 通常输出到标准错误，但为兼容不同 JVM 实现，两者都读取
-            var standardError = process.StandardError.ReadToEnd();
-            var standardOutput = process.StandardOutput.ReadToEnd();
-
-            // 超时 3 秒仍未退出则强制结束并视为探测失败
+            // 先等待退出（超时则强杀），再读取输出，杜绝 ReadToEnd 永久阻塞
             if (!process.WaitForExit(3000))
             {
                 process.Kill(entireProcessTree: true);
                 return null;
             }
+
+            var standardError = process.StandardError.ReadToEnd();
+            var standardOutput = process.StandardOutput.ReadToEnd();
 
             var match = JavaVersionPattern.Match($"{standardError}\n{standardOutput}");
             if (!match.Success ||

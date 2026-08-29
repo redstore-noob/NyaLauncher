@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="NyaLauncher.Avalonia.Controls.OverlayHeader">
+  <!-- 共享标题栏：图标（GlyphText 优先，其次 IconUrl 图片，最后 MaterialIcon）+ 标题/副标题 + 关闭按钮 -->
+  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+    <Border Width="44" Height="44" CornerRadius="10"
+            Background="{DynamicResource BadgeBgBrush}"
+            ClipToBounds="True">
+      <Grid>
+        <TextBlock x:Name="GlyphTextBlock" FontSize="20"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   IsVisible="False" />
+        <controls:AsyncImage x:Name="ProjectIcon" Width="44" Height="44"
+                             Stretch="UniformToFill" IsVisible="False" />
+        <mi:MaterialIcon x:Name="TypeGlyph" Kind="PackageVariantClosed" Width="20" Height="20"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         Foreground="{DynamicResource PrimaryTextBrush}" />
+      </Grid>
+    </Border>
+    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+      <TextBlock x:Name="TitleText"
+                 FontSize="16" FontWeight="Bold"
+                 Foreground="{DynamicResource PrimaryTextBrush}"
+                 TextTrimming="CharacterEllipsis" />
+      <TextBlock x:Name="SubtitleText"
+                 FontSize="11"
+                 Foreground="{DynamicResource HintTextBrush}"
+                 TextTrimming="CharacterEllipsis" MaxLines="1" />
+      <TextBlock x:Name="ExtraLine"
+                 FontSize="11"
+                 Foreground="{DynamicResource MutedTextBrush}"
+                 IsVisible="False" />
+    </StackPanel>
+    <Button x:Name="CloseButton"
+            Grid.Column="2"
+            Width="30" Height="30" Padding="0"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center"
+            CornerRadius="15"
+            Background="{DynamicResource ButtonBgBrush}"
+            BorderThickness="0"
+            VerticalAlignment="Center"
+            Cursor="Hand"
+            Click="OnCloseClick">
+      <mi:MaterialIcon Kind="Close" Width="14" Height="14"
+                       Foreground="{DynamicResource SubtextTextBrush}" />
+    </Button>
+  </Grid>
+</UserControl>

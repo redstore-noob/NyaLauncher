@@ -10,6 +10,7 @@ public sealed class MusicLibrary
     private const string FolderKey = "musicFolder";
     private const string SortKey = "musicSortMode";
     private const string VolumeKey = "musicVolume";
+    private const string PlaybackModeKey = "musicPlaybackMode";
 
     private readonly object _gate = new();
     private List<MusicTrack> _tracks = [];
@@ -52,6 +53,17 @@ public sealed class MusicLibrary
             return int.TryParse(val, out var v) ? Math.Clamp(v, 0, 100) : 80;
         }
         set => LauncherConfig.SetValue(VolumeKey, Math.Clamp(value, 0, 100).ToString());
+    }
+
+    /// <summary>播放模式（顺序 / 列表循环 / 单曲循环 / 随机）。</summary>
+    public PlaybackMode PlaybackMode
+    {
+        get
+        {
+            var val = LauncherConfig.GetValue(PlaybackModeKey);
+            return Enum.TryParse<PlaybackMode>(val, out var mode) ? mode : PlaybackMode.Sequential;
+        }
+        set => LauncherConfig.SetValue(PlaybackModeKey, value.ToString());
     }
 
     /// <summary>

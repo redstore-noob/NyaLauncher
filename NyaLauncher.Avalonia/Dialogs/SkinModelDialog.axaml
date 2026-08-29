@@ -6,25 +6,25 @@
         SizeToContent="Height"
         CanResize="False"
         ShowInTaskbar="False"
-        Background="{StaticResource BaseBgBrush}"
+        Background="{DynamicResource BaseBgBrush}"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,Auto,Auto" Margin="26">
     <StackPanel Spacing="9">
       <TextBlock Text="选择手臂模型"
                  FontSize="21"
                  FontWeight="Bold"
-                 Foreground="{StaticResource PrimaryTextBrush}" />
+                 Foreground="{DynamicResource PrimaryTextBrush}" />
       <TextBlock Text="模型只决定手臂宽度，不会修改皮肤文件。"
                  FontSize="12"
-                 Foreground="{StaticResource MutedTextBrush}" />
+                 Foreground="{DynamicResource MutedTextBrush}" />
     </StackPanel>
 
     <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12" Margin="0,20">
       <Button Grid.Column="0"
               Padding="18,16"
               HorizontalContentAlignment="Left"
-              Background="{StaticResource ButtonBgBrush}"
-              BorderBrush="{StaticResource EmphasizedBorderBrush}"
+              Background="{DynamicResource ButtonBgBrush}"
+              BorderBrush="{DynamicResource EmphasizedBorderBrush}"
               BorderThickness="1"
               Click="OnClassicClick">
         <StackPanel Spacing="5">
@@ -33,14 +33,14 @@
                      FontWeight="Bold" />
           <TextBlock Text="Classic / 4 像素手臂"
                      FontSize="11"
-                     Foreground="{StaticResource MutedTextBrush}" />
+                     Foreground="{DynamicResource MutedTextBrush}" />
         </StackPanel>
       </Button>
       <Button Grid.Column="1"
               Padding="18,16"
               HorizontalContentAlignment="Left"
-              Background="{StaticResource ButtonBgBrush}"
-              BorderBrush="{StaticResource EmphasizedBorderBrush}"
+              Background="{DynamicResource ButtonBgBrush}"
+              BorderBrush="{DynamicResource EmphasizedBorderBrush}"
               BorderThickness="1"
               Click="OnSlimClick">
         <StackPanel Spacing="5">
@@ -49,7 +49,7 @@
                      FontWeight="Bold" />
           <TextBlock Text="Slim / 3 像素手臂"
                      FontSize="11"
-                     Foreground="{StaticResource MutedTextBrush}" />
+                     Foreground="{DynamicResource MutedTextBrush}" />
         </StackPanel>
       </Button>
     </Grid>

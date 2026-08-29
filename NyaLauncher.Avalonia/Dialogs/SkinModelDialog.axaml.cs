@@ -2,6 +2,8 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using NyaLauncher.Avalonia.Framework;
 
+using NyaLauncher.Avalonia.Animations.Helpers;
+
 namespace NyaLauncher.Avalonia.Dialogs;
 
 public partial class SkinModelDialog : Window
@@ -12,11 +14,11 @@ public partial class SkinModelDialog : Window
     }
 
     private void OnClassicClick(object? sender, RoutedEventArgs e) =>
-        Close(MinecraftSkinModel.Classic);
+        OverlayEffects.PopOut(this, () => Close(MinecraftSkinModel.Classic));
 
     private void OnSlimClick(object? sender, RoutedEventArgs e) =>
-        Close(MinecraftSkinModel.Slim);
+        OverlayEffects.PopOut(this, () => Close(MinecraftSkinModel.Slim));
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) =>
-        Close(null);
+        OverlayEffects.PopOut(this, () => Close(null));
 }

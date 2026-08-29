@@ -34,10 +34,18 @@ public sealed class MinecraftVersionInstaller
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(120);
     private static readonly long ProgressIntervalStopwatchTicks =
         (long)(Stopwatch.Frequency * ProgressInterval.TotalSeconds);
-    private static readonly HttpClient HttpClient = new()
+    private static readonly HttpClient HttpClient = CreateHttpClient();
+
+    private static HttpClient CreateHttpClient()
     {
-        Timeout = Timeout.InfiniteTimeSpan
-    };
+        var client = new HttpClient
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        // 部分 CDN/镜像（Cloudflare、BMCLAPI 等）会拒绝缺失 User-Agent 的请求
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("NyaLauncher/1.0");
+        return client;
+    }
 
     public async Task InstallAsync(
         string versionId,
@@ -49,6 +57,7 @@ public sealed class MinecraftVersionInstaller
         ArgumentException.ThrowIfNullOrWhiteSpace(versionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(metadataUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(minecraftDirectory);
+        ValidateVersionId(versionId);
 
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(minecraftDirectory));
         Directory.CreateDirectory(root);
@@ -72,6 +81,7 @@ public sealed class MinecraftVersionInstaller
         IProgress<MinecraftInstallProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        ValidateVersionId(versionId);
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(Path.Combine(root, "versions"));
 
@@ -262,6 +272,34 @@ public sealed class MinecraftVersionInstaller
 
                 if (artifactAdded)
                     continue;
+            }
+
+            // 旧版本（1.7.x 及更早）natives 回退：版本 JSON 无 downloads 字段，
+            // 用 name + classifier 拼出 natives JAR 并下载，否则这些版本永远缺原生库无法启动。
+            if (library.TryGetProperty("natives", out var legacyNatives) &&
+                legacyNatives.TryGetProperty(
+                    MinecraftRuleEvaluator.GetOperatingSystemName(),
+                    out var legacyClassifierElement) &&
+                legacyClassifierElement.ValueKind == JsonValueKind.String)
+            {
+                var architecture = Environment.Is64BitOperatingSystem ? "64" : "32";
+                var nativeClassifier = legacyClassifierElement.GetString()!
+                    .Replace("${arch}", architecture, StringComparison.Ordinal);
+                var nativeName = library.TryGetProperty("name", out var legacyNameElement)
+                    ? legacyNameElement.GetString()
+                    : null;
+                var nativeRelPath = CreateNativeMavenPath(nativeName, nativeClassifier);
+                if (nativeRelPath is not null)
+                {
+                    var nativeBaseUrl = library.TryGetProperty("url", out var legacyUrlElement)
+                        ? legacyUrlElement.GetString() ?? "https://libraries.minecraft.net/"
+                        : "https://libraries.minecraft.net/";
+                    var nativeUrl = $"{nativeBaseUrl.TrimEnd('/')}/{nativeRelPath.Replace('\\', '/')}";
+                    var nativeTarget = ResolveRelativePath(
+                        Path.Combine(minecraftDirectory, "libraries"),
+                        nativeRelPath);
+                    result[nativeTarget] = new DownloadFile(nativeUrl, nativeTarget, null, 0, "原生依赖库");
+                }
             }
 
             if (!library.TryGetProperty("name", out var nameElement))
@@ -459,62 +497,83 @@ public sealed class MinecraftVersionInstaller
             ? new[] { resolvedUrl, fallbackUrl }
             : new[] { resolvedUrl };
 
+        // 每个源最多尝试两次，容忍瞬时网络抖动；全部失败才视为该文件下载失败
         Exception? lastException = null;
         foreach (var url in urls)
         {
-            try
+            for (var attempt = 0; attempt < 2; attempt++)
             {
+                // 整体下载看门狗：10 分钟内未完成则判失败重试，避免连接停滞时无限挂起
+                using var perFileCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                perFileCts.CancelAfter(TimeSpan.FromMinutes(10));
+                var fileCt = perFileCts.Token;
+
+                long attemptBytes = 0;
                 try
                 {
-                    using var request = new HttpRequestMessage(HttpMethod.Get, ValidateHttpsUrl(url));
-                    using var response = await HttpClient.SendAsync(
-                            request,
-                            HttpCompletionOption.ResponseHeadersRead,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                    response.EnsureSuccessStatusCode();
-                    await using var source = await response.Content.ReadAsStreamAsync(cancellationToken)
-                        .ConfigureAwait(false);
-                    await using (var destination = new FileStream(
-                                     temporaryPath,
-                                     FileMode.Create,
-                                     FileAccess.Write,
-                                     FileShare.None,
-                                     BufferSize,
-                                     useAsync: true))
+                    try
                     {
-                        var buffer = new byte[BufferSize];
-                        while (true)
+                        using var request = new HttpRequestMessage(HttpMethod.Get, ValidateHttpsUrl(url));
+                        using var response = await HttpClient.SendAsync(
+                                request,
+                                HttpCompletionOption.ResponseHeadersRead,
+                                fileCt)
+                            .ConfigureAwait(false);
+                        response.EnsureSuccessStatusCode();
+                        await using var source = await response.Content.ReadAsStreamAsync(fileCt)
+                            .ConfigureAwait(false);
+                        await using (var destination = new FileStream(
+                                         temporaryPath,
+                                         FileMode.Create,
+                                         FileAccess.Write,
+                                         FileShare.None,
+                                         BufferSize,
+                                         useAsync: true))
                         {
-                            var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-                            if (read == 0)
-                                break;
-                            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                                .ConfigureAwait(false);
-                            addCompletedBytes(read);
-                            reportProgress();
+                            var buffer = new byte[BufferSize];
+                            while (true)
+                            {
+                                var read = await source.ReadAsync(buffer, fileCt).ConfigureAwait(false);
+                                if (read == 0)
+                                    break;
+                                await destination.WriteAsync(buffer.AsMemory(0, read), fileCt)
+                                    .ConfigureAwait(false);
+                                attemptBytes += read;
+                                addCompletedBytes(read);
+                                reportProgress();
+                            }
                         }
-                    }
 
-                    if (!await MatchesSha1Async(temporaryPath, file.Sha1, cancellationToken)
-                            .ConfigureAwait(false))
+                        if (!await MatchesSha1Async(temporaryPath, file.Sha1, fileCt)
+                                .ConfigureAwait(false))
+                        {
+                            throw new InvalidDataException($"下载文件校验失败：{file.DisplayName}");
+                        }
+                        // 无 sha1 时至少校验字节数与清单声明一致，防止截断文件被当作有效
+                        if (file.Size > 0 && new FileInfo(temporaryPath).Length != file.Size)
+                        {
+                            throw new InvalidDataException($"下载文件大小不匹配：{file.DisplayName}");
+                        }
+
+                        File.Move(temporaryPath, file.TargetPath, overwrite: true);
+                        return 0;
+                    }
+                    catch
                     {
-                        throw new InvalidDataException($"下载文件校验失败：{file.DisplayName}");
+                        // 回滚本次尝试已累计的字节，避免重试导致进度双计
+                        if (attemptBytes > 0)
+                        {
+                            try { addCompletedBytes(-attemptBytes); } catch { }
+                        }
+                        TryDeleteFile(temporaryPath);
+                        throw;
                     }
-
-                    File.Move(temporaryPath, file.TargetPath, overwrite: true);
-                    return 0;
                 }
-                catch
+                catch (Exception ex) when (!fileCt.IsCancellationRequested)
                 {
-                    TryDeleteFile(temporaryPath);
-                    throw;
+                    lastException = ex;
+                    continue;
                 }
-            }
-            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-            {
-                lastException = ex;
-                continue;
             }
         }
 
@@ -633,11 +692,22 @@ public sealed class MinecraftVersionInstaller
         result[target] = CreateDownloadFile(element, target, Path.GetFileName(target) ?? displayName);
     }
 
-    private static string? CreateMavenPath(string? coordinate)
+    internal static string? CreateMavenPath(string? coordinate)
     {
         if (string.IsNullOrWhiteSpace(coordinate))
             return null;
-        var parts = coordinate.Split(':');
+
+        // 支持 @extension 后缀（如 org.lwjgl:lwjgl:3.2.3@jar），与启动端解析保持一致
+        var extension = "jar";
+        var name = coordinate;
+        var extensionSeparator = coordinate.IndexOf('@');
+        if (extensionSeparator >= 0)
+        {
+            extension = coordinate[(extensionSeparator + 1)..];
+            name = coordinate[..extensionSeparator];
+        }
+
+        var parts = name.Split(':');
         if (parts.Length is < 3 or > 4 || parts.Any(string.IsNullOrWhiteSpace))
             return null;
         var groupPath = parts[0].Replace('.', Path.DirectorySeparatorChar);
@@ -646,7 +716,42 @@ public sealed class MinecraftVersionInstaller
             groupPath,
             parts[1],
             parts[2],
-            $"{parts[1]}-{parts[2]}{classifier}.jar");
+            $"{parts[1]}-{parts[2]}{classifier}.{extension}");
+    }
+
+    /// <summary>
+    /// 旧版本（1.7.x 及更早）natives 的 Maven 路径回退：
+    /// 版本 JSON 无 downloads 字段时，用 name + classifier 拼出 natives JAR 的相对路径。
+    /// </summary>
+    private static string? CreateNativeMavenPath(string? coordinate, string classifier)
+    {
+        if (string.IsNullOrWhiteSpace(coordinate) || string.IsNullOrWhiteSpace(classifier))
+            return null;
+        var parts = coordinate.Split(':');
+        if (parts.Length is < 3 or > 4 || parts.Any(string.IsNullOrWhiteSpace))
+            return null;
+        return Path.Combine(
+            parts[0].Replace('.', Path.DirectorySeparatorChar),
+            parts[1],
+            parts[2],
+            $"{parts[1]}-{parts[2]}-{classifier}.jar");
+    }
+
+    /// <summary>
+    /// 校验版本 ID 只能作为 versions/ 下的单个文件夹名使用，
+    /// 拒绝路径分隔符、"." 与 ".."（防止路径穿越导致目录外写入或级联删除）。
+    /// </summary>
+    internal static void ValidateVersionId(string versionId)
+    {
+        if (string.IsNullOrWhiteSpace(versionId))
+            throw new ArgumentException("版本 ID 不能为空。", nameof(versionId));
+        if (versionId is "." or ".." ||
+            versionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            versionId.Contains('/', StringComparison.Ordinal) ||
+            versionId.Contains('\\', StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"版本 ID 包含不安全字符：{versionId}", nameof(versionId));
+        }
     }
 
     /// <summary>
@@ -662,8 +767,20 @@ public sealed class MinecraftVersionInstaller
         if (coordinate.StartsWith("net.neoforged", StringComparison.OrdinalIgnoreCase))
             return "https://maven.neoforged.net/releases/";
 
+        // NeoForge / Forge 重映射客户端（net.minecraft:client:<mc>-<build>:srg）：
+        // 该 SRG 混淆版 client JAR 由 Loader 官方发布在自己的 Maven 上，Mojang 源不存在。
+        // 若推断到 libraries.minecraft.net 会 404，导致 NeoForge 启动报 "installation is corrupted"。
+        if (coordinate.StartsWith("net.minecraft", StringComparison.OrdinalIgnoreCase) &&
+            coordinate.EndsWith(":srg", StringComparison.OrdinalIgnoreCase))
+            return "https://maven.neoforged.net/releases/";
+
         // Forge 系列
         if (coordinate.StartsWith("net.minecraftforge", StringComparison.OrdinalIgnoreCase))
+            return "https://maven.minecraftforge.net/";
+
+        // cpw.mods 系列（modlauncher / securejarhandler / bootstraplauncher 等）：
+        // 旧版在 Forge Maven，新版本随 NeoForge 发布，统一回退 Forge Maven 保证可访问。
+        if (coordinate.StartsWith("cpw.mods", StringComparison.OrdinalIgnoreCase))
             return "https://maven.minecraftforge.net/";
 
         // Fabric 系列

@@ -11,6 +11,8 @@ using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Themes;
 
+using NyaLauncher.Avalonia.Animations.Helpers;
+
 namespace NyaLauncher.Avalonia.Dialogs;
 
 /// <summary>
@@ -118,15 +120,9 @@ public partial class OfflineSkinPickerDialog : Window
     private static Grid CreateAvatarContent(OfflineSkinChoice choice)
     {
         var grid = new Grid();
-        grid.Children.Add(new TextBlock
-        {
-            Text = choice.FallbackText,
-            FontSize = 26,
-            FontWeight = FontWeight.Bold,
-                Foreground = ThemePolygonHelper.AccentGlyph,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        });
+        // 皮肤回退字形："material:Kind" 渲染为 Material 图标，其余回退文字
+        grid.Children.Add(
+            FeatureIconFactory.CreateGlyph(choice.FallbackText, 26, ThemePolygonHelper.AccentGlyph));
         grid.Children.Add(new AsyncImage
         {
             Width = 64,
@@ -163,9 +159,9 @@ public partial class OfflineSkinPickerDialog : Window
     private void OnSkinClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: OfflineSkinChoice choice })
-            Close(choice);
+            OverlayEffects.PopOut(this, () => Close(choice));
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) =>
-        Close(null);
+        OverlayEffects.PopOut(this, () => Close(null));
 }

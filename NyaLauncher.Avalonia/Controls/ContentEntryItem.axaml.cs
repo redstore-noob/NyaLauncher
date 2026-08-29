@@ -44,17 +44,24 @@ public partial class ContentEntryItem : UserControl
         {
             if (entry.IsDisabled)
             {
-                var newPath = entry.SourcePath[..^".disabled".Length];
-                File.Move(entry.SourcePath, newPath);
+                // 仅当路径确实以 .disabled 结尾时才去掉后缀，避免误截正常路径
+                var newPath = entry.SourcePath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)
+                    ? entry.SourcePath[..^".disabled".Length]
+                    : entry.SourcePath;
+                if (string.Equals(newPath, entry.SourcePath, StringComparison.Ordinal))
+                    return;
+                File.Move(entry.SourcePath, newPath, overwrite: true);
             }
             else
             {
-                File.Move(entry.SourcePath, entry.SourcePath + ".disabled");
+                File.Move(entry.SourcePath, entry.SourcePath + ".disabled", overwrite: true);
             }
             RaiseEvent(new RoutedEventArgs(ModFileChangedEvent));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // 失败要有反馈，而不是静默吞掉
+            System.Diagnostics.Debug.WriteLine($"切换禁用状态失败：{ex.Message}");
         }
     }
 

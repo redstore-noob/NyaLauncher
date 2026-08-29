@@ -2,6 +2,7 @@ namespace NyaLauncher.Core.Launch;
 using Auth;
 using System.Diagnostics;
 using Internal;
+using NyaLauncher.Core.Download;
 
 
 
@@ -80,14 +81,17 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
             options.WindowWidth > 0 && options.WindowHeight > 0);
         var (classpath, nativeLibraries) =
             _libraryResolver.Resolve(profile, minecraftDirectory, features);
-        var nativeDirectory = _libraryResolver.ExtractNatives(profile.Id, nativeLibraries);
+        var nativeDirectory = _libraryResolver.ExtractNatives(
+            profile.Id, nativeLibraries, minecraftDirectory);
 
         try
         {
-            var javaExecutable = _javaRuntimeLocator.FindJavaExecutable(
+            var javaExecutable = await ResolveJavaExecutableAsync(
                 options.JavaExecutable,
                 profile.RequiredJavaMajorVersion,
-                options.JavaRuntimeDirectory);
+                options.JavaRuntimeDirectory,
+                options.LogCallback,
+                cancellationToken).ConfigureAwait(false);
             var arguments = _argumentBuilder.Build(
                 profile,
                 options,
@@ -108,6 +112,78 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
         }
     }
 
+    /// <summary>
+    /// 解析启动用 Java：优先已存在的精确匹配版本；找不到则自动下载所需 Java（官方启动器同款行为）；
+    /// 自动下载失败再回退到"最低版本满足"的现有 Java（可能不兼容，但让真实错误浮现）。
+    /// </summary>
+    private async Task<string> ResolveJavaExecutableAsync(
+        string? configuredPath,
+        int? requiredMajorVersion,
+        string? runtimeDirectory,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        // 无版本要求：直接查找
+        if (requiredMajorVersion is not int required)
+            return _javaRuntimeLocator.FindJavaExecutable(configuredPath, null, runtimeDirectory);
+
+        // 1. 优先用已存在的精确匹配 Java（避免不必要的下载）
+        if (_javaRuntimeLocator.FindExactMatchJava(configuredPath, required, runtimeDirectory)
+            is { } exactMatch)
+            return exactMatch;
+
+        // 2. 没有精确匹配：自动下载所需 Java（与 Mojang 官方启动器行为一致）
+        log?.Invoke($"未检测到 Java {required}，正在自动下载…");
+        if (await TryAutoInstallJavaAsync(required, log, cancellationToken).ConfigureAwait(false)
+            is { } installed)
+        {
+            log?.Invoke($"Java {required} 安装完成：{installed}");
+            return installed;
+        }
+
+        // 3. 自动下载失败：回退到现有最佳 Java
+        return _javaRuntimeLocator.FindJavaExecutable(configuredPath, required, runtimeDirectory);
+    }
+
+    /// <summary>
+    /// 自动下载并安装指定主版本的 Java（优先 Temurin，带 SHA-256 校验）。
+    /// 安装到启动器 runtime 目录，供后续启动直接复用。失败返回 null。
+    /// </summary>
+    private static async Task<string?> TryAutoInstallJavaAsync(
+        int requiredMajorVersion,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        if (!JavaRuntimeInstaller.SupportedVersions.Contains(requiredMajorVersion))
+            return null;
+
+        try
+        {
+            var candidates = await JavaRuntimeInstaller.QueryAvailableVersionsAsync(
+                    JavaVendor.Temurin, cancellationToken)
+                .ConfigureAwait(false);
+            var candidate = candidates.FirstOrDefault(c => c.MajorVersion == requiredMajorVersion);
+            if (candidate is null)
+            {
+                log?.Invoke($"Temurin 源未找到 Java {requiredMajorVersion} 候选。");
+                return null;
+            }
+
+            var installer = new JavaRuntimeInstaller();
+            var progress = new Progress<JavaRuntimeInstallProgress>(
+                p => log?.Invoke($"{p.Phase}"));
+            var installed = await installer.InstallCandidateAsync(
+                    candidate, progress, cancellationToken)
+                .ConfigureAwait(false);
+            return installed.JavaExecutablePath;
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"自动下载 Java {requiredMajorVersion} 失败：{ex.Message}");
+            return null;
+        }
+    }
+
     public async Task<MinecraftLaunchResult> LaunchAsync(
         MinecraftLaunchOptions options,
         CancellationToken cancellationToken = default)
@@ -123,7 +199,9 @@ public sealed class OfflineMinecraftLauncher : IOfflineMinecraftLauncher
                 FileName = plan.JavaExecutable,
                 WorkingDirectory = plan.WorkingDirectory,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
             foreach (var argument in plan.Arguments)
             {

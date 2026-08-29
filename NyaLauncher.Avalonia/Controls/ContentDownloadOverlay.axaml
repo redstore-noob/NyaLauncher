@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="NyaLauncher.Avalonia.Controls.ContentDownloadOverlay">
+  <Border Width="520" MaxHeight="600"
+          Background="{DynamicResource BaseBgBrush}"
+          CornerRadius="16"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center">
+    <StackPanel Spacing="14" Margin="24,20,24,22">
+
+        <!-- 标题栏（共享组件） -->
+        <controls:OverlayHeader x:Name="Header"
+                                CloseRequested="OnCloseClick" />
+
+        <!-- 版本选择 -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="选择版本"
+                     FontSize="13" FontWeight="SemiBold"
+                     Foreground="{DynamicResource SecondaryTextBrush}" />
+          <ComboBox x:Name="VersionComboBox"
+                    PlaceholderText="正在加载版本…"
+                    Background="{DynamicResource ControlBgBrush}"
+                    BorderThickness="0"
+                    CornerRadius="8"
+                    Padding="12,7"
+                    FontSize="13"
+                    SelectionChanged="OnVersionSelectionChanged" />
+        </StackPanel>
+
+        <!-- 下载到（共享组件） -->
+        <controls:DownloadTargetPicker x:Name="TargetPicker" />
+
+        <!-- 状态提示 -->
+        <TextBlock x:Name="StatusText"
+                   FontSize="12"
+                   Foreground="{DynamicResource ErrorBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="False" />
+
+        <!-- 下载状态区（复用框架组件） -->
+        <controls:DownloadStatusPanel x:Name="DownloadStatus" />
+
+        <!-- 底部下载按钮 -->
+        <Grid ColumnDefinitions="*,Auto">
+          <Button Grid.Column="1"
+                  x:Name="DownloadButton"
+                  Padding="20,8"
+                  CornerRadius="8"
+                  Background="{DynamicResource AccentBrush}"
+                  Click="OnDownloadClick"
+                  Cursor="Hand">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <mi:MaterialIcon Kind="ArrowDown"
+                     Width="15" Height="15"
+                     Foreground="White"
+                     VerticalAlignment="Center" />
+              <TextBlock Text="下载" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{DynamicResource WhiteBrush}"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

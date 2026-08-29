@@ -1,0 +1,161 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="NyaLauncher.Avalonia.Controls.MinecraftDownloadOverlay">
+  <UserControl.Styles>
+    <!-- Loader 类型卡片：无指示器纯卡片，文字完全居中 -->
+    <Style Selector="RadioButton.LoaderCard">
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="10,9" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}"
+                  BorderThickness="1"
+                  BorderBrush="{TemplateBinding BorderBrush}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              FontSize="{TemplateBinding FontSize}"
+                              FontWeight="{TemplateBinding FontWeight}"
+                              Foreground="{TemplateBinding Foreground}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="RadioButton.LoaderCard:pointerover">
+      <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+    </Style>
+    <Style Selector="RadioButton.LoaderCard:checked">
+      <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border Width="540" MaxHeight="620"
+          Background="{DynamicResource BaseBgBrush}"
+          CornerRadius="16"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center">
+      <!-- StackPanel：隐藏子元素不占位，避免错位/空隙 -->
+      <StackPanel Spacing="14" Margin="24,20,24,22">
+
+        <!-- 标题栏（共享组件） -->
+        <controls:OverlayHeader x:Name="Header"
+                                Title="下载 Minecraft"
+                                Glyph="Pickaxe"
+                                CloseRequested="OnHeaderClose" />
+
+        <!-- Loader 类型 -->
+        <StackPanel Spacing="8">
+          <TextBlock Text="选择加载器"
+                     FontSize="13" FontWeight="SemiBold"
+                     Foreground="{DynamicResource SecondaryTextBrush}" />
+          <UniformGrid Columns="4" ColumnSpacing="8">
+            <RadioButton x:Name="RadioVanilla" Classes="LoaderCard"
+                         Content="原版" GroupName="Loader"
+                         IsChecked="True"
+                         IsCheckedChanged="OnLoaderTypeChanged" />
+            <RadioButton x:Name="RadioFabric" Classes="LoaderCard"
+                         Content="Fabric" GroupName="Loader"
+                         IsCheckedChanged="OnLoaderTypeChanged" />
+            <RadioButton x:Name="RadioNeoForge" Classes="LoaderCard"
+                         Content="NeoForge" GroupName="Loader"
+                         IsCheckedChanged="OnLoaderTypeChanged" />
+            <RadioButton x:Name="RadioForge" Classes="LoaderCard"
+                         Content="Forge" GroupName="Loader"
+                         IsCheckedChanged="OnLoaderTypeChanged" />
+          </UniformGrid>
+        </StackPanel>
+
+        <!-- Loader 版本 -->
+        <StackPanel x:Name="LoaderVersionSection" Spacing="8" IsVisible="False">
+          <TextBlock Text="加载器版本"
+                     FontSize="13" FontWeight="SemiBold"
+                     Foreground="{DynamicResource SecondaryTextBrush}" />
+          <ComboBox x:Name="LoaderVersionComboBox"
+                    PlaceholderText="选择加载器版本"
+                    Background="{DynamicResource ControlBgBrush}"
+                    BorderThickness="0"
+                    CornerRadius="8"
+                    Padding="12,7"
+                    HorizontalAlignment="Stretch"
+                    FontSize="13"
+                    SelectionChanged="OnLoaderVersionSelectionChanged" />
+          <TextBlock x:Name="LoaderVersionHint"
+                     FontSize="11"
+                     Foreground="{DynamicResource HintTextBrush}"
+                     TextWrapping="Wrap" />
+          <CheckBox x:Name="SkipFabricApiCheckBox"
+                    Content="不主动下载 Fabric API"
+                    Foreground="{DynamicResource BodyTextBrush}"
+                    FontSize="12"
+                    IsVisible="False" />
+        </StackPanel>
+
+        <!-- 实例名称 -->
+        <StackPanel Spacing="8">
+          <TextBlock Text="实例名称"
+                     FontSize="13" FontWeight="SemiBold"
+                     Foreground="{DynamicResource SecondaryTextBrush}" />
+          <TextBox x:Name="InstanceNameBox"
+                   PlaceholderText="留空则使用默认名称"
+                   Background="{DynamicResource ControlBgBrush}"
+                   BorderThickness="0"
+                   CornerRadius="8"
+                   Padding="12,8"
+                   FontSize="13" />
+          <TextBlock x:Name="InstanceNameHint"
+                     FontSize="11"
+                     Foreground="{DynamicResource HintTextBrush}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- 状态提示 -->
+        <TextBlock x:Name="StatusText"
+                   FontSize="12"
+                   Foreground="{DynamicResource ErrorBrush}"
+                   TextWrapping="Wrap"
+                   IsVisible="False" />
+
+        <!-- 底部按钮 -->
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <Button Grid.Column="1"
+                  Content="取消"
+                  Padding="18,8"
+                  CornerRadius="8"
+                  FontSize="13"
+                  Background="{DynamicResource ButtonBgBrush}"
+                  BorderThickness="0"
+                  Click="OnCancelClick"
+                  Cursor="Hand" />
+          <Button Grid.Column="2"
+                  x:Name="DownloadButton"
+                  Padding="20,8"
+                  CornerRadius="8"
+                  Background="{DynamicResource AccentBrush}"
+                  Click="OnDownloadClick"
+                  Cursor="Hand">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <mi:MaterialIcon Kind="ArrowDown"
+                     Width="15" Height="15"
+                     Foreground="White"
+                     VerticalAlignment="Center" />
+              <TextBlock Text="下载"
+                         FontSize="13" FontWeight="SemiBold"
+                         Foreground="{DynamicResource WhiteBrush}"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Grid>
+      </StackPanel>
+  </Border>
+</UserControl>

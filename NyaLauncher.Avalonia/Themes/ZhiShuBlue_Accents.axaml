@@ -1,0 +1,222 @@
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+    主题家族：植树蓝。
+    直接键 = 强调色阶梯 / Material 次色 / 语义色（不区分深浅）；
+    ThemeDictionaries = 家族专属的暗色 / 浅色背景搭配（背景 / 边框 / 文字 / 遮罩 / 工作区），
+    由 StyleAlter 叠加在 BasePalette.axaml 中性基底之上（必须成对写出两种模式）。
+    -->
+    <!-- ===== 强调色阶梯 ===== -->
+    <Color x:Key="AccentColor">#002FA7</Color>
+    <Color x:Key="AccentDarkColor">#002898</Color>
+    <Color x:Key="AccentDarkerColor">#002088</Color>
+    <Color x:Key="AccentLightColor">#1A4FC0</Color>
+    <Color x:Key="AccentBrightColor">#3068D8</Color>
+    <Color x:Key="AccentDeepColor">#001E80</Color>
+    <Color x:Key="AccentDeepDarkColor">#001870</Color>
+
+    <!-- ===== Material 次色（家族特色色） ===== -->
+    <Color x:Key="SecondaryAccentColor">#1A4FC0</Color>
+
+    <!-- ===== 语义色（不分深浅） ===== -->
+    <Color x:Key="SuccessColor">#48D48A</Color>
+    <Color x:Key="ErrorColor">#D94B64</Color>
+    <Color x:Key="ErrorDarkColor">#B64A5A</Color>
+    <Color x:Key="WarningColor">#D85B78</Color>
+    <Color x:Key="InfoColor">#6090D0</Color>
+
+    <!-- ===== Brushes（强调 / 语义） ===== -->
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="AccentDarkBrush" Color="{StaticResource AccentDarkColor}"/>
+    <SolidColorBrush x:Key="AccentDarkerBrush" Color="{StaticResource AccentDarkerColor}"/>
+    <SolidColorBrush x:Key="AccentLightBrush" Color="{StaticResource AccentLightColor}"/>
+    <SolidColorBrush x:Key="AccentBrightBrush" Color="{StaticResource AccentBrightColor}"/>
+    <SolidColorBrush x:Key="AccentDeepBrush" Color="{StaticResource AccentDeepColor}"/>
+    <SolidColorBrush x:Key="AccentDeepDarkBrush" Color="{StaticResource AccentDeepDarkColor}"/>
+
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}"/>
+    <SolidColorBrush x:Key="ErrorDarkBrush" Color="{StaticResource ErrorDarkColor}"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoColor}"/>
+
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <!-- ===== 暗色背景搭配（克莱因蓝调暗底） ===== -->
+            <Color x:Key="WindowBgColor">#060A14</Color>
+            <Color x:Key="BaseBgColor">#0A1020</Color>
+            <Color x:Key="CardBgColor">#0E1528</Color>
+            <Color x:Key="PanelBgColor">#121A30</Color>
+            <Color x:Key="SurfaceBgColor">#162038</Color>
+            <Color x:Key="HighlightBgColor">#1A2540</Color>
+            <Color x:Key="ButtonBgColor">#1E2A48</Color>
+            <Color x:Key="ControlBgColor">#223050</Color>
+            <Color x:Key="BadgeBgColor">#263458</Color>
+
+            <Color x:Key="SubtleBorderColor">#1A2540</Color>
+            <Color x:Key="DefaultBorderColor">#203050</Color>
+            <Color x:Key="MediumBorderColor">#283860</Color>
+            <Color x:Key="StrongBorderColor">#304070</Color>
+            <Color x:Key="EmphasizedBorderColor">#384880</Color>
+
+            <Color x:Key="PrimaryTextColor">#E8EDF8</Color>
+            <Color x:Key="SecondaryTextColor">#D8E0F0</Color>
+            <Color x:Key="TertiaryTextColor">#C8D4E8</Color>
+            <Color x:Key="BodyTextColor">#B0C0D8</Color>
+            <Color x:Key="MutedTextColor">#8098B8</Color>
+            <Color x:Key="SubtextTextColor">#6880A0</Color>
+            <Color x:Key="HintTextColor">#506888</Color>
+            <Color x:Key="DisabledTextColor">#405068</Color>
+            <Color x:Key="PlaceholderTextColor">#304060</Color>
+
+            <Color x:Key="DockHintBgColor">#E60A1020</Color>
+            <Color x:Key="OverlayBgColor">#C0000000</Color>
+            <Color x:Key="DialogBgColor">#1A2540</Color>
+            <Color x:Key="DialogAltBgColor">#0A0F1C</Color>
+
+            <Color x:Key="CardBgColor2">#0C1220</Color>
+            <Color x:Key="HeaderBgColor">#162038</Color>
+            <Color x:Key="CardBorderColor">#283860</Color>
+            <Color x:Key="SeamIdleColor">#304070</Color>
+            <Color x:Key="DragHandleBgColor">#1E2A48</Color>
+            <Color x:Key="DragHandleGlyphColor">#8098B8</Color>
+            <Color x:Key="IconBoxBgColor">#223050</Color>
+            <Color x:Key="ComponentBgColor">#1A2540</Color>
+            <Color x:Key="ComponentBorderColor">#283860</Color>
+            <Color x:Key="ComponentHoverBgColor">#202E50</Color>
+            <Color x:Key="SidebarBorderColor">#304070</Color>
+
+            <SolidColorBrush x:Key="WindowBgBrush" Color="{StaticResource WindowBgColor}"/>
+            <SolidColorBrush x:Key="BaseBgBrush" Color="{StaticResource BaseBgColor}"/>
+            <SolidColorBrush x:Key="CardBgBrush" Color="{StaticResource CardBgColor}"/>
+            <SolidColorBrush x:Key="PanelBgBrush" Color="{StaticResource PanelBgColor}"/>
+            <SolidColorBrush x:Key="SurfaceBgBrush" Color="{StaticResource SurfaceBgColor}"/>
+            <SolidColorBrush x:Key="HighlightBgBrush" Color="{StaticResource HighlightBgColor}"/>
+            <SolidColorBrush x:Key="ButtonBgBrush" Color="{StaticResource ButtonBgColor}"/>
+            <SolidColorBrush x:Key="ControlBgBrush" Color="{StaticResource ControlBgColor}"/>
+            <SolidColorBrush x:Key="BadgeBgBrush" Color="{StaticResource BadgeBgColor}"/>
+
+            <SolidColorBrush x:Key="SubtleBorderBrush" Color="{StaticResource SubtleBorderColor}"/>
+            <SolidColorBrush x:Key="DefaultBorderBrush" Color="{StaticResource DefaultBorderColor}"/>
+            <SolidColorBrush x:Key="MediumBorderBrush" Color="{StaticResource MediumBorderColor}"/>
+            <SolidColorBrush x:Key="StrongBorderBrush" Color="{StaticResource StrongBorderColor}"/>
+            <SolidColorBrush x:Key="EmphasizedBorderBrush" Color="{StaticResource EmphasizedBorderColor}"/>
+
+            <SolidColorBrush x:Key="PrimaryTextBrush" Color="{StaticResource PrimaryTextColor}"/>
+            <SolidColorBrush x:Key="SecondaryTextBrush" Color="{StaticResource SecondaryTextColor}"/>
+            <SolidColorBrush x:Key="TertiaryTextBrush" Color="{StaticResource TertiaryTextColor}"/>
+            <SolidColorBrush x:Key="BodyTextBrush" Color="{StaticResource BodyTextColor}"/>
+            <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}"/>
+            <SolidColorBrush x:Key="SubtextTextBrush" Color="{StaticResource SubtextTextColor}"/>
+            <SolidColorBrush x:Key="HintTextBrush" Color="{StaticResource HintTextColor}"/>
+            <SolidColorBrush x:Key="DisabledTextBrush" Color="{StaticResource DisabledTextColor}"/>
+            <SolidColorBrush x:Key="PlaceholderTextBrush" Color="{StaticResource PlaceholderTextColor}"/>
+
+            <SolidColorBrush x:Key="DockHintBgBrush" Color="{StaticResource DockHintBgColor}"/>
+            <SolidColorBrush x:Key="OverlayBgBrush" Color="{StaticResource OverlayBgColor}"/>
+            <SolidColorBrush x:Key="DialogBgBrush" Color="{StaticResource DialogBgColor}"/>
+            <SolidColorBrush x:Key="DialogAltBgBrush" Color="{StaticResource DialogAltBgColor}"/>
+
+            <SolidColorBrush x:Key="CardBg2Brush" Color="{StaticResource CardBgColor2}"/>
+            <SolidColorBrush x:Key="HeaderBgBrush" Color="{StaticResource HeaderBgColor}"/>
+            <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorderColor}"/>
+            <SolidColorBrush x:Key="SeamIdleBrush" Color="{StaticResource SeamIdleColor}"/>
+            <SolidColorBrush x:Key="DragHandleBgBrush" Color="{StaticResource DragHandleBgColor}"/>
+            <SolidColorBrush x:Key="DragHandleGlyphBrush" Color="{StaticResource DragHandleGlyphColor}"/>
+            <SolidColorBrush x:Key="IconBoxBgBrush" Color="{StaticResource IconBoxBgColor}"/>
+            <SolidColorBrush x:Key="ComponentBgBrush" Color="{StaticResource ComponentBgColor}"/>
+            <SolidColorBrush x:Key="ComponentBorderBrush" Color="{StaticResource ComponentBorderColor}"/>
+            <SolidColorBrush x:Key="ComponentHoverBgBrush" Color="{StaticResource ComponentHoverBgColor}"/>
+            <SolidColorBrush x:Key="SidebarBorderBrush" Color="{StaticResource SidebarBorderColor}"/>
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Light">
+            <!-- ===== 浅色背景搭配（克莱因蓝调浅底） ===== -->
+            <Color x:Key="WindowBgColor">#F0F4FC</Color>
+            <Color x:Key="BaseBgColor">#E8EEFA</Color>
+            <Color x:Key="CardBgColor">#FFFFFF</Color>
+            <Color x:Key="PanelBgColor">#F4F8FF</Color>
+            <Color x:Key="SurfaceBgColor">#ECF0FA</Color>
+            <Color x:Key="HighlightBgColor">#E0E8F6</Color>
+            <Color x:Key="ButtonBgColor">#D8E2F2</Color>
+            <Color x:Key="ControlBgColor">#FFFFFF</Color>
+            <Color x:Key="BadgeBgColor">#D0DCF0</Color>
+
+            <Color x:Key="SubtleBorderColor">#C8D4E8</Color>
+            <Color x:Key="DefaultBorderColor">#B8C8E0</Color>
+            <Color x:Key="MediumBorderColor">#A8B8D4</Color>
+            <Color x:Key="StrongBorderColor">#98A8C8</Color>
+            <Color x:Key="EmphasizedBorderColor">#8898BC</Color>
+
+            <Color x:Key="PrimaryTextColor">#0A0E18</Color>
+            <Color x:Key="SecondaryTextColor">#141828</Color>
+            <Color x:Key="TertiaryTextColor">#1E2438</Color>
+            <Color x:Key="BodyTextColor">#1A2030</Color>
+            <Color x:Key="MutedTextColor">#3A4060</Color>
+            <Color x:Key="SubtextTextColor">#4A5070</Color>
+            <Color x:Key="HintTextColor">#5A6080</Color>
+            <Color x:Key="DisabledTextColor">#8890A8</Color>
+            <Color x:Key="PlaceholderTextColor">#9AA0B8</Color>
+
+            <Color x:Key="DockHintBgColor">#E6F0F4FC</Color>
+            <Color x:Key="OverlayBgColor">#80000000</Color>
+            <Color x:Key="DialogBgColor">#FFFFFF</Color>
+            <Color x:Key="DialogAltBgColor">#F0F4FC</Color>
+
+            <Color x:Key="CardBgColor2">#ECF0FA</Color>
+            <Color x:Key="HeaderBgColor">#E0E8F6</Color>
+            <Color x:Key="CardBorderColor">#B8C8E0</Color>
+            <Color x:Key="SeamIdleColor">#A8B8D4</Color>
+            <Color x:Key="DragHandleBgColor">#D8E2F2</Color>
+            <Color x:Key="DragHandleGlyphColor">#4A5070</Color>
+            <Color x:Key="IconBoxBgColor">#D0DCF0</Color>
+            <Color x:Key="ComponentBgColor">#F4F8FF</Color>
+            <Color x:Key="ComponentBorderColor">#B8C8E0</Color>
+            <Color x:Key="ComponentHoverBgColor">#E0E8F6</Color>
+            <Color x:Key="SidebarBorderColor">#A8B8D4</Color>
+
+            <SolidColorBrush x:Key="WindowBgBrush" Color="{StaticResource WindowBgColor}"/>
+            <SolidColorBrush x:Key="BaseBgBrush" Color="{StaticResource BaseBgColor}"/>
+            <SolidColorBrush x:Key="CardBgBrush" Color="{StaticResource CardBgColor}"/>
+            <SolidColorBrush x:Key="PanelBgBrush" Color="{StaticResource PanelBgColor}"/>
+            <SolidColorBrush x:Key="SurfaceBgBrush" Color="{StaticResource SurfaceBgColor}"/>
+            <SolidColorBrush x:Key="HighlightBgBrush" Color="{StaticResource HighlightBgColor}"/>
+            <SolidColorBrush x:Key="ButtonBgBrush" Color="{StaticResource ButtonBgColor}"/>
+            <SolidColorBrush x:Key="ControlBgBrush" Color="{StaticResource ControlBgColor}"/>
+            <SolidColorBrush x:Key="BadgeBgBrush" Color="{StaticResource BadgeBgColor}"/>
+
+            <SolidColorBrush x:Key="SubtleBorderBrush" Color="{StaticResource SubtleBorderColor}"/>
+            <SolidColorBrush x:Key="DefaultBorderBrush" Color="{StaticResource DefaultBorderColor}"/>
+            <SolidColorBrush x:Key="MediumBorderBrush" Color="{StaticResource MediumBorderColor}"/>
+            <SolidColorBrush x:Key="StrongBorderBrush" Color="{StaticResource StrongBorderColor}"/>
+            <SolidColorBrush x:Key="EmphasizedBorderBrush" Color="{StaticResource EmphasizedBorderColor}"/>
+
+            <SolidColorBrush x:Key="PrimaryTextBrush" Color="{StaticResource PrimaryTextColor}"/>
+            <SolidColorBrush x:Key="SecondaryTextBrush" Color="{StaticResource SecondaryTextColor}"/>
+            <SolidColorBrush x:Key="TertiaryTextBrush" Color="{StaticResource TertiaryTextColor}"/>
+            <SolidColorBrush x:Key="BodyTextBrush" Color="{StaticResource BodyTextColor}"/>
+            <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}"/>
+            <SolidColorBrush x:Key="SubtextTextBrush" Color="{StaticResource SubtextTextColor}"/>
+            <SolidColorBrush x:Key="HintTextBrush" Color="{StaticResource HintTextColor}"/>
+            <SolidColorBrush x:Key="DisabledTextBrush" Color="{StaticResource DisabledTextColor}"/>
+            <SolidColorBrush x:Key="PlaceholderTextBrush" Color="{StaticResource PlaceholderTextColor}"/>
+
+            <SolidColorBrush x:Key="DockHintBgBrush" Color="{StaticResource DockHintBgColor}"/>
+            <SolidColorBrush x:Key="OverlayBgBrush" Color="{StaticResource OverlayBgColor}"/>
+            <SolidColorBrush x:Key="DialogBgBrush" Color="{StaticResource DialogBgColor}"/>
+            <SolidColorBrush x:Key="DialogAltBgBrush" Color="{StaticResource DialogAltBgColor}"/>
+
+            <SolidColorBrush x:Key="CardBg2Brush" Color="{StaticResource CardBgColor2}"/>
+            <SolidColorBrush x:Key="HeaderBgBrush" Color="{StaticResource HeaderBgColor}"/>
+            <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorderColor}"/>
+            <SolidColorBrush x:Key="SeamIdleBrush" Color="{StaticResource SeamIdleColor}"/>
+            <SolidColorBrush x:Key="DragHandleBgBrush" Color="{StaticResource DragHandleBgColor}"/>
+            <SolidColorBrush x:Key="DragHandleGlyphBrush" Color="{StaticResource DragHandleGlyphColor}"/>
+            <SolidColorBrush x:Key="IconBoxBgBrush" Color="{StaticResource IconBoxBgColor}"/>
+            <SolidColorBrush x:Key="ComponentBgBrush" Color="{StaticResource ComponentBgColor}"/>
+            <SolidColorBrush x:Key="ComponentBorderBrush" Color="{StaticResource ComponentBorderColor}"/>
+            <SolidColorBrush x:Key="ComponentHoverBgBrush" Color="{StaticResource ComponentHoverBgColor}"/>
+            <SolidColorBrush x:Key="SidebarBorderBrush" Color="{StaticResource SidebarBorderColor}"/>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

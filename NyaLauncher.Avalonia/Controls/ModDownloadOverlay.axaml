@@ -1,81 +1,122 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="NyaLauncher.Avalonia.Controls.ModDownloadOverlay"
-             IsVisible="False"
-             Background="#C0000000">
-  <Grid ColumnDefinitions="240,*" HorizontalAlignment="Center" VerticalAlignment="Center"
-        MaxWidth="700" MaxHeight="500">
-    <Border Background="{StaticResource PanelBgBrush}" CornerRadius="14,0,0,14"
-            Padding="16" ClipToBounds="True">
-      <Grid RowDefinitions="Auto,*,Auto">
-        <TextBlock Text="Minecraft 版本"
-                   FontSize="14" FontWeight="SemiBold"
-                   Foreground="{StaticResource SecondaryTextBrush}"
-                   Margin="0,0,0,10" />
-        <TextBox x:Name="VersionFilterBox"
-                 PlaceholderText="筛选版本..."
-                 Background="{StaticResource ControlBgBrush}"
-                 BorderThickness="0"
-                 CornerRadius="8"
-                 Padding="10,6"
-                 FontSize="12"
-                 Margin="0,0,0,8"
-                 TextChanged="OnVersionFilterChanged" />
-        <ListBox x:Name="GameVersionList"
-                 Grid.Row="1"
-                 Background="{StaticResource TransparentBrush}"
-                 BorderThickness="0"
-                 SelectionChanged="OnGameVersionSelected" />
-        <TextBlock x:Name="VersionCountText"
-                   Grid.Row="2"
-                   FontSize="11"
-                   Foreground="{StaticResource HintTextBrush}"
-                   Margin="0,8,0,0" />
-      </Grid>
-    </Border>
+             xmlns:controls="using:NyaLauncher.Avalonia.Controls"
+             xmlns:local="using:NyaLauncher.Avalonia.Controls"
+             x:Class="NyaLauncher.Avalonia.Controls.ModDownloadOverlay">
+  <Border Background="{DynamicResource BaseBgBrush}"
+          CornerRadius="16"
+          Width="790" MaxHeight="590"
+          HorizontalAlignment="Center" VerticalAlignment="Center">
+    <Grid RowDefinitions="Auto,*" ClipToBounds="True">
 
-    <!-- 右侧：Loader 版本选择 -->
-    <Border Grid.Column="1"
-            Background="{StaticResource BaseBgBrush}"
-            CornerRadius="0,14,14,0"
-            Padding="20"
-            ClipToBounds="True">
-      <Grid RowDefinitions="Auto,*,Auto">
-        <!-- 标题栏 -->
-        <Grid ColumnDefinitions="*,Auto">
-          <StackPanel Spacing="4">
-            <TextBlock x:Name="ModTitleText"
-                       FontSize="16" FontWeight="Bold"
-                       Foreground="{StaticResource PrimaryTextBrush}" />
-            <TextBlock x:Name="ModDescText"
+      <!-- 标题栏（共享组件） -->
+      <controls:OverlayHeader x:Name="Header"
+                              Grid.Row="0"
+                              Margin="20,16"
+                              CloseRequested="OnCloseClick" />
+
+      <!-- 主体：左版本 / 右 loader -->
+      <Grid Grid.Row="1" ColumnDefinitions="250,*">
+
+        <!-- 左侧：MC 版本列表 -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource PanelBgBrush}"
+                BorderBrush="{DynamicResource SubtleBorderBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="16"
+                CornerRadius="0,0,0,16">
+          <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+            <TextBlock Text="Minecraft 版本"
+                       FontSize="13" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
+            <TextBox x:Name="VersionFilterBox"
+                     Grid.Row="1"
+                     PlaceholderText="筛选版本…"
+                     Background="{DynamicResource ControlBgBrush}"
+                     BorderThickness="0"
+                     CornerRadius="8"
+                     Padding="10,6"
+                     FontSize="12"
+                     TextChanged="OnVersionFilterChanged" />
+            <ListBox x:Name="GameVersionList"
+                     Grid.Row="2"
+                     Background="{DynamicResource TransparentBrush}"
+                     BorderThickness="0"
+                     SelectionChanged="OnGameVersionSelected">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="local:GameVersionEntry">
+                  <Grid ColumnDefinitions="*,Auto" Margin="4,3">
+                    <TextBlock Text="{Binding Version}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource BodyTextBrush}" />
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource BadgeBgBrush}"
+                            CornerRadius="8"
+                            Padding="7,2"
+                            VerticalAlignment="Center">
+                      <TextBlock Text="{Binding LoaderCount}"
+                                 FontSize="10"
+                                 Foreground="{DynamicResource MutedTextBrush}" />
+                    </Border>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock x:Name="VersionCountText"
+                       Grid.Row="3"
                        FontSize="11"
-                       Foreground="{StaticResource HintTextBrush}"
-                       TextTrimming="CharacterEllipsis" MaxLines="1" />
-          </StackPanel>
-          <Button Grid.Column="1"
-                  Content="✕ 关闭"
-                  Padding="12,6"
-                  CornerRadius="8"
-                  FontSize="12"
-                  Background="{StaticResource ButtonBgBrush}"
-                  BorderThickness="0"
-                  Click="OnCloseClick"
-                  VerticalAlignment="Top" />
-        </Grid>
+                       Foreground="{DynamicResource HintTextBrush}" />
+          </Grid>
+        </Border>
 
-        <!-- Loader 版本列表 -->
-        <ScrollViewer Grid.Row="1" Margin="0,16,0,0">
-          <StackPanel x:Name="LoaderListPanel" Spacing="12" />
-        </ScrollViewer>
+        <!-- 右侧：Loader 版本 + 下载 -->
+        <Border Grid.Column="1"
+                Background="{DynamicResource BaseBgBrush}"
+                Padding="20"
+                CornerRadius="0,0,16,0">
+          <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="10">
 
-        <!-- 状态 -->
-        <TextBlock x:Name="StatusText"
-                   Grid.Row="2"
-                   FontSize="12"
-                   Foreground="{StaticResource AccentTextColor}"
-                   Margin="0,12,0,0"
-                   TextWrapping="Wrap" />
+            <!-- Loader 过滤器 -->
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <TextBlock Text="加载器"
+                         FontSize="12"
+                         Foreground="{DynamicResource MutedTextBrush}"
+                         VerticalAlignment="Center" />
+              <ComboBox x:Name="LoaderFilterComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Left"
+                        MinWidth="150"
+                        Background="{DynamicResource ControlBgBrush}"
+                        BorderThickness="0"
+                        CornerRadius="8"
+                        Padding="10,5"
+                        FontSize="12"
+                        SelectionChanged="OnLoaderFilterChanged" />
+            </Grid>
+
+            <!-- 状态提示 -->
+            <TextBlock x:Name="StatusText"
+                       Grid.Row="1"
+                       FontSize="12"
+                       Foreground="{DynamicResource HintTextBrush}"
+                       TextWrapping="Wrap" />
+
+            <!-- 下载到（共享组件） -->
+            <controls:DownloadTargetPicker x:Name="TargetPicker" Grid.Row="2" />
+
+            <!-- Loader 卡片列表 -->
+            <ScrollViewer Grid.Row="3" Margin="0,2,0,0">
+              <StackPanel x:Name="LoaderListPanel" Spacing="10" />
+            </ScrollViewer>
+
+            <!-- 下载状态区（复用框架组件） -->
+            <controls:DownloadStatusPanel x:Name="DownloadStatus"
+                                          Grid.Row="4"
+                                          Margin="0,6,0,0" />
+          </Grid>
+        </Border>
       </Grid>
-    </Border>
-  </Grid>
+    </Grid>
+  </Border>
 </UserControl>

@@ -11,12 +11,21 @@ using NyaLauncher.Core.Tools;
 
 namespace NyaLauncher.Avalonia.Framework;
 
+/// <summary>内置离线皮肤选项：离线账号可选的一件默认皮肤。</summary>
+/// <param name="Id">皮肤标识（如 <c>steve</c>）。</param>
+/// <param name="DisplayName">显示名称。</param>
+/// <param name="Model">皮肤模型（<c>Classic</c> 宽手臂 / <c>Slim</c> 窄手臂）。</param>
+/// <param name="FallbackText">图片缺失时显示的占位文字。</param>
 internal sealed record OfflineSkinChoice(
     string Id,
     string DisplayName,
     MinecraftSkinModel Model,
     string FallbackText);
 
+/// <summary>
+/// 内置离线皮肤目录。纹理文件需要从游戏 jar 中解压，相关 IO 与 PNG 处理
+/// 全部放到线程池执行，并按「存储目录 + 游戏目录」对缓存结果。
+/// </summary>
 internal static class OfflineSkinCatalog
 {
     private static readonly StringComparer PathKeyComparer = OperatingSystem.IsWindows()
@@ -44,6 +53,12 @@ internal static class OfflineSkinCatalog
         new("efe", "Efe", MinecraftSkinModel.Slim, "E")
     ];
 
+    /// <summary>
+    /// 按 Id 取一个离线皮肤选项（忽略大小写）。
+    /// 找不到对应项时回退到列表中的第一项，因此返回值永不为 <c>null</c>。
+    /// </summary>
+    /// <param name="id">皮肤标识，可为 <c>null</c>。</param>
+    /// <returns>匹配的选项；没有匹配时返回 <c>Choices[0]</c>。</returns>
     public static OfflineSkinChoice Get(string? id) =>
         Choices.FirstOrDefault(choice => string.Equals(
             choice.Id,
@@ -51,19 +66,21 @@ internal static class OfflineSkinCatalog
             StringComparison.OrdinalIgnoreCase)) ?? Choices[0];
 
     /// <summary>
-    /// Resolves all file-system and PNG work on the thread pool. A catalog is
-    /// built once per storage/game-directory pair so switching between the
-    /// nine offline skins never rescans the versions directory.
+    /// 解析某个离线皮肤的纹理来源路径（必要时先解压）。
+    /// 全部文件系统与 PNG 处理在线程池上完成；目录按「存储目录 + 游戏目录」
+    /// 组合缓存一份，因此在两者之间反复切换不会重新扫描 versions 目录。
     /// </summary>
+    /// <param name="id">皮肤标识；为空或未知时回退到第一项。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>可直接作为图片来源使用的本地路径。</returns>
     public static Task<string> ResolveTextureSourceAsync(
         string? id,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var choice = Get(id);
-        // Snapshot the shared configuration before dispatch. ConfigFileManager
-        // owns a mutable JsonDocument and account persistence also uses it on
-        // the UI thread, so background work must not read it concurrently.
+        // 派发到后台前先给共享配置拍个快照：ConfigFileManager 持有可变的 JsonDocument，
+        // 账号持久化也在 UI 线程上用它，后台线程不能与它并发读取。
         var context = CaptureContext();
         return Task.Run(
             () => ResolveTextureSourceCoreAsync(choice, context, cancellationToken),

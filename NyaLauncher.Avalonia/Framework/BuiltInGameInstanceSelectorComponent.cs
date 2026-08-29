@@ -15,6 +15,7 @@ namespace NyaLauncher.Avalonia.Framework;
 
 internal static class BuiltInGameInstanceSelectorComponent
 {
+    /// <summary>组件 Id：<c>nyalauncher.builtin/game-instance-selector</c>。全局唯一且必须保持稳定，用户的工作区布局与个性化配置靠它引用本组件。</summary>
     public const string ComponentId = "nyalauncher.builtin/game-instance-selector";
     private const string SelectInstanceActionId = "select-instance";
     private const string VersionIdArgument = "versionId";
@@ -22,35 +23,38 @@ internal static class BuiltInGameInstanceSelectorComponent
     public static PolygonComponentRegistration Create()
     {
         var definition = new PolygonComponentBuilder(ComponentId, "游戏实例选择")
-            .WithDescription("显示并切换当前 Minecraft 文件夹内已安装的游戏实例")
-            .WithGlyph("▣")
-            .WithSize(260, 72)
-            .WithSizeLimits(220, 64, 380, 92)
+            .WithDescription("点击卡片任意位置，从下拉列表中选择游戏实例")
+            .WithGlyph("material:ViewDashboard")
+            .WithSize(300, 96)
+            .WithSizeLimits(240, 72, 480, 120)
             .WithShape(PolygonShapeDefinition.Rectangle())
-            .WithDragHandle(new ComponentRect(0.025, 0.24, 0.075, 0.52))
-            .WithTheme(ThemePolygonHelper.CreateDefaultTheme())
+            // 左侧细条为拖拽把手，其余整卡都是下拉热区（点击任意位置弹出实例列表）
+            .WithDragHandle(new ComponentRect(0.02, 0.20, 0.05, 0.60))
+            .WithTheme(new PolygonComponentTheme())
             .AddAction(SelectInstanceActionId)
             .AddImage(
                 "instance-icon",
-                new ComponentRect(0.115, 0.25, 0.085, 0.5),
+                new ComponentRect(0.15, 0.24, 0.10, 0.52),
                 stretch: ComponentImageStretch.Uniform,
-                fallbackText: "▦",
-                cornerRadius: 6)
+                fallbackText: "material:Apps",
+                cornerRadius: 8)
             .AddText(
                 "instance-name",
-                new ComponentRect(0.215, 0.17, 0.59, 0.34),
+                new ComponentRect(0.28, 0.18, 0.56, 0.32),
                 "未选择实例",
                 ComponentTextRole.Title,
-                fontSize: 14)
+                fontSize: 15)
             .AddText(
                 "instance-status",
-                new ComponentRect(0.215, 0.52, 0.59, 0.24),
-                "正在扫描 Minecraft 文件夹",
+                new ComponentRect(0.28, 0.55, 0.56, 0.28),
+                string.Empty,
                 ComponentTextRole.Caption,
-                fontSize: 10)
+                fontSize: 11)
             .AddDropdown(
                 "instance-menu",
-                new ComponentRect(0.84, 0.22, 0.115, 0.56))
+                new ComponentRect(0.09, 0.05, 0.89, 0.90),
+                glyph: "material:ChevronDown",
+                alignRight: true)
             .Build();
 
         return new PolygonComponentRegistration
@@ -61,32 +65,22 @@ internal static class BuiltInGameInstanceSelectorComponent
         };
     }
 
-    private sealed class GameInstanceSelectorInstance : IPolygonComponentInstance
+    private sealed class GameInstanceSelectorInstance : PolygonComponentInstanceBase
     {
-        private ComponentStateSnapshot _currentState;
         private CancellationTokenSource? _visualCancellation;
-        private long _revision;
-        private int _isDisposed;
 
         public GameInstanceSelectorInstance()
         {
-            _currentState = CreateState(
-                GameInstanceStore.Current,
-                Interlocked.Increment(ref _revision),
-                null);
+            SetState(CreateState(GameInstanceStore.Current));
             GameInstanceStore.Changed += OnInstancesChanged;
             StartVisualLoad(GameInstanceStore.Current);
         }
 
-        public ComponentStateSnapshot CurrentState => Volatile.Read(ref _currentState);
-
-        public event EventHandler<ComponentStateChangedEventArgs>? StateChanged;
-
-        public async ValueTask<ComponentActionResult> InvokeAsync(
+        public override async ValueTask<ComponentActionResult> InvokeAsync(
             ComponentActionInvocation invocation,
             CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return ComponentActionResult.Failed("游戏实例选择组件已释放。");
             if (!string.Equals(
                     invocation.ActionId,
@@ -110,34 +104,26 @@ internal static class BuiltInGameInstanceSelectorComponent
                 : ComponentActionResult.Failed("该游戏实例已不存在，请重新打开菜单。");
         }
 
-        public ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _isDisposed, 1) == 0)
-            {
-                GameInstanceStore.Changed -= OnInstancesChanged;
-                _visualCancellation?.Cancel();
-                _visualCancellation?.Dispose();
-                StateChanged = null;
-            }
-
-            return ValueTask.CompletedTask;
+            GameInstanceStore.Changed -= OnInstancesChanged;
+            _visualCancellation?.Cancel();
+            _visualCancellation?.Dispose();
+            return base.DisposeAsync();
         }
 
         private void OnInstancesChanged(GameInstanceSnapshot snapshot)
         {
-            if (Volatile.Read(ref _isDisposed) != 0)
+            if (IsDisposed)
                 return;
 
-            var next = CreateState(snapshot, Interlocked.Increment(ref _revision), null);
-            Volatile.Write(ref _currentState, next);
-            StateChanged?.Invoke(this, new ComponentStateChangedEventArgs(next));
+            SetState(CreateState(snapshot));
             StartVisualLoad(snapshot);
         }
 
         private static ComponentStateSnapshot CreateState(
             GameInstanceSnapshot snapshot,
-            long revision,
-            IReadOnlyDictionary<string, GameInstanceVisual>? visuals)
+            IReadOnlyDictionary<string, GameInstanceVisual>? visuals = null)
         {
             string name;
             string status;
@@ -145,9 +131,9 @@ internal static class BuiltInGameInstanceSelectorComponent
 
             if (snapshot.IsLoading)
             {
-                name = "正在扫描游戏实例…";
-                status = "请稍候";
-                items = [CreatePlaceholder("正在扫描 Minecraft 文件夹…")];
+                name = "实例列表";
+                status = string.Empty;
+                items = [CreatePlaceholder("实例列表加载中")];
             }
             else if (!string.IsNullOrWhiteSpace(snapshot.ErrorMessage))
             {
@@ -178,7 +164,7 @@ internal static class BuiltInGameInstanceSelectorComponent
                             : "共享 Minecraft 内容目录",
                         Glyph = visuals is not null && visuals.TryGetValue(versionId, out var visual)
                             ? visual.FallbackGlyph
-                            : "▦",
+                            : "material:Apps",
                         IconSource = visuals is not null && visuals.TryGetValue(versionId, out visual)
                             ? visual.IconPath
                             : null,
@@ -197,7 +183,6 @@ internal static class BuiltInGameInstanceSelectorComponent
 
             return new ComponentStateSnapshot
             {
-                Revision = revision,
                 Elements = new Dictionary<string, ComponentElementState>(
                     StringComparer.OrdinalIgnoreCase)
                 {
@@ -242,15 +227,13 @@ internal static class BuiltInGameInstanceSelectorComponent
                     },
                     StringComparer.OrdinalIgnoreCase), cancellation.Token).ConfigureAwait(false);
                 if (cancellation.IsCancellationRequested ||
-                    Volatile.Read(ref _isDisposed) != 0 ||
+                    IsDisposed ||
                     !ReferenceEquals(_visualCancellation, cancellation))
                 {
                     return;
                 }
 
-                var next = CreateState(snapshot, Interlocked.Increment(ref _revision), visuals);
-                Volatile.Write(ref _currentState, next);
-                StateChanged?.Invoke(this, new ComponentStateChangedEventArgs(next));
+                SetState(CreateState(snapshot, visuals));
             }
             catch (OperationCanceledException)
             {
@@ -271,7 +254,7 @@ internal static class BuiltInGameInstanceSelectorComponent
                 visuals is null ||
                 !visuals.TryGetValue(selected, out var visual))
             {
-                return new ComponentElementState { Text = "▦" };
+                return new ComponentElementState { Text = "material:Apps" };
             }
             return new ComponentElementState
             {

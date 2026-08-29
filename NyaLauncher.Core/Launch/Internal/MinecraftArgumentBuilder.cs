@@ -49,7 +49,11 @@ internal sealed class MinecraftArgumentBuilder
         var placeholders = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["auth_player_name"] = authPlayerName,
-            ["version_name"] = profile.Id,
+            // ${version_name} 用于 Forge 的 -DignoreList=...,${version_name}.jar，
+            // 必须匹配 client jar 的实际文件名（继承式版本 = 原版 id，如 1.20.1.jar），
+            // 否则原版 client 未被忽略、会被 SecureJarHandler 模块化，
+            // 与 srg jar（minecraft 模块）同时含 blaze3d.systems 导致模块冲突崩溃。
+            ["version_name"] = profile.ClientJarVersionId ?? profile.SourceId ?? profile.Id,
             ["game_directory"] = gameDirectory,
             ["assets_root"] = assetsDirectory,
             ["assets_index_name"] = profile.AssetsId,
@@ -82,14 +86,17 @@ internal sealed class MinecraftArgumentBuilder
             $"-Xmx{options.MaximumMemoryMb}M"
         };
 
-        // 通用 JVM 性能优化参数
+        // 通用 JVM 性能优化参数（仅在内存充足时启用预触页，低配机避免启动失败/变慢）
         result.Add("-XX:+UnlockExperimentalVMOptions");
         result.Add("-XX:+UseG1GC");
         result.Add("-XX:G1NewSizePercent=20");
         result.Add("-XX:G1ReservePercent=20");
         result.Add("-XX:MaxGCPauseMillis=50");
-        result.Add("-XX:G1HeapRegionSize=32M");
-        result.Add("-XX:+AlwaysPreTouch");
+        if (options.MaximumMemoryMb >= 4096)
+        {
+            result.Add("-XX:+AlwaysPreTouch");
+            result.Add("-XX:G1HeapRegionSize=32M");
+        }
 
         result.AddRange(options.AdditionalJvmArguments);
 
@@ -102,6 +109,15 @@ internal sealed class MinecraftArgumentBuilder
             result.Add($"-Djava.library.path={nativeDirectory}");
             result.Add("-cp");
             result.Add(classpathValue);
+        }
+
+        // NeoForge / Forge 的 FML 在 production 模式下要求 system property "libraryDirectory"
+        // 指向 libraries 目录，用于定位 minecraft-client-patched / srg 等运行时产物；
+        // 缺少该参数时 FML 无法找到 Minecraft 类并报 "installation corrupted"。
+        if (!result.Any(argument =>
+                argument.StartsWith("-DlibraryDirectory=", StringComparison.Ordinal)))
+        {
+            result.Add($"-DlibraryDirectory={librariesDirectory}");
         }
 
         if (!ContainsClasspathArgument(result))
@@ -126,7 +142,8 @@ internal sealed class MinecraftArgumentBuilder
             throw new MinecraftLaunchException("版本配置没有可用的游戏启动参数。");
         }
 
-        result.AddRange(options.AdditionalGameArguments);
+        result.AddRange(options.AdditionalGameArguments
+            .Select(argument => ReplacePlaceholders(argument, placeholders)));
         return result;
     }
 

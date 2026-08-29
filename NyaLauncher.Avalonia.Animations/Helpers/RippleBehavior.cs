@@ -24,6 +24,9 @@ public static class RippleBehavior
 
     private static async Task ShowRippleAsync(Control control, Canvas layer)
     {
+        // 动画总开关关闭时不播涟漪
+        if (!AnimationGate.Enabled) return;
+
         var cx = control.Bounds.Width / 2;
         var cy = control.Bounds.Height / 2;
         var origin = control.TranslatePoint(new Point(cx, cy), layer);

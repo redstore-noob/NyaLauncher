@@ -31,11 +31,21 @@ public static class GameInstanceLayoutResolver
     private static readonly string[] ContentFiles =
         ["options.txt", "servers.dat"];
 
+    /// <summary>
+    /// 解析实例的隔离布局。
+    /// 判定优先级：显式设置 > 自动检测（PCL/MultiMC/HMCL/整合包元数据/内容证据）> 全局默认兜底 > 共享目录。
+    /// </summary>
+    /// <param name="explicitIsolation">实例自身的显式隔离设置（用户在实例设置中勾选/取消）；非 null 时直接生效。</param>
+    /// <param name="fallbackIsolation">
+    /// 全局默认隔离设置，仅在自动检测未发现任何隔离证据时兜底生效；
+    /// 传 null 表示未配置（视为关闭，即共享目录）。
+    /// </param>
     public static GameVersionLayout Resolve(
         string minecraftDirectory,
         string? sourcePath,
         string versionId,
-        bool? explicitIsolation)
+        bool? explicitIsolation,
+        bool? fallbackIsolation = null)
     {
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(minecraftDirectory));
         var versionDirectory = Path.Combine(root, "versions", versionId);
@@ -105,7 +115,13 @@ public static class GameInstanceLayoutResolver
                 "当前添加路径是 versions/<版本> 实例目录");
         }
 
-        return Shared(root, "官方 / 共享布局", "未检测到版本独立内容或隔离设置");
+        // 自动检测未发现任何隔离证据：按全局默认兜底，未配置（null）则保持共享目录
+        return fallbackIsolation == true
+            ? Isolated(
+                isolatedDirectory,
+                "NyaLauncher",
+                "全局默认开启版本隔离（未检测到已有实例内容）")
+            : Shared(root, "官方 / 共享布局", "未检测到版本独立内容或隔离设置");
     }
 
     public static bool IsVersionDirectorySource(string? sourcePath)
@@ -324,10 +340,26 @@ public static class GameInstanceLayoutResolver
         }
     }
 
-    private static bool HasMinecraftContent(string directory) =>
-        Directory.Exists(directory) &&
-        (ContentDirectories.Any(name => Directory.Exists(Path.Combine(directory, name))) ||
-         ContentFiles.Any(name => File.Exists(Path.Combine(directory, name))));
+    /// <summary>
+    /// 判断目录内是否存在真实的 Minecraft 内容。
+    /// 注意：下载器预建的空骨架目录（mods/saves 等空文件夹）不算内容，
+    /// 否则关闭全局隔离后，这些实例仍会被「检测到内容」分支误判为隔离。
+    /// </summary>
+    private static bool HasMinecraftContent(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return false;
+
+        // 内容子目录必须至少包含一个文件/子项，空骨架目录不算
+        foreach (var name in ContentDirectories)
+        {
+            var path = Path.Combine(directory, name);
+            if (Directory.Exists(path) && Directory.EnumerateFileSystemEntries(path).Any())
+                return true;
+        }
+
+        return ContentFiles.Any(name => File.Exists(Path.Combine(directory, name)));
+    }
 
     private static bool? ParseBoolean(string value)
     {

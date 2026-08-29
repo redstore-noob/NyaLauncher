@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using NyaLauncher.Core.Tools;
 
@@ -65,15 +66,18 @@ internal sealed class MinecraftLibraryResolver
 
     public string ExtractNatives(
         string versionId,
-        IEnumerable<NativeLibrary> nativeLibraries)
+        IEnumerable<NativeLibrary> nativeLibraries,
+        string? minecraftDirectory = null)
     {
         var safeVersionId = string.Concat(versionId.Select(character =>
             Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
-        var nativeDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "NyaLauncher",
-            "natives",
-            $"{safeVersionId}-{Guid.NewGuid():N}");
+        // 优先解压到 Minecraft 目录下（避开 Linux /tmp 的 noexec 挂载与临时目录泄漏），
+        // 未提供目录时回退系统临时目录以保持向后兼容。
+        var baseDirectory = !string.IsNullOrWhiteSpace(minecraftDirectory)
+            ? Path.Combine(minecraftDirectory, ".nya-natives")
+            : Path.Combine(Path.GetTempPath(), "NyaLauncher", "natives");
+        CleanupStaleNativeDirectories(baseDirectory);
+        var nativeDirectory = Path.Combine(baseDirectory, $"{safeVersionId}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(nativeDirectory);
 
         try
@@ -102,6 +106,36 @@ internal sealed class MinecraftLibraryResolver
         catch
         {
             // 游戏退出后的临时文件清理不应影响主流程。
+        }
+    }
+
+    /// <summary>
+    /// 清理超过 7 天未被修改的旧 natives 解压目录，
+    /// 防止启动器被强制终止或断电时 .nya-natives 下无限累积 GUID 目录。
+    /// </summary>
+    private static void CleanupStaleNativeDirectories(string baseDirectory)
+    {
+        if (!Directory.Exists(baseDirectory))
+            return;
+        try
+        {
+            var cutoff = DateTime.UtcNow - TimeSpan.FromDays(7);
+            foreach (var directory in Directory.EnumerateDirectories(baseDirectory))
+            {
+                try
+                {
+                    if (Directory.GetLastWriteTimeUtc(directory) < cutoff)
+                        Directory.Delete(directory, recursive: true);
+                }
+                catch
+                {
+                    // 单个目录清理失败不影响其余
+                }
+            }
+        }
+        catch
+        {
+            // 清理失败不影响本次解压
         }
     }
 
@@ -163,12 +197,41 @@ internal sealed class MinecraftLibraryResolver
             return false;
         }
 
-        var architecture = Environment.Is64BitOperatingSystem ? "64" : "32";
+        var architecture = RuntimeInformation.OSArchitecture switch
+        {
+            Architecture.Arm64 => "arm64",
+            Architecture.X64 => "64",
+            Architecture.X86 => "32",
+            _ => Environment.Is64BitOperatingSystem ? "64" : "32"
+        };
         var classifier = classifierElement.GetString()!.Replace("${arch}", architecture);
-        return library.TryGetProperty("downloads", out var downloads) &&
-               downloads.TryGetProperty("classifiers", out var classifiers) &&
-               classifiers.TryGetProperty(classifier, out var nativeArtifact) &&
-               PathUtil.TryGetString(nativeArtifact, "path", out path);
+
+        // 新版本：downloads.classifiers 提供精确路径
+        if (library.TryGetProperty("downloads", out var downloads) &&
+            downloads.TryGetProperty("classifiers", out var classifiers) &&
+            classifiers.TryGetProperty(classifier, out var nativeArtifact) &&
+            PathUtil.TryGetString(nativeArtifact, "path", out path))
+        {
+            return true;
+        }
+
+        // 旧版本（1.7.x 及更早）：版本 JSON 无 downloads 字段，
+        // 用 name + classifier 拼出 natives JAR 路径（org.lwjgl:lwjgl-platform:2.9.4 + natives-windows）
+        if (PathUtil.TryGetString(library, "name", out var name))
+        {
+            var parts = name.Split(':');
+            if (parts.Length is >= 3 and <= 4 && parts.All(part => !string.IsNullOrWhiteSpace(part)))
+            {
+                path = Path.Combine(
+                    parts[0].Replace('.', Path.DirectorySeparatorChar),
+                    parts[1],
+                    parts[2],
+                    $"{parts[1]}-{parts[2]}-{classifier}.jar");
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<string> GetNativeExclusions(JsonElement library)

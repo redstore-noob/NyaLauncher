@@ -7,6 +7,13 @@ namespace NyaLauncher.Avalonia.Themes;
 /// 主题画笔桥接层：从 Application.Current.Resources 读取当前主题的画笔值。
 /// 每次访问属性时实时读取，确保主题切换后立即生效。
 /// fallback 值仅在资源键缺失时使用（正常情况下不会触发）。
+/// <para>
+/// 使用约定：本层返回的是瞬时快照。持久视觉元素请在
+/// <see cref="ThemeManager.ThemeChanged"/> 时重新读取并应用
+/// （DockWorkspace.Rebuild 即此模式）；一次性的交互态着色
+/// （拖拽高亮等）直接读取即可。XAML 中不要通过本层取色，
+/// 应直接使用 {DynamicResource xxxBrush}。
+/// </para>
 /// </summary>
 public static class ThemeBrushes
 {

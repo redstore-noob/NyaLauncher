@@ -67,7 +67,7 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
 
     private static HttpClient CreateDefaultHttpClient()
     {
-        var client = new HttpClient();
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("NyaLauncher/1.0");
         return client;
     }
@@ -113,7 +113,10 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
         }
 
         var (accessToken, refreshToken) = await RequestTokenByRefreshTokenAsync(
-            account.RefreshToken, cancellationToken).ConfigureAwait(false);
+            account.RefreshToken,
+            // 服务端未返回新 refresh_token（无轮换策略）时回退保留旧值，避免账号被清空
+            account.RefreshToken,
+            cancellationToken).ConfigureAwait(false);
 
         return await ExchangeForMinecraftAccountAsync(
             accessToken, refreshToken, cancellationToken).ConfigureAwait(false);
@@ -188,7 +191,7 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
             using var response = await _httpClient.PostAsync(
                 TokenEndpoint, content, cancellationToken).ConfigureAwait(false);
             var body = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
-            var token = JsonSerializer.Deserialize<TokenResponse>(body);
+            var token = DeserializeToken(body);
 
             if (!string.IsNullOrWhiteSpace(token?.AccessToken))
             {
@@ -198,6 +201,13 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
             switch (token?.Error)
             {
                 case "authorization_pending":
+                    continue;
+                case "slow_down":
+                    // OAuth 2.0 规范：服务器要求放慢轮询，间隔 +5 秒后继续等待
+                    deviceCode = deviceCode with
+                    {
+                        PollIntervalSeconds = deviceCode.PollIntervalSeconds + 5
+                    };
                     continue;
                 case "authorization_declined":
                     throw new MicrosoftAuthenticationException(
@@ -224,6 +234,7 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
 
     private async Task<(string AccessToken, string RefreshToken)> RequestTokenByRefreshTokenAsync(
         string refreshToken,
+        string fallbackRefreshToken,
         CancellationToken cancellationToken)
     {
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -237,7 +248,7 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
         using var response = await _httpClient.PostAsync(
             TokenEndpoint, content, cancellationToken).ConfigureAwait(false);
         var body = await ReadBodyAsync(response, cancellationToken).ConfigureAwait(false);
-        var token = JsonSerializer.Deserialize<TokenResponse>(body);
+        var token = DeserializeToken(body);
 
         if (!response.IsSuccessStatusCode || string.IsNullOrWhiteSpace(token?.AccessToken))
         {
@@ -246,8 +257,29 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
                 token?.Error);
         }
 
-        return (token.AccessToken, token.RefreshToken ?? string.Empty);
+        // 服务端未返回新 refresh_token（无轮换策略）时回退保留旧值，防止账号刷新后被清空
+        return (token.AccessToken,
+            string.IsNullOrWhiteSpace(token.RefreshToken) ? fallbackRefreshToken : token.RefreshToken);
     }
+
+    /// <summary>
+    /// 反序列化令牌响应；非 JSON 错误体（代理错误页等）包装为友好异常。
+    /// </summary>
+    private static TokenResponse? DeserializeToken(string body)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<TokenResponse>(body);
+        }
+        catch (JsonException exception)
+        {
+            throw new MicrosoftAuthenticationException(
+                $"令牌服务返回了无法解析的响应：{Truncate(body)}", exception);
+        }
+    }
+
+    private static string Truncate(string value, int maxLength = 200) =>
+        value.Length <= maxLength ? value : value[..maxLength] + "…";
 
     /// <summary>XBL 3.0 认证，返回 XBL 令牌与用户哈希（uhs）。</summary>
     private async Task<(string Token, string Uhs)> AuthenticateWithXboxLiveAsync(
@@ -379,6 +411,13 @@ public sealed class MicrosoftDeviceCodeAuthenticator : IMicrosoftAuthenticator, 
 
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == HttpStatusCode.Forbidden &&
+                body.Contains("ACCOUNT_SUSPENDED", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new MicrosoftAuthenticationException(
+                    "该账号已被 Minecraft 服务封禁（ACCOUNT_SUSPENDED），无法登录，需联系官方客服申诉。");
+            }
+
             throw new MicrosoftAuthenticationException(
                 $"Minecraft 登录失败（HTTP {(int)response.StatusCode}）：{body}");
         }

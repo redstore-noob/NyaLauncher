@@ -193,7 +193,8 @@ public sealed class PolygonComponentBuilder
         string fallbackText = "?",
         double cornerRadius = 0,
         bool pixelated = false,
-        ComponentPixelRect? sourcePixelRect = null)
+        ComponentPixelRect? sourcePixelRect = null,
+        bool isSkinHead = false)
     {
         _elements.Add(new ImageElementDefinition
         {
@@ -205,7 +206,8 @@ public sealed class PolygonComponentBuilder
             Stretch = stretch,
             FallbackText = fallbackText ?? string.Empty,
             CornerRadius = cornerRadius,
-            Pixelated = pixelated
+            Pixelated = pixelated,
+            IsSkinHead = isSkinHead
         });
         return this;
     }
@@ -234,14 +236,16 @@ public sealed class PolygonComponentBuilder
         string id,
         ComponentRect bounds,
         string glyph = "⌄",
-        IEnumerable<ComponentMenuItem>? pinnedItems = null)
+        IEnumerable<ComponentMenuItem>? pinnedItems = null,
+        bool alignRight = false)
     {
         _elements.Add(new DropdownElementDefinition
         {
             Id = id,
             Bounds = bounds,
             Glyph = glyph ?? "⌄",
-            PinnedItems = pinnedItems?.ToArray() ?? []
+            PinnedItems = pinnedItems?.ToArray() ?? [],
+            AlignRight = alignRight
         });
         return this;
     }

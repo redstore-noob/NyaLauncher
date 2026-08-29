@@ -1,7 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.VisualTree;
 using NyaLauncher.Avalonia.Pages;
 
 namespace NyaLauncher.Avalonia.Controls;
@@ -15,22 +12,5 @@ public partial class InstanceListItem : UserControl
     public InstanceListItem()
     {
         InitializeComponent();
-    }
-
-    private VersionListItem? Item => DataContext as VersionListItem;
-
-    private VersionManagerPage? FindParentPage() =>
-        this.FindAncestorOfType<VersionManagerPage>();
-
-    private void OnRenameClick(object? sender, RoutedEventArgs e)
-    {
-        if (Item is null) return;
-        FindParentPage()?.RequestRename(Item.VersionId);
-    }
-
-    private void OnDeleteClick(object? sender, RoutedEventArgs e)
-    {
-        if (Item is null) return;
-        FindParentPage()?.RequestDelete(Item.VersionId);
     }
 }

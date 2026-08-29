@@ -14,6 +14,12 @@ public sealed record MusicTrack
     /// <summary>文件扩展名（如 .mp3）。</summary>
     public string Extension => Path.GetExtension(FilePath).ToLowerInvariant();
 
+    /// <summary>扩展名显示（去掉点，如 "mp3"）。</summary>
+    public string ExtensionDisplay => Extension.TrimStart('.');
+
+    /// <summary>列表副标题（如 "mp3 · 4.2 MB"）。</summary>
+    public string MetaDisplay => $"{ExtensionDisplay} · {SizeDisplay}";
+
     /// <summary>文件大小（字节）。</summary>
     public long FileSize { get; init; }
 

@@ -119,6 +119,9 @@ public sealed record ImageElementDefinition : ComponentElementDefinition
     public double CornerRadius { get; init; }
 
     public bool Pixelated { get; init; }
+
+    /// <summary>为 Minecraft 皮肤贴图：加载后自动合成为双层头像（脸层 + 帽层）。</summary>
+    public bool IsSkinHead { get; init; }
 }
 
 public sealed record ButtonElementDefinition : ComponentElementDefinition
@@ -152,6 +155,12 @@ public sealed record ComponentMenuItem
     /// </summary>
     public string? IconSource { get; init; }
 
+    /// <summary>
+    /// When <see cref="IconSource"/> is a Minecraft skin texture, only show the
+    /// face avatar region (top-left 1/8 of the sheet) instead of the whole skin.
+    /// </summary>
+    public bool IsSkinHead { get; init; }
+
     public required string ActionId { get; init; }
 
     public IReadOnlyDictionary<string, string> Arguments { get; init; } =
@@ -173,6 +182,9 @@ public sealed record DropdownElementDefinition : ComponentElementDefinition
     public string Glyph { get; init; } = "⌄";
 
     public IReadOnlyList<ComponentMenuItem> PinnedItems { get; init; } = [];
+
+    /// <summary>触发按钮内容右对齐（如整卡下拉框场景中 chevron 靠右）。</summary>
+    public bool AlignRight { get; init; } = false;
 }
 
 public sealed record ComponentActionDefinition
@@ -182,30 +194,24 @@ public sealed record ComponentActionDefinition
     public bool AllowReentry { get; init; }
 }
 
+/// <summary>组件卡片视觉变体：具体颜色一律由宿主主题资源决定，组件不再自带颜色。</summary>
+public enum ComponentThemeVariant
+{
+    /// <summary>常规卡片：表面/边框/文字均绑定主题的中性色。</summary>
+    Default,
+
+    /// <summary>强调卡片（如启动按钮卡）：整体使用主题强调色填充，文字用强调前景色。</summary>
+    Launch
+}
+
 /// <summary>
-/// Theme fallbacks are expressed as #AARRGGBB/#RRGGBB strings so the public
-/// contract does not expose a specific UI framework. The host may replace them
-/// with semantic theme colors.
+/// 组件卡片主题设置：仅包含语义变体与数值参数。
+/// 颜色完全由宿主主题资源决定（ComponentBgBrush / PrimaryTextBrush / AccentBrush 等），
+/// 主题切换时自动跟随，无需重建组件。
 /// </summary>
 public sealed record PolygonComponentTheme
 {
-    public string Surface { get; init; } = "#22283A";
-
-    public string SurfaceHover { get; init; } = "#2D354D";
-
-    public string Border { get; init; } = "#3A4563";
-
-    public string BorderHover { get; init; } = "#7C8CFF";
-
-    public string TextPrimary { get; init; } = "#F6F7FF";
-
-    public string TextSecondary { get; init; } = "#A5AEC7";
-
-    public string Accent { get; init; } = "#6C7BFF";
-
-    public string AccentForeground { get; init; } = "#FFFFFF";
-
-    public string ProgressTrack { get; init; } = "#30384F";
+    public ComponentThemeVariant Variant { get; init; } = ComponentThemeVariant.Default;
 
     public double BorderThickness { get; init; } = 1.5;
 }

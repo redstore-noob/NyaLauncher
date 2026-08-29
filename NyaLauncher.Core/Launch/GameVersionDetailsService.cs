@@ -83,8 +83,17 @@ public static class GameVersionDetailsService
                 $"{currentVersionId}.json");
             if (!File.Exists(currentJson))
                 break;
-            using var document = JsonDocument.Parse(File.ReadAllBytes(currentJson));
-            var root = document.RootElement;
+            JsonElement root;
+            try
+            {
+                using var document = JsonDocument.Parse(File.ReadAllBytes(currentJson));
+                root = document.RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                // 版本 JSON 损坏时降级继续，不中断详情页展示
+                break;
+            }
             baseGameVersion ??=
                 ReadString(root, "clientVersion") ??
                 ReadString(root, "minecraftVersion");

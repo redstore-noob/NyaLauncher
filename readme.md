@@ -65,6 +65,25 @@ NyaLauncher是一款自由软件，除了必要状态下保留的库文件之外
 | `Windows/`         | 独立窗口（个性化、组件库、任务详情）             |
 
 ---
+
+## 📚 开发者文档
+
+所有教程已整合到 [`Guides/`](Guides/README.md) 目录：
+
+| 文档 | 内容 |
+|------|------|
+| [项目架构总览](Guides/01-architecture.md) | 工程划分、启动流程、配置目录、构建与发布 |
+| [主题开发指南](Guides/02-theming.md) | 资源键全集、热重载原理、创建新主题 |
+| [布局与间距规范](Guides/03-layout-and-spacing.md) | 2px 间距系统与控件规范 |
+| [动画系统指南](Guides/04-animations.md) | `nya-*` 动效 class、helper API、编写规范 |
+| [插件与功能区开发](Guides/05-plugin-development.md) | 功能区注册、工作区停靠、个性化、持久化 |
+| [多边形组件开发](Guides/06-polygon-components.md) | 组件契约、Builder API、状态与生命周期 |
+| [通知框架 NyaNotice](Guides/07-notifications.md) | `NyaAlert` 与 `NyaPrompt` 的完整 API |
+
+> **插件作者**建议按 [架构总览](Guides/01-architecture.md) → [插件开发](Guides/05-plugin-development.md) → [组件开发](Guides/06-polygon-components.md) 的顺序阅读。
+> 组件契约工程 `NyaLauncher.Plugin.Abstractions` **不依赖 Avalonia**，目标是 `net10.0`。
+
+---
 ## 🔃 更新计划
 
 ### 📝 更新命名规则
@@ -120,7 +139,7 @@ v0.1.0-preview4
 - 样式:新增切换主题功能，支持浅色/暗色主题，字体切换为启动器内嵌Harmony Sans
 - 增加账户管理功能，可以更便捷增删账户
 - 启动:新增游戏补全功能
-- 替换了部分图标为Fluent Icons
+- 替换了部分图标为Material Icons
 - 移除了Herobrine
 ![v0.1.0preview4个性化主题截图](img/v0.1.0preview4-theme.png)
 ![v0.1.0preview4设置界面截图](img/v0.1.0preview4-settings.png)

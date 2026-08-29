@@ -28,12 +28,16 @@ public partial class AccountManagePage : UserControl
     {
         InitializeComponent();
         AccountStore.Changed += OnAccountsChanged;
-        AccountLoginOverlay.AccountAdded += OnAccountAdded;
         RefreshAccountList();
     }
 
     /// <summary>供外部（如工作区组件）直接打开登录遮罩。</summary>
-    public void ShowAccountLogin() => AccountLoginOverlay.Show();
+    public void ShowAccountLogin()
+    {
+        var view = new AccountLoginOverlay();
+        view.AccountAdded += OnAccountAdded;
+        AccountLoginOverlay.Show(view);
+    }
 
     // ------------------------------------------------------------------
     // 列表构建与同步
@@ -166,7 +170,7 @@ public partial class AccountManagePage : UserControl
 
     private void OnAddAccountClick(object? sender, RoutedEventArgs e)
     {
-        AccountLoginOverlay.Show();
+        ShowAccountLogin();
     }
 
     private void OnSetDefaultClick(object? sender, RoutedEventArgs e)

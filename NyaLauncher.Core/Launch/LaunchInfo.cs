@@ -52,6 +52,11 @@ namespace NyaLauncher.Core.Launch;
         public IReadOnlyList<string> AdditionalGameArguments { get; init; } = [];
 
         /// <summary>
+        /// 启动过程中的文本日志回调（如 Java 自动下载阶段的进度提示）；可为空。
+        /// </summary>
+        public Action<string>? LogCallback { get; init; }
+
+        /// <summary>
         /// 返回一个除账号外其余配置完全相同的副本，用于在启动前替换账号。
         /// </summary>
         public MinecraftLaunchOptions WithAccount(IMinecraftAccount account) => new()
@@ -69,7 +74,8 @@ namespace NyaLauncher.Core.Launch;
             LauncherName = LauncherName,
             LauncherVersion = LauncherVersion,
             AdditionalJvmArguments = AdditionalJvmArguments,
-            AdditionalGameArguments = AdditionalGameArguments
+            AdditionalGameArguments = AdditionalGameArguments,
+            LogCallback = LogCallback
         };
     }
     /// <summary>

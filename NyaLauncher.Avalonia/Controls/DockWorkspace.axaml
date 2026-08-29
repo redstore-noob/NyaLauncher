@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="NyaLauncher.Avalonia.Controls.DockWorkspace">
   <Grid x:Name="WorkspaceRoot">
     <Grid.ColumnDefinitions>
@@ -23,26 +24,56 @@
         <Border x:Name="DropPreview"
                 IsVisible="False"
                 CornerRadius="14"
-                Background="{StaticResource DropPreviewBgBrush}"
-                BorderBrush="{StaticResource DropPreviewBorderBrush}"
+                Background="{DynamicResource DropPreviewBgBrush}"
+                BorderBrush="{DynamicResource DropPreviewBorderBrush}"
                 BorderThickness="2" />
       </Canvas>
 
-      <Border x:Name="DockHint"
+      <!-- 组件拖拽删除区：拖动组件时出现在窗口底部中央，命中后开盖 -->
+    <StackPanel x:Name="DiscardBin"
+                IsVisible="False"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,58"
+                ZIndex="500">
+      <Border x:Name="DiscardBinCircle"
+              Width="60"
+              Height="60"
+              CornerRadius="30"
+              HorizontalAlignment="Center"
+              Background="#26E53935"
+              BorderBrush="#E53935"
+              BorderThickness="2">
+        <mi:MaterialIcon x:Name="DiscardBinIcon"
+                         Kind="Delete"
+                         Width="30"
+                         Height="30"
+                         Foreground="#E53935" />
+      </Border>
+      <TextBlock x:Name="DiscardBinText"
+                 Text="松手删除"
+                 FontSize="12"
+                 FontWeight="SemiBold"
+                 Margin="0,6,0,0"
+                 HorizontalAlignment="Center"
+                 Foreground="#E53935" />
+    </StackPanel>
+
+    <Border x:Name="DockHint"
               IsVisible="False"
               HorizontalAlignment="Center"
               VerticalAlignment="Bottom"
               Margin="0,0,0,14"
               Padding="16,9"
               CornerRadius="18"
-              Background="{StaticResource DockHintBgBrush}"
-              BorderBrush="{StaticResource AccentDarkBrush}"
+              Background="{DynamicResource DockHintBgBrush}"
+              BorderBrush="{DynamicResource AccentDarkBrush}"
               BorderThickness="1">
         <TextBlock x:Name="DockHintText"
                    Text="移动到目标区域的上、下、左、右侧"
                    FontSize="12"
                    FontWeight="SemiBold"
-                   Foreground="{StaticResource PrimaryTextBrush}" />
+                   Foreground="{DynamicResource PrimaryTextBrush}" />
       </Border>
     </Grid>
 
@@ -51,8 +82,8 @@
             Grid.ColumnSpan="3"
             IsVisible="False"
             IsHitTestVisible="False"
-            Background="{StaticResource SidebarDropPreviewBgBrush}"
-            BorderBrush="{StaticResource SidebarDropPreviewBorderBrush}"
+            Background="{DynamicResource SidebarDropPreviewBgBrush}"
+            BorderBrush="{DynamicResource SidebarDropPreviewBorderBrush}"
             BorderThickness="2"
             ZIndex="200" />
   </Grid>
