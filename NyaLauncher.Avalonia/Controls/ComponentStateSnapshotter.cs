@@ -64,6 +64,9 @@ internal sealed class ComponentStateSnapshotter
         return new ComponentStateSnapshot
         {
             Revision = state.Revision,
+            Scale = state.Scale is > 0 && double.IsFinite(state.Scale.Value)
+                ? state.Scale
+                : null,
             Elements = elements
         };
     }

@@ -29,7 +29,19 @@ public sealed record FeatureAreaAction(
     Action? Execute = null,
     bool IsPrimary = false)
 {
-    /// <summary>首选宽度（设备无关像素）。</summary>
+    /// <summary>
+    /// 稳定的所有者标识：注册表用它挂起并热替换某插件贡献的全部动作，
+    /// 以区别于用户的手动移除。内置组件此值为 <c>null</c>。
+    /// </summary>
+    public string? OwnerPluginId { get; init; }
+
+    /// <summary>
+    /// 休眠动作：插件组件当前不可用时，由启动器生成的占位动作。
+    /// 刻意保留原 Id 与占位尺寸，使工作区成员与摆放位置在插件禁用期间得以保留。
+    /// </summary>
+    public bool IsDormant { get; init; }
+
+    /// <summary>首选宽度（设备无关像素）。插件可在不改工作区布局契约的前提下覆盖。</summary>
     public double BaseWidth { get; init; } = 220;
 
     /// <summary>首选高度（设备无关像素）。</summary>

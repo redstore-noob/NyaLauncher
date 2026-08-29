@@ -58,8 +58,8 @@ public static class WorkspaceDefaultProfile
                     IconPath = null,
                     ActionIds =
                     [
-                        "downloads",
-                        "settings"
+                        "settings",
+                        BuiltInPluginListComponent.ComponentId
                     ]
                 }
             ],
@@ -128,18 +128,18 @@ public static class WorkspaceDefaultProfile
                 new ComponentPlacementProfile
                 {
                     AreaId = "area-003",
-                    ComponentId = "downloads",
-                    RelativeX = 0.5,
-                    RelativeY = 0,
-                    ZIndex = 23
-                },
-                new ComponentPlacementProfile
-                {
-                    AreaId = "area-003",
                     ComponentId = "settings",
                     RelativeX = 0.5,
                     RelativeY = 0.13121783876500862,
                     ZIndex = 26
+                },
+                new ComponentPlacementProfile
+                {
+                    AreaId = "area-003",
+                    ComponentId = BuiltInPluginListComponent.ComponentId,
+                    RelativeX = 0.5,
+                    RelativeY = 0.27,
+                    ZIndex = 27
                 }
             ]
         };

@@ -148,6 +148,49 @@ internal sealed class PolygonComponentInstancePool(
     }
 
     /// <summary>
+    /// 释放指定的一组实例并等待它们的异步清理完成（插件热卸载时按所有者精准等待）。
+    /// 最多等待 <see cref="ShutdownTimeout"/>；超时或插件清理异常都不会抛出。
+    /// </summary>
+    public async Task ReleaseAndWaitAsync(
+        IEnumerable<ComponentInstanceContext> instances,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(instances);
+        var keys = instances
+            .Select(context => new ComponentInstanceKey(context.AreaId, context.ComponentId))
+            .Distinct(KeyComparer)
+            .ToArray();
+        foreach (var key in keys)
+            Release(key);
+
+        var pending = keys
+            .Select(key => _disposals.GetValueOrDefault(key))
+            .Where(task => task is not null)
+            .Distinct()
+            .Cast<Task>()
+            .ToArray();
+        if (pending.Length == 0)
+            return;
+
+        var completion = Task.WhenAll(pending);
+        var timeout = Task.Delay(ShutdownTimeout, cancellationToken);
+        if (await Task.WhenAny(completion, timeout) != completion)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new TimeoutException("插件组件未能在时限内释放。");
+        }
+
+        try
+        {
+            await completion;
+        }
+        catch (Exception)
+        {
+            // 已完成的失败任务不会再执行插件代码；观察器仍会记录并清理。
+        }
+    }
+
+    /// <summary>
     /// 关闭实例池：先释放全部实例，再等待所有异步清理完成。
     /// <para>
     /// 最多等待 <see cref="ShutdownTimeout"/>（5 秒）——失控的第三方实现

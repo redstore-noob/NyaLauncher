@@ -29,10 +29,10 @@ internal static class WorkspaceProfileMigrator
     /// <summary>v6：引入版本管理器组件。</summary>
     private const int VersionManagerComponentVersion = 6;
 
-    // testplug 分支用 v7 做插件列表迁移。非插件分支可以安全地读取这份「兄弟格式」：
-    // 注册不上的组件 Id 会被注册表丢弃，下次保存时再写出自己的标准 v6 档案。
-    /// <summary>v7：插件分支的兼容格式，本分支只读不写，下次保存时降级回标准 v6。</summary>
-    private const int CompatiblePluginProfileVersion = 7;
+    // v7 原是插件分支的兼容格式：注册不上的组件 Id 会被注册表丢弃。
+    // 合并插件系统后正式采用：v7 把旧版矩形「插件列表」动作迁移为规范组件。
+    /// <summary>v7：插件列表组件迁移。</summary>
+    private const int PluginListComponentVersion = 7;
 
     /// <summary>
     /// 把档案迁移到 <see cref="WorkspaceProfile.CurrentVersion"/>。
@@ -50,8 +50,7 @@ internal static class WorkspaceProfileMigrator
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        var isCompatiblePluginProfile = profile.Version == CompatiblePluginProfileVersion;
-        if (profile.Version > WorkspaceProfile.CurrentVersion && !isCompatiblePluginProfile)
+        if (profile.Version > WorkspaceProfile.CurrentVersion)
         {
             throw new NotSupportedException(
                 $"工作区配置版本 {profile.Version} 高于当前支持的版本 " +
@@ -59,9 +58,6 @@ internal static class WorkspaceProfileMigrator
         }
 
         NormalizeShape(profile);
-
-        if (isCompatiblePluginProfile)
-            profile.Version = WorkspaceProfile.CurrentVersion;
 
         if (profile.Version < CanonicalAreaIdsVersion)
         {
@@ -91,6 +87,12 @@ internal static class WorkspaceProfileMigrator
         {
             AddVersionManagerComponent(profile);
             profile.Version = VersionManagerComponentVersion;
+        }
+
+        if (profile.Version < PluginListComponentVersion)
+        {
+            MigratePluginListComponent(profile);
+            profile.Version = PluginListComponentVersion;
         }
 
         if (profile.Version != WorkspaceProfile.CurrentVersion)
@@ -183,6 +185,23 @@ internal static class WorkspaceProfileMigrator
             relativeX: 0.5,
             relativeY: 0.38,
             insertAtStart: true);
+    }
+
+    private static void MigratePluginListComponent(WorkspaceProfile profile)
+    {
+        // v6 exposed a legacy rectangular "plugins" action. Preserve any user
+        // placement while moving it onto the built-in polygon component id.
+        ReplaceComponentId(
+            profile,
+            "plugins",
+            BuiltInPluginListComponent.ComponentId);
+        EnsureComponent(
+            profile,
+            "area-003",
+            BuiltInPluginListComponent.ComponentId,
+            relativeX: 0.5,
+            relativeY: 0.27,
+            insertAtStart: false);
     }
 
     private static void ReplaceComponentId(

@@ -14,7 +14,12 @@ internal sealed class MinecraftArgumentBuilder
         MinecraftVersionProfile profile,
         MinecraftLaunchOptions options,
         string nativeDirectory,
-        IReadOnlyList<string> classpath)
+        IReadOnlyList<string> classpath,
+        string mainClass,
+        IReadOnlyList<string> prependJvmArguments,
+        IReadOnlyList<string> appendJvmArguments,
+        IReadOnlyList<string> prependGameArguments,
+        IReadOnlyList<string> appendGameArguments)
     {
         ValidateMemory(options);
 
@@ -144,6 +149,7 @@ internal sealed class MinecraftArgumentBuilder
 
         result.AddRange(options.AdditionalGameArguments
             .Select(argument => ReplacePlaceholders(argument, placeholders)));
+        result.AddRange(appendGameArguments);
         return result;
     }
 

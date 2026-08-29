@@ -17,7 +17,7 @@ namespace NyaLauncher.Avalonia.Framework;
 /// 工作区订阅它并自动刷新，无需重启。
 /// </para>
 /// </summary>
-public sealed class FeatureAreaRegistry
+public sealed partial class FeatureAreaRegistry
 {
     /// <summary>允许的全局组件缩放下限（0.65 倍）。</summary>
     public const double MinimumComponentScale = 0.65;
@@ -30,6 +30,7 @@ public sealed class FeatureAreaRegistry
     private readonly Dictionary<string, FeatureAreaPreference> _preferences =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _userAreaIds = new(StringComparer.OrdinalIgnoreCase);
+    private bool _personalizationApplied;
 
     /// <summary>
     /// 区域内容发生变化时触发（注册、注销、个性化、用户区域同步、组件摆放等）。
@@ -45,6 +46,10 @@ public sealed class FeatureAreaRegistry
 
     /// <summary>由用户在个性化窗口中创建、而非代码注册的区域 Id 集合。</summary>
     public IReadOnlySet<string> UserAreaIds => _userAreaIds;
+
+    /// <summary>由插件注册、并带有所有者信息的区域 Id 集合（详见 <c>FeatureAreaRegistry.Plugins</c>）。</summary>
+    public IReadOnlySet<string> PluginAreaIds =>
+        _pluginAreaOwners.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>全局组件缩放系数，钳制在 <see cref="MinimumComponentScale"/> 与 <see cref="MaximumComponentScale"/> 之间。</summary>
     public double GlobalComponentScale { get; private set; } = 1;
@@ -203,6 +208,8 @@ public sealed class FeatureAreaRegistry
             };
         }
 
+        HydrateDormantProfileEntries();
+        _personalizationApplied = true;
         RebuildPersonalizedAreas();
         Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -388,6 +395,13 @@ public sealed class FeatureAreaRegistry
             return false;
         }
 
+        // A plugin-owned area exists only as a historical/default container.
+        // Once its last component is returned to the library, remove its
+        // personalization entry so the empty workspace cannot linger or be
+        // recreated by the still-enabled plugin.
+        if (source.ActionIds.Count == 0 && _pluginAreaOwners.ContainsKey(sourceAreaId))
+            profile.Areas.Remove(source);
+
         ApplyPersonalization(profile.Areas);
         return true;
     }
@@ -407,6 +421,8 @@ public sealed class FeatureAreaRegistry
 
         _preferences.Remove(id);
         _userAreaIds.Remove(id);
+        _hydratedAreaIds.Remove(id);
+        _pluginAreaOwners.Remove(id);
         RebuildPersonalizedAreas();
         Changed?.Invoke(this, EventArgs.Empty);
         return true;
@@ -423,6 +439,14 @@ public sealed class FeatureAreaRegistry
         foreach (var source in _sourceAreas)
         {
             _preferences.TryGetValue(source.Id, out var preference);
+
+            // Once a profile has been applied, its area list is authoritative.
+            // Registered built-in and plugin sources remain in the component
+            // catalog, but an omitted source must not recreate a workspace the
+            // user removed. Before the first profile is applied, registrations
+            // can still project their shipped defaults.
+            if (preference is null && _personalizationApplied)
+                continue;
 
             var title = string.IsNullOrWhiteSpace(preference?.DisplayName)
                 ? source.Title
@@ -505,43 +529,6 @@ public sealed class FeatureAreaRegistry
             PolygonComponents = []
         };
     }
-
-    /// <summary>
-    /// Converts a framework-neutral Polygon registration into the workspace's
-    /// existing action catalog while keeping the validated definition snapshot.
-    /// </summary>
-    private static FeatureAreaAction CreatePolygonAction(
-        PolygonComponentRegistration? registration)
-    {
-        if (registration?.Definition is null)
-            throw CreateNullRegistrationException();
-
-        var definition = PolygonComponentValidator.ValidateAndSnapshot(
-            registration.Definition);
-        var registrationSnapshot = new PolygonComponentRegistration
-        {
-            Definition = definition,
-            Factory = registration.Factory
-        };
-        return new FeatureAreaAction(
-            definition.Id,
-            definition.Title,
-            definition.Description,
-            definition.Glyph)
-        {
-            BaseWidth = definition.PreferredSize.Width,
-            BaseHeight = definition.PreferredSize.Height,
-            PolygonComponent = registrationSnapshot
-        };
-    }
-
-    private static ComponentDefinitionException CreateNullRegistrationException() =>
-        new([
-            new ComponentValidationError(
-                "registration.null",
-                "$.polygonComponents",
-                "多边形组件注册不能为空。")
-        ]);
 
     private List<UserFeatureAreaProfile> CreateUserAreaProfiles()
     {

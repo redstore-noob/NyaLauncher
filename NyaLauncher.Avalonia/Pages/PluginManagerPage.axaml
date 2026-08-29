@@ -1,0 +1,404 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Pages.PluginManagerPage"
+             x:CompileBindings="False"
+             Background="{DynamicResource WindowBgBrush}">
+  <UserControl.Styles>
+    <Style Selector="Border.PluginRow">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DefaultBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="11" />
+      <Setter Property="Margin" Value="0,0,0,7" />
+    </Style>
+    <Style Selector="Border.PluginRow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StrongBorderBrush}" />
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBoxItem:selected Border.PluginRow">
+      <Setter Property="Background" Value="{DynamicResource BadgeBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Button.Primary">
+      <Setter Property="Background" Value="{DynamicResource AccentDarkerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource WhiteBrush}" />
+      <Setter Property="Padding" Value="16,8" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="26,22">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,16">
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="插件列表"
+                   FontSize="23"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource PrimaryTextBrush}" />
+        <TextBlock x:Name="PackagesDirectoryText"
+                   Text="正在解析插件目录…"
+                   FontFamily="Consolas"
+                   FontSize="10"
+                   Foreground="{DynamicResource MutedTextBrush}"
+                   TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+      </StackPanel>
+      <Button Grid.Column="1"
+              Content="在线插件仓库"
+              Margin="12,0,0,0"
+              Padding="14,8"
+              VerticalAlignment="Center"
+              Click="OnOpenRepositoryClick" />
+      <Button Grid.Column="2"
+              Content="打开插件文件夹"
+              Margin="8,0,0,0"
+              Padding="14,8"
+              VerticalAlignment="Center"
+              Click="OnOpenPackagesDirectoryClick" />
+      <Button x:Name="RefreshButton"
+              Grid.Column="3"
+              Content="重新扫描"
+              Margin="8,0,0,0"
+              Padding="14,8"
+              VerticalAlignment="Center"
+              Click="OnRefreshClick" />
+    </Grid>
+
+    <Border x:Name="CatalogErrorBanner"
+            Grid.Row="1"
+            IsVisible="False"
+            Background="{DynamicResource ErrorDarkBrush}"
+            BorderBrush="{DynamicResource ErrorBrush}"
+            BorderThickness="1"
+            CornerRadius="9"
+            Padding="13,10"
+            Margin="0,0,0,13">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Text="!"
+                   Width="24"
+                   Height="24"
+                   Background="{DynamicResource ErrorBrush}"
+                   Foreground="{DynamicResource WhiteBrush}"
+                   FontWeight="Bold"
+                   TextAlignment="Center"
+                   VerticalAlignment="Center" />
+        <TextBlock x:Name="CatalogErrorText"
+                   Grid.Column="1"
+                   Margin="10,0"
+                   Foreground="{DynamicResource ErrorBrush}"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="2"
+                Content="重试"
+                Padding="12,5"
+                Click="OnRefreshClick" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="310,16,*">
+      <Border Background="{DynamicResource PanelBgBrush}"
+              BorderBrush="{DynamicResource DefaultBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="13"
+              Padding="12">
+        <Grid RowDefinitions="Auto,Auto,Auto,*">
+          <TextBox x:Name="SearchBox"
+                   PlaceholderText="搜索名称、作者或 ID"
+                   TextChanged="OnSearchTextChanged" />
+          <ComboBox x:Name="StatusFilter"
+                    Grid.Row="1"
+                    Margin="0,9,0,0"
+                    SelectedIndex="0"
+                    SelectionChanged="OnStatusFilterChanged">
+            <ComboBoxItem Content="全部插件" />
+            <ComboBoxItem Content="已启用" />
+            <ComboBoxItem Content="已禁用" />
+            <ComboBoxItem Content="需要处理" />
+          </ComboBox>
+          <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="3,11,3,8">
+            <TextBlock Text="已发现插件"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BodyTextBrush}" />
+            <TextBlock x:Name="PluginCountText"
+                       Grid.Column="1"
+                       Text="0"
+                       FontSize="10"
+                       Foreground="{DynamicResource HintTextBrush}" />
+          </Grid>
+
+          <Grid Grid.Row="3">
+            <ListBox x:Name="PluginList"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     SelectionChanged="OnPluginSelectionChanged">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Classes="PluginRow" Cursor="Hand">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                      <Border Width="38"
+                              Height="38"
+                              CornerRadius="10"
+                              Background="{DynamicResource IconBoxBgBrush}">
+                        <TextBlock Text="{Binding Initial}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AccentTextBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PrimaryTextBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Metadata}"
+                                   FontSize="9"
+                                   Foreground="{DynamicResource HintTextBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Border Background="{Binding StatusBackground}"
+                                CornerRadius="6"
+                                Padding="6,2"
+                                HorizontalAlignment="Left">
+                          <TextBlock Text="{Binding StatusText}"
+                                     FontSize="8"
+                                     FontWeight="SemiBold"
+                                     Foreground="{Binding StatusForeground}" />
+                        </Border>
+                      </StackPanel>
+                      <ToggleSwitch Grid.Column="2"
+                                    IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                    IsEnabled="{Binding CanToggle}"
+                                    VerticalAlignment="Center"
+                                    IsCheckedChanged="OnPluginToggleChanged" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <StackPanel x:Name="EmptyPluginListView"
+                        IsVisible="False"
+                        Spacing="7"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+              <TextBlock Text="◇"
+                         FontSize="30"
+                         Foreground="{DynamicResource AccentBrush}"
+                         HorizontalAlignment="Center" />
+              <TextBlock x:Name="EmptyPluginListTitle"
+                         Text="插件目录为空"
+                         FontSize="14"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource BodyTextBrush}"
+                         HorizontalAlignment="Center" />
+              <TextBlock x:Name="EmptyPluginListHint"
+                         Text="把完整插件文件夹放入上方目录后重新扫描"
+                         Width="230"
+                         FontSize="10"
+                         Foreground="{DynamicResource HintTextBrush}"
+                         TextAlignment="Center"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border x:Name="ScanningOverlay"
+                    IsVisible="False"
+                    Background="{DynamicResource OverlayBgBrush}"
+                    CornerRadius="10">
+              <StackPanel Spacing="10"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                <ProgressBar Width="150" IsIndeterminate="True" />
+                <TextBlock Text="正在扫描插件目录…"
+                           FontSize="11"
+                           Foreground="{DynamicResource AccentTextBrush}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="2"
+              Background="{DynamicResource CardBgBrush}"
+              BorderBrush="{DynamicResource DefaultBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="13"
+              Padding="20">
+        <Grid>
+          <StackPanel x:Name="EmptyDetailsView"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Spacing="8">
+            <TextBlock Text="＋"
+                       FontSize="36"
+                       Foreground="{DynamicResource AccentBrush}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="请选择一个插件"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource BodyTextBrush}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="选择后可以查看详情、诊断和插件设置"
+                       FontSize="11"
+                       Foreground="{DynamicResource HintTextBrush}" />
+          </StackPanel>
+
+          <Grid x:Name="DetailsView" IsVisible="False" RowDefinitions="Auto,*">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,14">
+              <Border Width="48" Height="48" CornerRadius="13" Background="{DynamicResource IconBoxBgBrush}">
+                <TextBlock x:Name="DetailsInitialText"
+                           Text="P"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource AccentTextBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Margin="13,0" Spacing="3" VerticalAlignment="Center">
+                <TextBlock x:Name="DetailsNameText"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource PrimaryTextBrush}" />
+                <TextBlock x:Name="DetailsSummaryText"
+                           FontSize="10"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <Button Grid.Column="2"
+                      Content="打开插件目录"
+                      Padding="13,7"
+                      VerticalAlignment="Center"
+                      Click="OnOpenSelectedPluginDirectoryClick" />
+              <Button x:Name="UninstallPluginButton"
+                      Grid.Column="3"
+                      Content="卸载插件"
+                      Margin="8,0,0,0"
+                      Padding="13,7"
+                      Background="{DynamicResource ErrorDarkBrush}"
+                      Foreground="{DynamicResource ErrorBrush}"
+                      VerticalAlignment="Center"
+                      Click="OnUninstallSelectedPluginClick" />
+            </Grid>
+
+            <TabControl Grid.Row="1">
+              <TabItem Header="详情">
+                <ScrollViewer>
+                  <StackPanel Margin="14" Spacing="12">
+                    <TextBlock x:Name="DetailsDescriptionText"
+                               Foreground="{DynamicResource BodyTextBrush}"
+                               TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="插件 ID" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsIdText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="版本" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsVersionText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="仓库来源" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsOriginText"
+                                 Grid.Column="1"
+                                 Foreground="{DynamicResource SecondaryTextBrush}"
+                                 FontFamily="Consolas"
+                                 FontSize="10"
+                                 TextWrapping="Wrap" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="作者" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsAuthorsText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="运行状态" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsStatusText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*,Auto">
+                      <TextBlock Text="声明能力" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsCapabilitiesText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+                      <Button x:Name="ManageCapabilitiesButton"
+                              Grid.Column="2"
+                              Margin="10,0,0,0"
+                              Padding="10,5"
+                              Content="管理可选授权"
+                              IsVisible="False"
+                              Click="OnManageCapabilitiesClick" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="安装目录" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsDirectoryText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+                    </Grid>
+                    <Border x:Name="PluginOriginWarningPanel"
+                            IsVisible="False"
+                            Background="{DynamicResource BadgeBgBrush}"
+                            BorderBrush="{DynamicResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            Padding="12">
+                      <TextBlock x:Name="PluginOriginWarningText"
+                                 Foreground="{DynamicResource WarningBrush}"
+                                 TextWrapping="Wrap" />
+                    </Border>
+                    <Border x:Name="PluginErrorPanel"
+                            IsVisible="False"
+                            Background="{DynamicResource ErrorDarkBrush}"
+                            BorderBrush="{DynamicResource ErrorBrush}"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            Padding="12">
+                      <StackPanel Spacing="5">
+                        <TextBlock Text="插件诊断"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource ErrorBrush}" />
+                        <TextBlock x:Name="PluginErrorText"
+                                   FontFamily="Consolas"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource ErrorBrush}"
+                                   TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+
+              <TabItem Header="设置">
+                <Grid RowDefinitions="*,Auto" Margin="14">
+                  <ScrollViewer>
+                    <StackPanel x:Name="SettingsEditorPanel" Spacing="14" />
+                  </ScrollViewer>
+                  <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+                    <TextBlock x:Name="SettingsHintText"
+                               Text="设置由启动器验证并存储。"
+                               FontSize="10"
+                               Foreground="{DynamicResource HintTextBrush}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                    <Button x:Name="SaveSettingsButton"
+                            Grid.Column="1"
+                            Classes="Primary"
+                            Content="保存设置"
+                            IsEnabled="False"
+                            Click="OnSaveSettingsClick" />
+                  </Grid>
+                </Grid>
+              </TabItem>
+            </TabControl>
+          </Grid>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <TextBlock x:Name="StatusText"
+               Grid.Row="3"
+               Text="插件页面已就绪"
+               FontSize="11"
+               Foreground="{DynamicResource MutedTextBrush}"
+               Margin="2,13,0,0"
+               TextWrapping="Wrap" />
+  </Grid>
+</UserControl>

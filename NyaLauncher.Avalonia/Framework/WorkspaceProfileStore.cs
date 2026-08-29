@@ -26,6 +26,9 @@ public sealed class WorkspaceProfileStore
     /// <summary>启动器业务配置文件名（与本档案同目录，切换目录时一并迁移）。</summary>
     public const string LauncherConfigFileName = "config.json";
 
+    /// <summary>插件安装目录名（随存储目录一起迁移/备份/回滚）。</summary>
+    public const string PluginDirectoryName = "plugins";
+
     /// <summary>记录用户所选配置目录的定位文件名，存放在 %APPDATA%\NyaLauncher 下，不含个性化内容。</summary>
     private const string LocationFileName = "workspace-location.txt";
 
@@ -209,18 +212,14 @@ public sealed class WorkspaceProfileStore
             throw new IOException("所选路径不是文件夹。");
 
         EnsurePathHasNoReparsePoints(targetDirectory);
+        var pluginDirectory = Path.Combine(targetDirectory, PluginDirectoryName);
         var existingFiles = Directory.Exists(targetDirectory)
             ? Directory.EnumerateFileSystemEntries(targetDirectory)
-                .Select(entry =>
-                {
-                    if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0)
-                    {
-                        throw new IOException(
-                            $"目标配置目录包含不允许的符号链接或 junction：{entry}");
-                    }
-
-                    return Path.GetFileName(entry);
-                })
+                // An empty plugins directory is harmless and can be reused by a
+                // first migration. Every other entry makes this an existing
+                // target that must contain a complete, valid configuration.
+                .Where(entry => IsMeaningfulTargetEntry(entry, pluginDirectory))
+                .Select(Path.GetFileName)
                 .OfType<string>()
                 .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -236,7 +235,7 @@ public sealed class WorkspaceProfileStore
             {
                 throw new InvalidDataException(
                     "现有目标目录必须同时包含 workspace.json 与 config.json，" +
-                    "不能带着部分配置切换。");
+                    "不能带着部分配置或单独的插件数据切换。");
             }
 
             _ = ValidateConfigurationBundle(targetDirectory);
@@ -245,11 +244,28 @@ public sealed class WorkspaceProfileStore
         return new StorageDirectoryInspection(targetDirectory, existingFiles);
     }
 
+    private static bool IsMeaningfulTargetEntry(string entry, string pluginDirectory)
+    {
+        var attributes = File.GetAttributes(entry);
+        if ((attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new IOException(
+                $"目标配置目录包含不允许的符号链接或 junction：{entry}");
+        }
+
+        if (!PathUtil.PathsEqual(entry, pluginDirectory))
+            return true;
+        if ((attributes & FileAttributes.Directory) == 0)
+            throw new InvalidDataException("目标目录中的 plugins 必须是文件夹。");
+
+        return Directory.EnumerateFileSystemEntries(entry).Any();
+    }
+
     /// <summary>
     /// Prepares a storage-directory switch without changing the persisted
     /// locator or removing the old files. The caller must bind every consumer
-    /// to <see cref="StorageDirectoryChangeTransaction.TargetDirectory"/> before
-    /// calling <see cref="StorageDirectoryChangeTransaction.Complete"/>.
+    /// (especially <c>PluginManager</c>) to <see cref="StorageDirectoryChangeTransaction.TargetDirectory"/>
+    /// before calling <see cref="StorageDirectoryChangeTransaction.Complete"/>.
     /// </summary>
     public StorageDirectoryChangeTransaction PrepareStorageDirectoryChange(
         string storageDirectory,
@@ -295,6 +311,8 @@ public sealed class WorkspaceProfileStore
         }
         string? backupDirectory = null;
         var targetDirectoryExisted = Directory.Exists(targetDirectory);
+        var targetPluginDirectory = Path.Combine(targetDirectory, PluginDirectoryName);
+        var targetPluginDirectoryExisted = Directory.Exists(targetPluginDirectory);
 
         try
         {
@@ -326,7 +344,8 @@ public sealed class WorkspaceProfileStore
                 appliedProfile,
                 inspection.HasConfiguration,
                 backupDirectory,
-                targetDirectoryExisted);
+                targetDirectoryExisted,
+                targetPluginDirectoryExisted);
         }
         catch
         {
@@ -336,7 +355,8 @@ public sealed class WorkspaceProfileStore
             {
                 _ = CleanupPreparedTarget(
                     targetDirectory,
-                    targetDirectoryExisted);
+                    targetDirectoryExisted,
+                    targetPluginDirectoryExisted);
             }
             else if (backupDirectory is not null)
             {
@@ -349,8 +369,8 @@ public sealed class WorkspaceProfileStore
 
     internal void CompleteStorageDirectoryChange(StorageDirectoryChangeTransaction transaction)
     {
-        // The locator is the commit marker. Source configuration stays untouched
-        // until every consumer has accepted the target.
+        // The locator is the commit marker. Source configuration and plugins are
+        // deliberately untouched until every runtime has accepted the target.
         SaveConfiguredDirectory(transaction.TargetDirectory);
         StorageDirectory = transaction.TargetDirectory;
         transaction.SetCleanupFailures(DeleteConfigurationFiles(transaction.PreviousDirectory));
@@ -372,7 +392,8 @@ public sealed class WorkspaceProfileStore
 
         return CleanupPreparedTarget(
             transaction.TargetDirectory,
-            transaction.TargetDirectoryExisted);
+            transaction.TargetDirectoryExisted,
+            transaction.TargetPluginDirectoryExisted);
     }
 
     private static void CopyConfigurationFiles(string sourceDirectory, string targetDirectory)
@@ -388,6 +409,10 @@ public sealed class WorkspaceProfileStore
             File.Copy(sourcePath, Path.Combine(targetDirectory, fileName), overwrite: false);
         }
 
+        var sourcePlugins = Path.Combine(sourceDirectory, PluginDirectoryName);
+        var targetPlugins = Path.Combine(targetDirectory, PluginDirectoryName);
+        if (Directory.Exists(sourcePlugins))
+            CopyDirectory(sourcePlugins, targetPlugins);
     }
 
     private static string? CopyPreviousConfigurationToBackup(
@@ -397,7 +422,8 @@ public sealed class WorkspaceProfileStore
         var existingSourceFiles = ConfigurationFileNames
             .Where(fileName => File.Exists(Path.Combine(previousDirectory, fileName)))
             .ToArray();
-        if (existingSourceFiles.Length == 0)
+        var sourcePlugins = Path.Combine(previousDirectory, PluginDirectoryName);
+        if (existingSourceFiles.Length == 0 && !Directory.Exists(sourcePlugins))
             return null;
 
         var backupRoot = Path.Combine(targetDirectory, "backup");
@@ -425,6 +451,9 @@ public sealed class WorkspaceProfileStore
                     overwrite: false);
             }
 
+            if (Directory.Exists(sourcePlugins))
+                CopyDirectory(sourcePlugins, Path.Combine(backupDirectory, PluginDirectoryName));
+
             return backupDirectory;
         }
         catch
@@ -433,6 +462,41 @@ public sealed class WorkspaceProfileStore
             // failed backup must not accumulate an ambiguous partial snapshot.
             TryDeleteOwnedDirectory(backupDirectory);
             throw;
+        }
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string targetDirectory)
+    {
+        if (Directory.Exists(targetDirectory) &&
+            Directory.EnumerateFileSystemEntries(targetDirectory).Any())
+            throw new IOException($"目标插件目录已存在：{targetDirectory}");
+
+        Directory.CreateDirectory(targetDirectory);
+        var pending = new Stack<(string Source, string Target)>();
+        pending.Push((sourceDirectory, targetDirectory));
+        while (pending.Count > 0)
+        {
+            var (source, target) = pending.Pop();
+            foreach (var entry in Directory.EnumerateFileSystemEntries(source))
+            {
+                var attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new IOException(
+                        $"插件目录包含不允许迁移的符号链接或 junction：{entry}");
+                }
+
+                var destination = Path.Combine(target, Path.GetFileName(entry));
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    Directory.CreateDirectory(destination);
+                    pending.Push((entry, destination));
+                }
+                else
+                {
+                    File.Copy(entry, destination, overwrite: false);
+                }
+            }
         }
     }
 
@@ -457,12 +521,23 @@ public sealed class WorkspaceProfileStore
             }
         }
 
+        var pluginDirectory = Path.GetFullPath(Path.Combine(directory, PluginDirectoryName));
+        try
+        {
+            DeleteDirectoryTree(pluginDirectory);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            failures.Add($"{PluginDirectoryName}：{exception.Message}");
+        }
+
         return failures;
     }
 
     private static IReadOnlyList<string> CleanupPreparedTarget(
         string targetDirectory,
-        bool targetDirectoryExisted)
+        bool targetDirectoryExisted,
+        bool targetPluginDirectoryExisted)
     {
         var failures = new List<string>();
         foreach (var fileName in ConfigurationFileNames)
@@ -477,6 +552,18 @@ public sealed class WorkspaceProfileStore
             {
                 failures.Add($"{fileName}：{exception.Message}");
             }
+        }
+
+        var pluginDirectory = Path.Combine(targetDirectory, PluginDirectoryName);
+        try
+        {
+            DeleteDirectoryTree(pluginDirectory);
+            if (targetPluginDirectoryExisted)
+                Directory.CreateDirectory(pluginDirectory);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            failures.Add($"{PluginDirectoryName}：{exception.Message}");
         }
 
         if (!targetDirectoryExisted)
@@ -508,8 +595,8 @@ public sealed class WorkspaceProfileStore
         if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
             throw new IOException($"拒绝删除重解析点目录：{root}");
 
-        // Validate the complete tree before deleting its first entry so cleanup
-        // cannot traverse outside the directory owned by this migration.
+        // Validate the complete tree before deleting its first entry. A plugin
+        // package cannot turn a migration cleanup into traversal outside root.
         var files = new List<string>();
         var directories = new List<string> { root };
         var pending = new Stack<string>();
@@ -521,10 +608,10 @@ public sealed class WorkspaceProfileStore
             {
                 var fullPath = Path.GetFullPath(entry);
                 if (!IsContainedBy(root, fullPath))
-                    throw new IOException($"目录条目越过迁移根目录：{entry}");
+                    throw new IOException($"插件目录条目越过迁移根目录：{entry}");
                 var attributes = File.GetAttributes(fullPath);
                 if ((attributes & FileAttributes.ReparsePoint) != 0)
-                    throw new IOException($"目录包含重解析点，已保留旧目录：{entry}");
+                    throw new IOException($"插件目录包含重解析点，已保留旧目录：{entry}");
                 if ((attributes & FileAttributes.Directory) != 0)
                 {
                     directories.Add(fullPath);
@@ -779,6 +866,7 @@ public sealed class StorageDirectoryChangeTransaction
         bool appliedExistingConfiguration,
         string? backupDirectory,
         bool targetDirectoryExisted,
+        bool targetPluginDirectoryExisted,
         bool isNoOp = false)
     {
         _owner = owner;
@@ -788,6 +876,7 @@ public sealed class StorageDirectoryChangeTransaction
         AppliedExistingConfiguration = appliedExistingConfiguration;
         BackupDirectory = backupDirectory;
         TargetDirectoryExisted = targetDirectoryExisted;
+        TargetPluginDirectoryExisted = targetPluginDirectoryExisted;
         _isNoOp = isNoOp;
     }
 
@@ -818,6 +907,9 @@ public sealed class StorageDirectoryChangeTransaction
     /// <summary>目标目录在准备阶段之前是否已经存在（决定回滚时能不能删它）。</summary>
     internal bool TargetDirectoryExisted { get; }
 
+    /// <summary>目标插件目录在准备阶段之前是否已经存在（决定回滚时能不能删它）。</summary>
+    internal bool TargetPluginDirectoryExisted { get; }
+
     /// <summary>
     /// 构造一个「什么都不用做」的事务：目标目录与当前目录相同。
     /// 提交与回滚都是空操作，用于让调用方不必分叉处理。
@@ -838,6 +930,8 @@ public sealed class StorageDirectoryChangeTransaction
             appliedExistingConfiguration: false,
             backupDirectory: null,
             targetDirectoryExisted: true,
+            targetPluginDirectoryExisted: Directory.Exists(
+                Path.Combine(directory, WorkspaceProfileStore.PluginDirectoryName)),
             isNoOp: true);
 
     /// <summary>

@@ -1,4 +1,4 @@
-﻿using NyaLauncher.Core.Launch.Auth;
+using NyaLauncher.Core.Launch.Auth;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -52,6 +52,12 @@ namespace NyaLauncher.Core.Launch;
         public IReadOnlyList<string> AdditionalGameArguments { get; init; } = [];
 
         /// <summary>
+        /// 已启用插件贡献的启动变换（Java 路径覆盖、类路径与参数前后插入、环境变量等）。
+        /// 默认为空变换，即不改变原有启动行为。
+        /// </summary>
+        public MinecraftLaunchTransform LaunchTransform { get; init; } = new();
+
+        /// <summary>
         /// 启动过程中的文本日志回调（如 Java 自动下载阶段的进度提示）；可为空。
         /// </summary>
         public Action<string>? LogCallback { get; init; }
@@ -75,6 +81,7 @@ namespace NyaLauncher.Core.Launch;
             LauncherVersion = LauncherVersion,
             AdditionalJvmArguments = AdditionalJvmArguments,
             AdditionalGameArguments = AdditionalGameArguments,
+            LaunchTransform = LaunchTransform,
             LogCallback = LogCallback
         };
     }
@@ -200,7 +207,8 @@ namespace NyaLauncher.Core.Launch;
     string WorkingDirectory,
     string NativeDirectory,
     int? RequiredJavaMajorVersion,
-    IReadOnlyList<string> Arguments);
+    IReadOnlyList<string> Arguments,
+    IReadOnlyDictionary<string, string?> EnvironmentVariables);
     /// <summary>
     /// 
     /// </summary>

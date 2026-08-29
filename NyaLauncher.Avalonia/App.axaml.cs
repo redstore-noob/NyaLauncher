@@ -16,7 +16,7 @@ public partial class App : Application
 #if DEBUG
         global::Avalonia.DeveloperToolsExtensions.AttachDeveloperTools(this);
 #endif
-        
+
         // 1. 读取用户选择的主题风格和明暗模式（主题家族与明暗模式完全解耦；
         //    「跟随系统」模式在此解析为操作系统当前的具体明暗）
         var themeFamily = ThemeSettings.LoadThemeFamily();

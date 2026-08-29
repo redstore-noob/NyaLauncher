@@ -13,7 +13,7 @@ namespace NyaLauncher.Avalonia.Framework;
 public sealed class WorkspaceProfile
 {
     /// <summary>当前档案格式版本。读取旧档案时由 <c>WorkspaceProfileMigrator</c> 逐级迁移到此版本。</summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     // 版本 0 预留给「JSON 早于版本字段存在、或缺失该字段」的档案。
     // 新建档案必须走当前档案工厂，那些工厂都会显式写入 CurrentVersion。

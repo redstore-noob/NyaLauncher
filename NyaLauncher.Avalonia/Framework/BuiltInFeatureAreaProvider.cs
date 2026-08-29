@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Launch;
 using NyaLauncher.Plugin.Abstractions.Components;
@@ -14,17 +15,20 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
     private readonly MinecraftProfileService _profileService;
     private readonly GameLaunchService _launchService;
     private readonly System.Action<ServerJoinRequest> _openServerJoin;
+    private readonly PluginManager? _pluginManager;
 
     public BuiltInFeatureAreaProvider(
         System.Action<string> navigate,
         MinecraftProfileService profileService,
         GameLaunchService launchService,
-        System.Action<ServerJoinRequest> openServerJoin)
+        System.Action<ServerJoinRequest> openServerJoin,
+        PluginManager? pluginManager = null)
     {
         _navigate = navigate;
         _profileService = profileService;
         _launchService = launchService;
         _openServerJoin = openServerJoin;
+        _pluginManager = pluginManager;
     }
 
     public IEnumerable<FeatureAreaDefinition> GetFeatureAreas()
@@ -67,8 +71,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             ],
             PolygonComponents =
             [
-                BuiltInVersionManagerComponent.Create(_navigate),
-                CreateDownloadProgressComponent()
+                BuiltInVersionManagerComponent.Create(_navigate)
             ]
         };
 
@@ -76,7 +79,7 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
         {
             Id = "area-003",
             Title = "启动器工具",
-            Subtitle = "配置与运行环境",
+            Subtitle = "配置、插件与运行环境",
             Glyph = "material:Star",
             Actions =
             [
@@ -89,7 +92,8 @@ internal sealed class BuiltInFeatureAreaProvider : IFeatureAreaProvider
             ],
             PolygonComponents =
             [
-                BuiltInMusicPlayerComponent.Create(_navigate)
+                BuiltInMusicPlayerComponent.Create(_navigate),
+                BuiltInPluginListComponent.Create(_navigate, _pluginManager)
             ]
         };
     }

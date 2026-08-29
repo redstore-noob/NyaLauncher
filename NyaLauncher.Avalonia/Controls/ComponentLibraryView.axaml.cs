@@ -96,12 +96,19 @@ public partial class ComponentLibraryView : UserControl
             if (component.PolygonComponent is not null)
             {
                 var polygonCard = CreatePolygonComponentCard(component);
+                polygonCard.Opacity = component.IsDormant ? 0.58 : 1;
                 ComponentDragSource.Attach(
                     polygonCard,
                     component.Id,
                     sourceAreaId: null,
                     onDragStarting: () => DragStarting?.Invoke(this, EventArgs.Empty));
                 DragDrop.SetAllowDrop(polygonCard, true);
+                if (component.IsDormant)
+                {
+                    ToolTip.SetTip(
+                        polygonCard,
+                        "插件当前未启用；仍可保留或调整此组件的位置");
+                }
                 ComponentList.Children.Add(polygonCard);
                 continue;
             }
@@ -113,7 +120,8 @@ public partial class ComponentLibraryView : UserControl
                 BorderBrush = ThemePolygonHelper.CardBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
-                Cursor = new Cursor(StandardCursorType.SizeAll)
+                Cursor = new Cursor(StandardCursorType.SizeAll),
+                Opacity = component.IsDormant ? 0.58 : 1
             };
 
             var row = new Grid

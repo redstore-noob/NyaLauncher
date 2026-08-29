@@ -5,11 +5,16 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Plugins;
+using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Content;
 using NyaLauncher.Core.Launch;
@@ -17,16 +22,19 @@ using NyaLauncher.Core.Tools;
 using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Plugin.Abstractions.Minecraft;
 
 namespace NyaLauncher.Avalonia.Pages;
 
 public partial class VersionManagerPage : UserControl
 {
+    private PluginManager? _pluginManager;
     private bool _synchronizingFolders;
     private bool _synchronizingVersions;
     private bool _synchronizingMemorySliders;
     private bool _synchronizingAdvancedSettings = true;
     private bool _synchronizingIconCombo;
+    private bool _pluginActionInProgress;
     private CancellationTokenSource? _detailsCancellation;
     private CancellationTokenSource? _instanceVisualCancellation;
     private GameVersionDetails? _currentDetails;
@@ -45,6 +53,14 @@ public partial class VersionManagerPage : UserControl
         ModsList.AddHandler(ContentEntryItem.ModFileChangedEvent, OnModFileChanged);
         SavesList.AddHandler(SaveEntryItem.SaveChangedEvent, OnSaveChanged);
         ReloadFolders();
+    }
+
+    internal VersionManagerPage(PluginManager pluginManager)
+        : this()
+    {
+        _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
+        _pluginManager.Changed += OnPluginCatalogChanged;
+        RefreshPluginActions();
     }
 
     public void Activate()
@@ -164,12 +180,221 @@ public partial class VersionManagerPage : UserControl
             OnInstancesChanged(snapshot);
     }
 
+    private void OnPluginCatalogChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(RefreshPluginActions);
+            return;
+        }
+
+        RefreshPluginActions();
+    }
+
+    private void RefreshPluginActions()
+    {
+        var actions = _pluginManager is null
+            ? []
+            : _pluginManager.Current.InstanceActions
+                .Select(action => new PluginActionListItem(action))
+                .ToArray();
+        PluginActionsList.ItemsSource = actions;
+        PluginActionsList.IsVisible = actions.Length > 0;
+        PluginActionsList.IsEnabled = !_pluginActionInProgress;
+        PluginActionsEmptyText.IsVisible = actions.Length == 0;
+    }
+
     private void OnVersionSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_synchronizingVersions || VersionList.SelectedItem is not VersionListItem selected)
             return;
         GameInstanceStore.Select(selected.VersionId);
         _ = LoadDetailsAsync(GameInstanceStore.Current, selected.VersionId);
+    }
+
+    private async void OnPluginActionClick(object? sender, RoutedEventArgs e)
+    {
+        if (_pluginActionInProgress ||
+            _pluginManager is null ||
+            sender is not Button { DataContext: PluginActionListItem item } ||
+            !TryCreatePluginInstanceDescriptor(out var snapshot, out var descriptor))
+        {
+            return;
+        }
+
+        var action = item.Action;
+        if ((action.IsDestructive || !string.IsNullOrWhiteSpace(action.ConfirmationMessage)) &&
+            !await ConfirmPluginActionAsync(item))
+        {
+            StatusText.Text = $"已取消插件操作“{action.Title}”，实例未作修改。";
+            return;
+        }
+
+        _pluginActionInProgress = true;
+        RefreshPluginActions();
+        StatusText.Text = $"正在由 {action.PluginName} 执行“{action.Title}”…";
+        try
+        {
+            var result = await _pluginManager.InvokeInstanceActionAsync(
+                action.PluginId,
+                action.ExtensionId,
+                action.ActionId,
+                descriptor);
+
+            // 插件可能改写版本 JSON、资源或目录结构，完成后统一重新扫描。
+            var refreshed = await GameInstanceStore.RefreshAsync(snapshot.SourcePath);
+            if (refreshed.VersionIds.Contains(
+                    descriptor.VersionId,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                GameInstanceStore.Select(descriptor.VersionId);
+                await LoadDetailsAsync(GameInstanceStore.Current, descriptor.VersionId);
+            }
+
+            StatusText.Text = result.Success
+                ? string.IsNullOrWhiteSpace(result.Message)
+                    ? $"插件操作“{action.Title}”已完成。"
+                    : result.Message
+                : $"插件操作失败：{result.Message ?? "插件未提供错误详情。"}";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text = $"插件操作“{action.Title}”已取消。";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"插件操作失败：{exception.Message}";
+        }
+        finally
+        {
+            _pluginActionInProgress = false;
+            RefreshPluginActions();
+        }
+    }
+
+    private bool TryCreatePluginInstanceDescriptor(
+        out GameInstanceSnapshot snapshot,
+        out MinecraftInstanceDescriptor descriptor)
+    {
+        snapshot = GameInstanceStore.Current;
+        descriptor = null!;
+        var versionId = snapshot.SelectedVersionId;
+        if (snapshot.IsLoading ||
+            snapshot.ErrorMessage is not null ||
+            string.IsNullOrWhiteSpace(versionId) ||
+            string.IsNullOrWhiteSpace(snapshot.MinecraftDirectory) ||
+            _currentDetails is null ||
+            !string.Equals(
+                _currentDetails.VersionId,
+                versionId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            StatusText.Text = "请先选择并等待一个可用实例加载完成。";
+            return false;
+        }
+
+        try
+        {
+            // 共享实例以 .minecraft 为游戏目录；隔离/外部实例使用解析后的内容目录。
+            var layout = GameVersionIsolation.Resolve(snapshot, versionId);
+            var gameDirectory = layout.IsIsolated
+                ? layout.ContentDirectory
+                : snapshot.MinecraftDirectory;
+            descriptor = PluginManager.CreateInstanceDescriptor(
+                snapshot,
+                versionId,
+                gameDirectory);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"无法解析当前实例目录：{exception.Message}";
+            return false;
+        }
+    }
+
+    private async Task<bool> ConfirmPluginActionAsync(PluginActionListItem item)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            StatusText.Text = "无法显示插件操作确认窗口。";
+            return false;
+        }
+
+        var action = item.Action;
+        var cancelButton = new Button { Content = "取消", Padding = new Thickness(16, 8) };
+        var executeButton = new Button
+        {
+            Content = action.IsDestructive ? "确认执行" : "继续",
+            Padding = new Thickness(16, 8),
+            Background = action.IsDestructive ? ThemeBrushes.Error : ThemeBrushes.AccentDark,
+            Foreground = ThemeBrushes.White
+        };
+        var buttons = new StackPanel
+        {
+            Orientation = global::Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Right,
+            Spacing = 10
+        };
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(executeButton);
+
+        var message = string.IsNullOrWhiteSpace(action.ConfirmationMessage)
+            ? "此操作会持久修改当前 Minecraft 实例。请确认已了解插件用途，并建议先备份重要数据。"
+            : action.ConfirmationMessage;
+        var body = new StackPanel { Margin = new Thickness(24), Spacing = 13 };
+        body.Children.Add(new TextBlock
+        {
+            Text = action.IsDestructive ? "确认破坏性插件操作" : "确认插件操作",
+            FontSize = 20,
+            FontWeight = FontWeight.Bold,
+            Foreground = ThemeBrushes.PrimaryText
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = $"{action.PluginName} · {action.Title}",
+            FontSize = 12,
+            Foreground = ThemeBrushes.AccentText,
+            TextWrapping = TextWrapping.Wrap
+        });
+        body.Children.Add(new Border
+        {
+            Padding = new Thickness(12),
+            Background = action.IsDestructive
+                ? ThemeBrushes.ErrorDark
+                : ThemeBrushes.HighlightBackground,
+            BorderBrush = action.IsDestructive
+                ? ThemeBrushes.Error
+                : ThemeBrushes.StrongBorder,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Child = new TextBlock
+            {
+                Text = message,
+                FontSize = 11,
+                Foreground = action.IsDestructive
+                    ? ThemeBrushes.Error
+                    : ThemeBrushes.BodyText,
+                TextWrapping = TextWrapping.Wrap
+            }
+        });
+        body.Children.Add(buttons);
+
+        var dialog = new Window
+        {
+            Title = "插件实例操作确认",
+            Width = 540,
+            SizeToContent = SizeToContent.Height,
+            MaxHeight = 620,
+            CanResize = false,
+            ShowInTaskbar = false,
+            Background = ThemeBrushes.DialogBackground,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = body
+        };
+        cancelButton.Click += (_, _) => dialog.Close(false);
+        executeButton.Click += (_, _) => dialog.Close(true);
+        return await dialog.ShowDialog<bool?>(owner) == true;
     }
 
     private async Task LoadDetailsAsync(GameInstanceSnapshot snapshot, string versionId)
@@ -1039,6 +1264,25 @@ public partial class VersionManagerPage : UserControl
     private static string[] ReadLines(string? text) =>
         (text ?? string.Empty)
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private sealed record PluginActionListItem(PluginInstanceActionSnapshot Action)
+    {
+        public string Glyph => string.IsNullOrWhiteSpace(Action.Glyph) ? "material:Apps" : Action.Glyph;
+
+        public string Title => Action.Title;
+
+        public string PluginLabel => $"{Action.PluginName} · {Action.PluginId}";
+
+        public string Description => string.IsNullOrWhiteSpace(Action.Description)
+            ? "插件未提供操作说明。"
+            : Action.Description;
+
+        public string RiskLabel => Action.IsDestructive
+            ? "破坏性操作"
+            : string.IsNullOrWhiteSpace(Action.ConfirmationMessage)
+                ? "将修改实例"
+                : "需要确认";
+    }
 }
 
 public sealed record VersionListItem(

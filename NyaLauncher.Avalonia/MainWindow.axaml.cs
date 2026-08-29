@@ -16,6 +16,7 @@ using NyaLauncher.Avalonia.Controls;
 using NyaLauncher.Avalonia.Dialogs;
 using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Pages;
+using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Avalonia.Windows;
 using NyaLauncher.Core.Config;
@@ -32,11 +33,14 @@ public partial class MainWindow : Window
 {
     private readonly WorkspaceProfileStore _profileStore = new();
     private readonly MinecraftProfileService _minecraftProfileService = new();
+    private readonly PluginManager _pluginManager;
+    private readonly PluginRepositoryClient _pluginRepositoryClient;
     private readonly GameLaunchService _gameLaunchService;
     private readonly GameDownloadService _gameDownloadService;
     private readonly DownloadPage _downloadPage;
     private readonly VersionManagerPage _versionManagerPage;
     private readonly SettingsHubPage _settingsPage;
+    private readonly PluginManagerPage _pluginManagerPage;
     private readonly AccountManagePage _accountManagePage;
     private readonly MusicPlayerPage _musicPlayerPage;
     private TaskDetailsWindow? _taskDetailsWindow;
@@ -50,7 +54,8 @@ public partial class MainWindow : Window
     private Core.Logs.LogsWrite _logSystem;
 
     /// <summary>
-    /// Shared registry for the built-in feature areas and configurable components.
+    /// Shared extension point for built-in modules and future plugins.
+    /// A plugin can register an area at runtime and the workspace updates itself.
     /// </summary>
     public FeatureAreaRegistry FeatureAreas { get; } = new();
 
@@ -66,7 +71,13 @@ public partial class MainWindow : Window
         AmbientGradient.AmbientGradientEnabled = Pages.ThemeSettings.LoadAmbientGradient();
         // 启动即应用「星尘特效」开关（同理）
         SparkleTrail.SparkleTrailEnabled = Pages.ThemeSettings.LoadSparkleTrail();
-        _gameLaunchService = new GameLaunchService();
+        _pluginManager = new PluginManager(
+            _profileStore.StorageDirectory,
+            FeatureAreas,
+            Workspace.DrainPluginComponentsAsync);
+        _pluginRepositoryClient = new PluginRepositoryClient();
+        // 插件系统：启动链注入 BuildLaunchTransformAsync，允许插件贡献 JVM/游戏参数与环境变量
+        _gameLaunchService = new GameLaunchService(_pluginManager.BuildLaunchTransformAsync);
         _gameLaunchService.Changed += OnGameLaunchChanged;
         _gameDownloadService = new GameDownloadService();
         _gameDownloadService.Changed += OnGameDownloadChanged;
@@ -77,7 +88,8 @@ public partial class MainWindow : Window
             NavigateFromAction,
             _minecraftProfileService,
             _gameLaunchService,
-            OpenServerJoinDialog));
+            OpenServerJoinDialog,
+            _pluginManager));
         var profile = _profileStore.Load();
         FeatureAreas.SetGlobalComponentScale(profile.GlobalComponentScale);
         FeatureAreas.SynchronizeUserAreas(profile.CustomAreas);
@@ -103,10 +115,13 @@ public partial class MainWindow : Window
             ModalHost.Show(BuildModView(project));
         _downloadPage.ContentDownloadRequested += (_, args) =>
             ModalHost.Show(BuildContentView(args.Project, args.Kind));
-        _versionManagerPage = new VersionManagerPage();
+        _versionManagerPage = new VersionManagerPage(_pluginManager);
         _settingsPage = new SettingsHubPage(
             FeatureAreas,
             _profileStore.StorageDirectory);
+        _pluginManagerPage = new PluginManagerPage(
+            _pluginManager,
+            _pluginRepositoryClient);
         _settingsPage.PersonalizationSaved += OnPersonalizationSaved;
         _settingsPage.AccountManageRequested += OnAccountManageRequested;
 
@@ -150,6 +165,7 @@ public partial class MainWindow : Window
             }
         };
         UpdateWindowStateIcons();
+        Opened += OnWindowOpened;
         Closing += OnWindowClosing;
         // 整合包拖拽安装：Avalonia 12 移除了 Window 的 XAML 拖放属性（AllowDrop/DragOver/Drop），
         // 必须改用 DragDrop 静态类代码附加
@@ -228,12 +244,24 @@ public partial class MainWindow : Window
         });
     }
 
+    private async void OnWindowOpened(object? sender, EventArgs e)
+    {
+        try
+        {
+            await _pluginManager.InitializeAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowStatus($"插件系统初始化失败：{exception.Message}");
+        }
+    }
+
     private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
         if (_storageChangeInProgress)
         {
             e.Cancel = true;
-            ShowStatus("配置目录正在迁移，请等待完成后再关闭启动器。");
+            ShowStatus("配置与插件目录正在迁移，请等待完成后再关闭启动器。");
             return;
         }
         if (_polygonShutdownComplete)
@@ -251,9 +279,11 @@ public partial class MainWindow : Window
         try
         {
             await Workspace.ShutdownPolygonComponentsAsync();
+            await _pluginManager.DisposeAsync();
         }
         finally
         {
+            _pluginRepositoryClient.Dispose();
             _polygonShutdownComplete = true;
             _polygonShutdownInProgress = false;
             Dispatcher.UIThread.Post(() =>
@@ -267,7 +297,7 @@ public partial class MainWindow : Window
                 catch (InvalidOperationException)
                 {
                     // The platform may have completed an operating-system shutdown
-                    // while asynchronous component cleanup was in progress.
+                    // while asynchronous plugin cleanup was in progress.
                 }
             });
         }
@@ -305,6 +335,11 @@ public partial class MainWindow : Window
             case "music":
             case "music-player":
                 ShowPage(_musicPlayerPage, "音乐播放器");
+                break;
+
+            case "plugins":
+                _pluginManagerPage.Activate();
+                ShowPage(_pluginManagerPage, "插件列表");
                 break;
 
             default:
@@ -835,22 +870,51 @@ public partial class MainWindow : Window
                         : ExistingConfigurationAction.BackupPrevious;
                 }
 
+                await _pluginManager.PrepareStorageDirectoryChangeAsync();
                 try
                 {
-                    // Prepare copies a stable candidate without changing the
-                    // active locator or deleting the source configuration.
+                    // Plugin packages and private data may be large; all plugin
+                    // runtimes are stopped so this copy is a stable snapshot.
                     storageChange = await Task.Run(() =>
                         _profileStore.PrepareStorageDirectoryChange(
                             result.StorageDirectory,
                             profile,
                             action));
 
+                    // The old locator and source files remain intact until the
+                    // plugin manager has successfully scanned and bound target.
+                    await _pluginManager.ChangeStorageDirectoryAsync(
+                        storageChange.TargetDirectory);
                     LauncherConfig.SetStorageDirectory(storageChange.TargetDirectory);
                     storageChange.Complete();
                 }
                 catch (Exception migrationException)
                 {
-                    LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+                    // Preparation never changes the locator. Restore every
+                    // consumer to that same old root, then remove only artifacts
+                    // created in an otherwise-empty target by this attempt.
+                    try
+                    {
+                        LauncherConfig.SetStorageDirectory(_profileStore.StorageDirectory);
+                        if (storageChange is null)
+                        {
+                            await _pluginManager.AbortStorageDirectoryChangeAsync();
+                        }
+                        else
+                        {
+                            await _pluginManager.ChangeStorageDirectoryAsync(
+                                _profileStore.StorageDirectory);
+                        }
+                    }
+                    catch (Exception recoveryException)
+                    {
+                        // Do not remove the prepared target while a failed
+                        // manager recovery may still be using it.
+                        throw new AggregateException(
+                            "存储目录切换失败，且插件管理器未能恢复旧目录。",
+                            migrationException,
+                            recoveryException);
+                    }
 
                     if (storageChange is not null)
                     {
@@ -1106,5 +1170,4 @@ public partial class MainWindow : Window
         _windowSizeSaveTimer?.Stop();
         _windowSizeSaveTimer?.Start();
     }
-    
 }

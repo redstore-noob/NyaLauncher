@@ -44,4 +44,26 @@ public static class ThemeBrushes
     public static IBrush SidebarBorder => GetBrush("SidebarBorderBrush", Brush.Parse("#3A5048"));
     public static IBrush ButtonBg => GetBrush("ButtonBgBrush", Brush.Parse("#1E2E27"));
     public static IBrush SurfaceBg => GetBrush("SurfaceBgBrush", Brush.Parse("#192520"));
+
+    // —— 语义键映射层：供插件相关页面使用，键名对齐 BasePalette/Accents 资源 ——
+    public static IBrush PrimaryText => GetBrush("PrimaryTextBrush", Brush.Parse("#F0F7F4"));
+    public static IBrush SecondaryText => GetBrush("SecondaryTextBrush", Brush.Parse("#E0ECE6"));
+    public static IBrush TertiaryText => GetBrush("TertiaryTextBrush", Brush.Parse("#D6E6DE"));
+    public static IBrush BodyText => GetBrush("BodyTextBrush", Brush.Parse("#BFD4C8"));
+    public static IBrush Subtext => GetBrush("SubtextTextBrush", Brush.Parse("#7DA090"));
+    public static IBrush HintText => GetBrush("HintTextBrush", Brush.Parse("#668878"));
+    public static IBrush AccentText => GetBrush("AccentTextBrush", Brush.Parse("#3EC9A0"));
+    public static IBrush AccentDark => GetBrush("AccentDarkBrush", Brush.Parse("#2CA482"));
+    public static IBrush Error => GetBrush("ErrorBrush", Brush.Parse("#F05B5B"));
+    public static IBrush ErrorDark => GetBrush("ErrorDarkBrush", Brush.Parse("#C23A3A"));
+    public static IBrush Warning => GetBrush("WarningBrush", Brush.Parse("#F0A83C"));
+    public static IBrush Success => GetBrush("SuccessBrush", Brush.Parse("#3EC97A"));
+    public static IBrush Info => GetBrush("InfoBrush", Brush.Parse("#3C9CF0"));
+    public static IBrush BadgeBackground => GetBrush("BadgeBgBrush", Brush.Parse("#25342D"));
+    public static IBrush DialogBackground => GetBrush("DialogBgBrush", Brush.Parse("#1E2E28"));
+    public static IBrush SurfaceBackground => GetBrush("SurfaceBgBrush", Brush.Parse("#192520"));
+    public static IBrush DefaultBorder => GetBrush("DefaultBorderBrush", Brush.Parse("#203028"));
+    public static IBrush StrongBorder => GetBrush("StrongBorderBrush", Brush.Parse("#2C3E35"));
+    public static IBrush HighlightBackground => GetBrush("HighlightBgBrush", Brush.Parse("#1B2822"));
+    public static IBrush White => GetBrush("WhiteBrush", Brush.Parse("#FFFFFF"));
 }
