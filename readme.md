@@ -2,6 +2,7 @@
 
 > 一个现代、跨平台的轻量 Minecraft 启动器，为自由而生。
 <br>
+
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![Avalonia](https://img.shields.io/badge/Avalonia-12.1.1-67ac09)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
