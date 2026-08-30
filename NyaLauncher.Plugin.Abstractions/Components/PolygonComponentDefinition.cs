@@ -205,13 +205,58 @@ public enum ComponentThemeVariant
 }
 
 /// <summary>
-/// 组件卡片主题设置：仅包含语义变体与数值参数。
+/// 组件卡片主题设置：语义变体 + 数值参数。
 /// 颜色完全由宿主主题资源决定（ComponentBgBrush / PrimaryTextBrush / AccentBrush 等），
 /// 主题切换时自动跟随，无需重建组件。
+/// 旧版（testplug 时代）的颜色字符串属性保留为兼容占位：仅为让按旧 API 编译的
+/// 插件程序集能正常加载（否则运行时抛 MissingMethodException），宿主渲染时忽略这些值。
 /// </summary>
 public sealed record PolygonComponentTheme
 {
+    /// <summary>
+    /// 兼容占位：所有颜色槽位委托给宿主语义资源的主题（与新默认行为一致）。
+    /// </summary>
+    public static PolygonComponentTheme InheritHost { get; } = new()
+    {
+        Surface = string.Empty,
+        SurfaceHover = string.Empty,
+        Border = string.Empty,
+        BorderHover = string.Empty,
+        TextPrimary = string.Empty,
+        TextSecondary = string.Empty,
+        Accent = string.Empty,
+        AccentForeground = string.Empty,
+        ProgressTrack = string.Empty
+    };
+
     public ComponentThemeVariant Variant { get; init; } = ComponentThemeVariant.Default;
+
+    /// <summary>兼容占位：宿主忽略，表面色由主题资源决定。</summary>
+    public string Surface { get; init; } = "#22283A";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string SurfaceHover { get; init; } = "#2D354D";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string Border { get; init; } = "#3A4563";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string BorderHover { get; init; } = "#7C8CFF";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string TextPrimary { get; init; } = "#F6F7FF";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string TextSecondary { get; init; } = "#A5AEC7";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string Accent { get; init; } = "#6C7BFF";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string AccentForeground { get; init; } = "#FFFFFF";
+
+    /// <summary>兼容占位：宿主忽略。</summary>
+    public string ProgressTrack { get; init; } = "#30384F";
 
     public double BorderThickness { get; init; } = 1.5;
 }

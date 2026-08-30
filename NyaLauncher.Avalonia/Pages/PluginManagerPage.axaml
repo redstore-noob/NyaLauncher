@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:pab="using:NyaLauncher.Plugin.Abstractions.Plugins"
              x:Class="NyaLauncher.Avalonia.Pages.PluginManagerPage"
              x:CompileBindings="False"
              Background="{DynamicResource WindowBgBrush}">
@@ -36,10 +37,23 @@
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="26,22">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,16">
       <StackPanel Spacing="4" VerticalAlignment="Center">
-        <TextBlock Text="插件列表"
-                   FontSize="23"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource PrimaryTextBrush}" />
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="插件列表"
+                     FontSize="23"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource PrimaryTextBrush}" />
+          <Border Background="{DynamicResource BadgeBgBrush}"
+                  CornerRadius="8"
+                  Padding="10,4"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="当前宿主支持的插件 API 版本；自 v1-p1 起向前兼容，旧插件无需重编译">
+            <TextBlock Text="{x:Static pab:PluginSdk.ApiVersion}"
+                       FontSize="11"
+                       FontWeight="Bold"
+                       FontFamily="Consolas"
+                       Foreground="{DynamicResource AccentTextBrush}" />
+          </Border>
+        </StackPanel>
         <TextBlock x:Name="PackagesDirectoryText"
                    Text="正在解析插件目录…"
                    FontFamily="Consolas"
@@ -300,6 +314,10 @@
                     <Grid ColumnDefinitions="130,*">
                       <TextBlock Text="版本" Foreground="{DynamicResource SubtextTextBrush}" />
                       <TextBlock x:Name="DetailsVersionText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="130,*">
+                      <TextBlock Text="插件 API" Foreground="{DynamicResource SubtextTextBrush}" />
+                      <TextBlock x:Name="DetailsApiText" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" />
                     </Grid>
                     <Grid ColumnDefinitions="130,*">
                       <TextBlock Text="仓库来源" Foreground="{DynamicResource SubtextTextBrush}" />

@@ -86,8 +86,10 @@ public static PolygonComponentRegistration Create()
 ```
 
 > **主题**：不要在组件里硬编码或快照任何颜色。
-> `PolygonComponentTheme` 只保留 `Variant`（`Default` / `Launch`）与 `BorderThickness`，
+> `PolygonComponentTheme` 使用 `Variant`（`Default` / `Launch`）与 `BorderThickness` 控制外观，
 > 具体颜色由宿主映射到主题资源键（`DynamicResource` 绑定），明暗与主题切换实时跟随。
+> 旧版的颜色字符串属性（`Surface`、`Accent` 等）与 `InheritHost` 仍保留为兼容占位——
+> 赋值会被接受，但宿主渲染时忽略，请勿再在新插件中使用。
 
 ---
 

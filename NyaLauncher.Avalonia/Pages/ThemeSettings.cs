@@ -12,6 +12,10 @@ internal static class ThemeSettings
     private const string LegacyThemeKey = "theme";
     private const string AmbientGradientKey = "ambientGradient";
     private const string SparkleTrailKey = "sparkleTrail";
+    private const string ClickRingKey = "clickRing";
+    private const string CustomBackgroundKey = "customBackgroundImage";
+    private const string CustomBackgroundOpacityKey = "customBackgroundOpacity";
+    private const string CustomBackgroundBlurKey = "customBackgroundBlur";
     private const string DefaultFamily = "HatsuneMiku";
     private const string DefaultMode = "Dark";
 
@@ -111,5 +115,61 @@ internal static class ThemeSettings
     public static void SaveSparkleTrail(bool enabled)
     {
         LauncherConfig.SetValue(SparkleTrailKey, enabled ? "true" : "false");
+    }
+
+    /// <summary>读取「点击圆环」开关（默认开）。</summary>
+    public static bool LoadClickRing()
+    {
+        return LauncherConfig.GetValue(ClickRingKey) != "false";
+    }
+
+    /// <summary>保存「点击圆环」开关。</summary>
+    public static void SaveClickRing(bool enabled)
+    {
+        LauncherConfig.SetValue(ClickRingKey, enabled ? "true" : "false");
+    }
+
+    /// <summary>读取「自定义背景图」路径（未设置或为空返回 null）。</summary>
+    public static string? LoadCustomBackground()
+    {
+        var path = LauncherConfig.GetValue(CustomBackgroundKey);
+        return string.IsNullOrWhiteSpace(path) ? null : path;
+    }
+
+    /// <summary>保存「自定义背景图」路径（null/空 = 关闭）。</summary>
+    public static void SaveCustomBackground(string? path)
+    {
+        LauncherConfig.SetValue(CustomBackgroundKey,
+            string.IsNullOrWhiteSpace(path) ? string.Empty : path!.Trim());
+    }
+
+    /// <summary>读取「自定义背景图」不透明度（默认 0.35，钳到 0.05–0.85）。</summary>
+    public static double LoadCustomBackgroundOpacity()
+    {
+        return double.TryParse(LauncherConfig.GetValue(CustomBackgroundOpacityKey), out var v) && v > 0
+            ? Math.Clamp(v, 0.05, 0.85)
+            : 0.35;
+    }
+
+    /// <summary>保存「自定义背景图」不透明度。</summary>
+    public static void SaveCustomBackgroundOpacity(double value)
+    {
+        LauncherConfig.SetValue(CustomBackgroundOpacityKey,
+            Math.Clamp(value, 0.05, 0.85).ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>读取「自定义背景图」高斯模糊半径（默认 0 = 关闭，钳到 0–30）。</summary>
+    public static double LoadCustomBackgroundBlur()
+    {
+        return double.TryParse(LauncherConfig.GetValue(CustomBackgroundBlurKey), out var v) && v > 0
+            ? Math.Clamp(v, 0, 30)
+            : 0;
+    }
+
+    /// <summary>保存「自定义背景图」高斯模糊半径。</summary>
+    public static void SaveCustomBackgroundBlur(double value)
+    {
+        LauncherConfig.SetValue(CustomBackgroundBlurKey,
+            Math.Clamp(value, 0, 30).ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }

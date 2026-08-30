@@ -68,6 +68,20 @@ public class MinecraftVersion
         _ => "📄"
     };
 
+    /// <summary>
+    /// 版本类型对应的内嵌图标源（gameicon: 协议，指向
+    /// Resources/GameIcons/{key}.png）：正式版 = 草方块、快照版 = 快照、
+    /// 远古版（Beta/Alpha）= 旧版图标。未知类型为空串（图标区显示底色）。
+    /// </summary>
+    [JsonIgnore]
+    public string TypeIconSource => Type switch
+    {
+        "release" => "gameicon:vanilla",
+        "snapshot" => "gameicon:snapshot_version",
+        "old_beta" or "old_alpha" => "gameicon:old_version",
+        _ => string.Empty
+    };
+
     /// <summary>格式化后的发布日期</summary>
     [JsonIgnore]
     public string ReleaseDateDisplay => ReleaseTime.ToString("yyyy年M月");

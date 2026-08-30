@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using NyaLauncher.Avalonia.Controls;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
@@ -604,6 +605,12 @@ public partial class DownloadPage : UserControl
             return;
 
         LoadTabAsync(DownloadTabs.SelectedItem as TabItem);
+
+        // Tab 内容切换动效（M3 shared-axis 风格：新内容自下方 24px 淡入上浮）。
+        // 每个 TabItem 的 Content 是独立持久的元素，切换即对新的内容根播放入场；
+        // SlideFadeInAsync 内部带 generation 防抖，快速连点标签不会打架。
+        if (DownloadTabs.SelectedItem is TabItem { Content: Control content })
+            _ = AnimationHelper.SlideFadeInAsync(content, MaterialMotion.MediumTransitionMs);
     }
 
     private async System.Threading.Tasks.Task LoadVersionsAsync()

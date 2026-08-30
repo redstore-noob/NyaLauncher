@@ -17,10 +17,14 @@ public enum SettingsSection
 
 public partial class SettingsHubPage : UserControl
 {
-    private readonly SettingsPage _launcherSettings;
+    private readonly SettingsPage _gameSettings;
+    private readonly LauncherSettingsPage _launcherSettings;
     private PersonalizationWindow? _personalization;
-    private int _activeTab;    // 0=游戏, 1=工作区, 2=关于
+    private int _activeTab;    // 0=游戏, 1=启动器, 2=工作区, 3=关于
     private int _previousTab;  // 切换前的标签（用于正确识别换页动画的「旧页」，动画期间新旧页同时可见，不能靠 IsVisible 猜）
+    private string _searchQuery = string.Empty;   // 当前搜索词（原始输入）
+    private int _lastGameCount = -1;              // 最近一次搜索的游戏设置命中数（-1 = 非搜索态）
+    private int _lastLauncherCount = -1;          // 最近一次搜索的启动器设置命中数
 
     public event EventHandler<PersonalizationResult>? PersonalizationSaved;
 
@@ -36,14 +40,16 @@ public partial class SettingsHubPage : UserControl
     public SettingsHubPage()
     {
         InitializeComponent();
-        _launcherSettings = new SettingsPage();
-        _launcherSettings.AccountManageRequested += (_, _) =>
+        _gameSettings = new SettingsPage();
+        _gameSettings.AccountManageRequested += (_, _) =>
             AccountManageRequested?.Invoke(this, EventArgs.Empty);
-        _launcherSettings.InstanceManageRequested += (_, _) =>
+        _gameSettings.InstanceManageRequested += (_, _) =>
             InstanceManageRequested?.Invoke(this, EventArgs.Empty);
-        _launcherSettings.JavaRuntimeManageRequested += (_, _) =>
+        _gameSettings.JavaRuntimeManageRequested += (_, _) =>
             JavaRuntimeManageRequested?.Invoke(this, EventArgs.Empty);
-        LegacySettingsHost.Content = _launcherSettings;
+        LegacySettingsHost.Content = _gameSettings;
+        _launcherSettings = new LauncherSettingsPage();
+        LauncherSettingsHost.Content = _launcherSettings;
         AboutHost.Content = new AboutPage();
         ApplyTabVisuals();
     }
@@ -61,13 +67,17 @@ public partial class SettingsHubPage : UserControl
     public void SelectSection(SettingsSection section)
     {
         _previousTab = _activeTab;
-        _activeTab = section == SettingsSection.Personalization ? 1 : 0;
+        _activeTab = section switch
+        {
+            SettingsSection.Personalization => 2,
+            _ => 0,
+        };
         ApplyTabVisuals();
     }
 
     public void ReloadPersonalization(string storageDirectory)
     {
-        _launcherSettings.ReloadMemorySettings();
+        _gameSettings.ReloadMemorySettings();
         _personalization?.Reload(storageDirectory);
     }
 
@@ -82,17 +92,24 @@ public partial class SettingsHubPage : UserControl
         ApplyTabVisuals();
     }
 
-    private void OnTabWorkspaceClick(object? sender, PointerPressedEventArgs e)
+    private void OnTabLauncherClick(object? sender, PointerPressedEventArgs e)
     {
         _previousTab = _activeTab;
         _activeTab = 1;
         ApplyTabVisuals();
     }
 
-    private void OnTabAboutClick(object? sender, PointerPressedEventArgs e)
+    private void OnTabWorkspaceClick(object? sender, PointerPressedEventArgs e)
     {
         _previousTab = _activeTab;
         _activeTab = 2;
+        ApplyTabVisuals();
+    }
+
+    private void OnTabAboutClick(object? sender, PointerPressedEventArgs e)
+    {
+        _previousTab = _activeTab;
+        _activeTab = 3;
         ApplyTabVisuals();
     }
 
@@ -108,14 +125,19 @@ public partial class SettingsHubPage : UserControl
 
         // 更新标签栏视觉状态
         SetTabStyle(TabGame, _activeTab == 0);
-        SetTabStyle(TabWorkspace, _activeTab == 1);
-        SetTabStyle(TabAbout, _activeTab == 2);
+        SetTabStyle(TabLauncher, _activeTab == 1);
+        SetTabStyle(TabWorkspace, _activeTab == 2);
+        SetTabStyle(TabAbout, _activeTab == 3);
+
+        // 标签变化影响空态提示的可见性
+        UpdateSearchEmptyState();
     }
 
     private Control HostFor(int tab) => tab switch
     {
         0 => LegacySettingsHost,
-        1 => PersonalizationHost,
+        1 => LauncherSettingsHost,
+        2 => PersonalizationHost,
         _ => AboutHost,
     };
 
@@ -140,5 +162,71 @@ public partial class SettingsHubPage : UserControl
             && value is IBrush brush)
             return brush;
         return Brushes.Gray;
+    }
+
+    // ------------------------------------------------------------------
+    // 设置页搜索：跨「游戏/启动器」两个标签过滤卡片
+    // ------------------------------------------------------------------
+
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        _searchQuery = SettingsSearchBox.Text ?? string.Empty;
+        ApplySearch();
+    }
+
+    private void OnSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        // Esc 一键清空搜索（经 TextChanged 触发恢复流程）
+        if (e.Key == Key.Escape && SettingsSearchBox.Text?.Length > 0)
+        {
+            SettingsSearchBox.Text = string.Empty;
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>执行搜索：过滤两个设置页的卡片、刷新标签计数徽章，必要时自动跳到有命中的标签。</summary>
+    private void ApplySearch()
+    {
+        var query = _searchQuery.Trim();
+        _lastGameCount = _gameSettings.ApplySearchFilter(query);
+        _lastLauncherCount = _launcherSettings.ApplySearchFilter(query);
+        var searching = _lastGameCount >= 0;
+
+        TabGameSearchChip.IsVisible = searching;
+        TabLauncherSearchChip.IsVisible = searching;
+        if (searching)
+        {
+            TabGameSearchCount.Text = _lastGameCount.ToString();
+            TabLauncherSearchCount.Text = _lastLauncherCount.ToString();
+
+            // 当前标签无命中而另一标签有 → 自动跳到有结果的标签
+            if (_activeTab == 0 && _lastGameCount == 0 && _lastLauncherCount > 0)
+            {
+                _previousTab = _activeTab;
+                _activeTab = 1;
+                ApplyTabVisuals();
+            }
+            else if (_activeTab == 1 && _lastLauncherCount == 0 && _lastGameCount > 0)
+            {
+                _previousTab = _activeTab;
+                _activeTab = 0;
+                ApplyTabVisuals();
+            }
+        }
+
+        UpdateSearchEmptyState();
+    }
+
+    /// <summary>搜索态下当前可搜索标签命中数为 0 时显示空态提示（工作区/关于不参与索引，不显示）。</summary>
+    private void UpdateSearchEmptyState()
+    {
+        var searching = _searchQuery.Trim().Length > 0;
+        var count = _activeTab switch
+        {
+            0 => _lastGameCount,
+            1 => _lastLauncherCount,
+            _ => -1,
+        };
+        SearchEmptyState.IsVisible = searching && count == 0;
     }
 }

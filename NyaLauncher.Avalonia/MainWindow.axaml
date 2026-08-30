@@ -5,6 +5,7 @@
         xmlns:controls="using:NyaLauncher.Avalonia.Controls"
         xmlns:animations="using:NyaLauncher.Avalonia.Animations.Helpers"
         xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:info="using:NyaLauncher.Core"
         mc:Ignorable="d"
         d:DesignWidth="1280"
         d:DesignHeight="760"
@@ -65,10 +66,31 @@
     <Style Selector="Button#SettingsQuickButton:pointerover">
       <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
     </Style>
+    <Style Selector="Button#QuickNavButton:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
+    </Style>
+    <Style Selector="Button.QuickNavItem">
+      <Setter Property="Height" Value="44" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.QuickNavItem:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ControlBgBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    </Style>
   </Window.Styles>
 
   <Grid x:Name="WindowRoot" RowDefinitions="58,*,30"
-        Classes="nya-ambient nya-sparkles">
+        Classes="nya-ambient nya-sparkles"
+        animations:CustomBackgroundImage.Enabled="True"
+        animations:ClickRing.Enabled="True">
     <!-- ============================================================
          右侧「组件库」抽屉面板
          ZIndex 介于 Workspace (默认 0) 和 PageSurface (300) 之间，
@@ -99,6 +121,85 @@
         </Transitions>
       </Border.Transitions>
       <controls:ComponentLibraryView x:Name="ComponentLibraryView" />
+    </Border>
+
+    <!-- ============================================================
+         左侧「快捷入口」抽屉面板：镜像组件库抽屉的机制，
+         ZIndex 相同（240/250），两者互斥展开。
+         ============================================================ -->
+    <Border x:Name="QuickNavScrim"
+            Grid.RowSpan="3"
+            Background="{DynamicResource OverlayBgBrush}"
+            ZIndex="240"
+            IsVisible="False" />
+    <Border x:Name="QuickNavDrawer"
+            Grid.RowSpan="3"
+            HorizontalAlignment="Left"
+            Width="0"
+            Background="{DynamicResource WindowBgBrush}"
+            BorderBrush="{DynamicResource DefaultBorderBrush}"
+            BorderThickness="0,0,1,0"
+            ZIndex="250"
+            IsVisible="False"
+            ClipToBounds="True">
+      <Border.Transitions>
+        <Transitions>
+          <DoubleTransition Property="Width"
+                            Duration="0:0:0.300"
+                            Easing="{x:Static animations:MaterialMotion.EmphasizedEasing}" />
+        </Transitions>
+      </Border.Transitions>
+      <StackPanel Margin="12,16,12,12" Spacing="4">
+        <TextBlock Text="快捷入口"
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
+                   Margin="12,0,0,2" />
+        <TextBlock Text="前往启动器的常用页面"
+                   FontSize="10"
+                   Foreground="{DynamicResource HintTextBrush}"
+                   Margin="12,0,0,12" />
+        <Button Classes="QuickNavItem" ToolTip.Tip="打开资源下载页" Click="OnQuickNavDownloadsClick">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <mi:MaterialIcon Kind="Download" Width="18" Height="18"
+                             Foreground="{DynamicResource LinkTextBrush}"
+                             VerticalAlignment="Center" />
+            <TextBlock Text="资源下载" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Classes="QuickNavItem" ToolTip.Tip="打开版本管理页" Click="OnQuickNavInstancesClick">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <mi:MaterialIcon Kind="Apps" Width="18" Height="18"
+                             Foreground="{DynamicResource LinkTextBrush}"
+                             VerticalAlignment="Center" />
+            <TextBlock Text="实例管理" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Classes="QuickNavItem" ToolTip.Tip="打开账户管理页" Click="OnQuickNavAccountClick">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <mi:MaterialIcon Kind="AccountCircle" Width="18" Height="18"
+                             Foreground="{DynamicResource LinkTextBrush}"
+                             VerticalAlignment="Center" />
+            <TextBlock Text="账号管理" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Classes="QuickNavItem" ToolTip.Tip="打开插件管理页" Click="OnQuickNavPluginsClick">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <mi:MaterialIcon Kind="Extension" Width="18" Height="18"
+                             Foreground="{DynamicResource LinkTextBrush}"
+                             VerticalAlignment="Center" />
+            <TextBlock Text="插件管理" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Classes="QuickNavItem" ToolTip.Tip="打开设置页" Click="OnQuickNavSettingsClick">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <mi:MaterialIcon Kind="Cog" Width="18" Height="18"
+                             Foreground="{DynamicResource LinkTextBrush}"
+                             VerticalAlignment="Center" />
+            <TextBlock Text="设置" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
     </Border>
 
     <!-- The top bar is deliberately separate from feature areas. -->
@@ -152,7 +253,7 @@
                              Foreground="{DynamicResource AccentTextBrush}" />
                 </Border>
               </StackPanel>
-              <TextBlock Text="0.1.0-preview5"
+              <TextBlock Text="{x:Static info:NyaLauncherInfo.Version}"
                          FontSize="10"
                          Foreground="{DynamicResource HintTextBrush}" />
             </StackPanel>
@@ -216,21 +317,49 @@
             BorderBrush="{DynamicResource SubtleBorderBrush}"
             BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0">
-        <TextBlock x:Name="StatusText"
-                   Text="状态栏准备就绪"
-                   FontSize="10"
-                   Foreground="{DynamicResource MutedTextBrush}"
-                   VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" />
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button x:Name="QuickNavButton"
+                  Width="22"
+                  Height="22"
+                  Padding="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalContentAlignment="Center"
+                  Background="{DynamicResource TransparentBrush}"
+                  BorderThickness="0"
+                  CornerRadius="11"
+                  Cursor="Hand"
+                  ToolTip.Tip="快捷入口：下载 / 插件 / 设置"
+                  Click="OnQuickNavClick">
+            <mi:MaterialIcon Kind="Menu"
+                             Width="13"
+                             Height="13"
+                             Foreground="{DynamicResource SubtextTextBrush}" />
+          </Button>
+          <TextBlock x:Name="StatusText"
+                     Text="状态栏准备就绪"
+                     FontSize="10"
+                     Foreground="{DynamicResource MutedTextBrush}"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
 
         <StackPanel Grid.Column="2"
                     Orientation="Horizontal"
                     Spacing="8"
                     VerticalAlignment="Center">
-          <TextBlock Text="v0.1.0-preview5"
-                     FontSize="9"
+          <!-- 版本号常驻显示，绑定 NyaLauncherInfo；测试版警告水印独立于版本号 -->
+          <TextBlock FontSize="9"
                      Foreground="{DynamicResource PlaceholderTextBrush}"
                      x:Name="MainWindowVersionText"
+                     VerticalAlignment="Center"
+                     ToolTip.Tip="NyaLauncher 版本号">
+            <Run Text="v" /><Run Text="{x:Static info:NyaLauncherInfo.Version}" />
+          </TextBlock>
+          <TextBlock x:Name="UnstableWatermarkText"
+                     Text="测试版 · 功能不稳定，不建议日常使用"
+                     FontSize="9"
+                     IsVisible="False"
+                     Foreground="{DynamicResource WarningBrush}"
                      VerticalAlignment="Center" />
           <Button Classes="AddComponentButton"
                   Content="组件库"

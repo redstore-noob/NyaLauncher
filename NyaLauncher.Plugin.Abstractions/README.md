@@ -394,6 +394,28 @@ public interface IPluginContext
     TService? GetService<TService>() where TService : class;
 }
 
+/// <summary>插件 SDK 的展示版本（当前 "v1-p2"，上一代为 "v1-p1" = 未含通知服务的
+/// API 集）。兼容性判定以 manifest.apiVersion 的主版本号为准；主版本内宿主对插件
+/// API 向前兼容，v1-p1 插件无需重编译。</summary>
+public static class PluginSdk
+{
+    public const string ApiVersion = "v1-p2";
+    public const string PreviousApiVersion = "v1-p1";
+}
+
+/// <summary>需要 ui.native 能力；经 Context.GetService&lt;IPluginNotifications&gt;() 获取。</summary>
+public interface IPluginNotifications
+{
+    void Alert(PluginNoticeSeverity severity, string message, TimeSpan? duration = null);
+    Task<string?> PromptAsync(string title, string message = "",
+        PluginNoticeSeverity severity = PluginNoticeSeverity.Info,
+        params PluginPromptButton[] buttons);
+    Task<bool> ConfirmAsync(string title, string message = "",
+        PluginNoticeSeverity severity = PluginNoticeSeverity.Warning);
+}
+
+public sealed record PluginPromptButton(string Label, string? Id = null, bool IsDefault = false);
+
 public interface IPluginStorage
 {
     string PackageDirectory { get; }
@@ -680,6 +702,11 @@ public sealed record ComponentActionDefinition
 
 public sealed record PolygonComponentTheme
 {
+    public static PolygonComponentTheme InheritHost { get; } = new();
+    public ComponentThemeVariant Variant { get; init; } = ComponentThemeVariant.Default;
+    public double BorderThickness { get; init; } = 1.5;
+
+    // ---- 以下为旧版兼容占位（接受赋值但宿主渲染时忽略）----
     public string Surface { get; init; } = "#22283A";
     public string SurfaceHover { get; init; } = "#2D354D";
     public string Border { get; init; } = "#3A4563";
@@ -689,7 +716,6 @@ public sealed record PolygonComponentTheme
     public string Accent { get; init; } = "#6C7BFF";
     public string AccentForeground { get; init; } = "#FFFFFF";
     public string ProgressTrack { get; init; } = "#30384F";
-    public double BorderThickness { get; init; } = 1.5;
 }
 
 public sealed class PolygonComponentDefinition
@@ -714,8 +740,9 @@ public sealed class PolygonComponentDefinition
 
 </details>
 
-主题颜色推荐使用 `#RRGGBB` 或 `#AARRGGBB`；当前宿主无法解析时回退到内置颜色，Validator 不检查颜色
-字符串。图片裁剪可选归一化 `SourceRect` 或像素 `SourcePixelRect`，不能同时设置。
+颜色一律由宿主主题资源按 `Variant`（`Default` / `Launch`）决定，主题切换实时跟随；旧版的颜色字符串
+属性（`Surface`、`Accent` 等）保留为兼容占位，接受赋值但宿主渲染时忽略。图片裁剪可选归一化
+`SourceRect` 或像素 `SourcePixelRect`，不能同时设置。
 
 <details>
 <summary>几何、工厂与 Validator 的完整签名</summary>

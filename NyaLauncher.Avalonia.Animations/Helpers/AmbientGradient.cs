@@ -131,9 +131,10 @@ public static class AmbientGradient
         };
         // 滤镜式半透明渐变：盖在内容之上（低 alpha），既保证可见又不影响阅读/交互。
         // 用较鲜明对比（色相 ±60° + 亮度上浮）让流动肉眼可辨。
-        gradient.GradientStops.Add(new GradientStop(WithAlpha(ShiftHue(baseColor, -60), 0.40), 0.00));
-        gradient.GradientStops.Add(new GradientStop(WithAlpha(Lighten(baseColor, 0.18), 0.26), 0.50));
-        gradient.GradientStops.Add(new GradientStop(WithAlpha(ShiftHue(baseColor, 60), 0.40), 1.00));
+        // 2026-08-31 应用户要求整体调淡约四成（原 0.40/0.26/0.40），保持氛围但不抢内容。
+        gradient.GradientStops.Add(new GradientStop(WithAlpha(ShiftHue(baseColor, -60), 0.24), 0.00));
+        gradient.GradientStops.Add(new GradientStop(WithAlpha(Lighten(baseColor, 0.18), 0.15), 0.50));
+        gradient.GradientStops.Add(new GradientStop(WithAlpha(ShiftHue(baseColor, 60), 0.24), 1.00));
 
         var layer = new Border
         {

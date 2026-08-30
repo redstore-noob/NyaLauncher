@@ -19,6 +19,7 @@ using NyaLauncher.Avalonia.Pages;
 using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Avalonia.Windows;
+using NyaLauncher.Core;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
@@ -133,6 +134,7 @@ public partial class MainWindow : Window
         ComponentLibraryView.DragStarting += (_, _) => CloseComponentLibraryDrawer();
         // 点击遮罩：关闭抽屉
         ComponentLibraryScrim.PointerPressed += (_, _) => CloseComponentLibraryDrawer();
+        QuickNavScrim.PointerPressed += (_, _) => CloseQuickNavDrawer();
 
         // 主题热重载：切换主题后重挂载根元素刷新 StaticResource
         ThemeManager.ThemeChanged += OnThemeHotReload;
@@ -481,6 +483,10 @@ public partial class MainWindow : Window
     /// <param name="message">日志系统中出现的日志,状态栏Text出现的文字,信息条出现的文字</param>
     private void ShowStatus(string message)
     {
+        if (!NyaLauncherInfo.IsUnstable)
+        {
+            return;
+        }
         StatusText.Text = message;
         NyaAlert.Info(message);
         _logSystem.AddLogs(message, null);
@@ -637,6 +643,7 @@ public partial class MainWindow : Window
             return;
         var generation = ++_drawerAnimationGeneration;
         _componentLibraryDrawerOpen = true;
+        CloseQuickNavDrawer();
 
         ComponentLibraryScrim.IsVisible = true;
         ComponentLibraryDrawer.IsVisible = true;
@@ -674,6 +681,88 @@ public partial class MainWindow : Window
         await Task.Delay(MaterialMotion.MediumTransitionMs + 20);
         if (generation == _drawerAnimationGeneration)
             ComponentLibraryDrawer.IsVisible = false;
+    }
+
+    // ------------------------------------------------------------
+    // 左侧「快捷入口」抽屉：机制与组件库抽屉一致（宽度 Transitions
+    // + 生成号防错乱），两个抽屉互斥展开。
+    // ------------------------------------------------------------
+    private bool _quickNavDrawerOpen;
+    private int _quickNavAnimationGeneration;
+    private const double QuickNavDrawerWidth = 260;
+
+    /// <summary>点击状态栏左下角「快捷入口」按钮：切换左侧抽屉开合。</summary>
+    private void OnQuickNavClick(object? sender, RoutedEventArgs e)
+    {
+        if (_quickNavDrawerOpen)
+            CloseQuickNavDrawer();
+        else
+            OpenQuickNavDrawer();
+    }
+
+    private async void OpenQuickNavDrawer()
+    {
+        if (_quickNavDrawerOpen)
+            return;
+        var generation = ++_quickNavAnimationGeneration;
+        _quickNavDrawerOpen = true;
+        CloseComponentLibraryDrawer();
+
+        QuickNavScrim.IsVisible = true;
+        QuickNavDrawer.IsVisible = true;
+        QuickNavDrawer.Width = 0;
+        await Dispatcher.UIThread.InvokeAsync(
+            () =>
+            {
+                if (generation == _quickNavAnimationGeneration)
+                    QuickNavDrawer.Width = QuickNavDrawerWidth;
+            },
+            DispatcherPriority.Loaded);
+    }
+
+    private async void CloseQuickNavDrawer()
+    {
+        if (!_quickNavDrawerOpen)
+            return;
+        var generation = ++_quickNavAnimationGeneration;
+        _quickNavDrawerOpen = false;
+
+        QuickNavScrim.IsVisible = false;
+        QuickNavDrawer.Width = 0;
+
+        await Task.Delay(MaterialMotion.MediumTransitionMs + 20);
+        if (generation == _quickNavAnimationGeneration)
+            QuickNavDrawer.IsVisible = false;
+    }
+
+    private void OnQuickNavDownloadsClick(object? sender, RoutedEventArgs e)
+    {
+        CloseQuickNavDrawer();
+        NavigateFromAction("downloads");
+    }
+
+    private void OnQuickNavInstancesClick(object? sender, RoutedEventArgs e)
+    {
+        CloseQuickNavDrawer();
+        NavigateFromAction("instances");
+    }
+
+    private void OnQuickNavAccountClick(object? sender, RoutedEventArgs e)
+    {
+        CloseQuickNavDrawer();
+        NavigateFromAction("account");
+    }
+
+    private void OnQuickNavPluginsClick(object? sender, RoutedEventArgs e)
+    {
+        CloseQuickNavDrawer();
+        NavigateFromAction("plugins");
+    }
+
+    private void OnQuickNavSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        CloseQuickNavDrawer();
+        NavigateFromAction("settings");
     }
 
     private void OnComponentRemovalRequested(
@@ -758,13 +847,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Esc：从最上层逐层退出 —— 先关模态遮罩，再从页面返回工作区
+        // Esc：从最上层逐层退出 —— 先关模态遮罩，再关抽屉，最后从页面返回工作区
         if (e.Key != Key.Escape)
             return;
 
         if (ModalHost.IsVisible)
         {
             ModalHost.Close();
+            e.Handled = true;
+            return;
+        }
+
+        // 工作区上打开的抽屉（右侧组件库 / 左侧快捷入口）优先于页面层级关闭
+        if (_componentLibraryDrawerOpen || _quickNavDrawerOpen)
+        {
+            CloseComponentLibraryDrawer();
+            CloseQuickNavDrawer();
             e.Handled = true;
             return;
         }
@@ -835,9 +933,20 @@ public partial class MainWindow : Window
             return;
         _storageChangeInProgress = true;
         var profile = result.Profile;
-        profile.Layout = Workspace.ExportLayout();
-        profile.Sidebars = [.. Workspace.ExportSidebars()];
-        profile.ComponentPlacements = [.. Workspace.ExportComponentPlacements()];
+        if (result.ResetLayout)
+        {
+            // 「恢复默认」：布局 / 侧边栏 / 组件摆放一律回出厂，而不是把当前布局写回。
+            var defaultProfile = WorkspaceDefaultProfile.Create();
+            profile.Layout = defaultProfile.Layout;
+            profile.Sidebars = defaultProfile.Sidebars;
+            profile.ComponentPlacements = defaultProfile.ComponentPlacements;
+        }
+        else
+        {
+            profile.Layout = Workspace.ExportLayout();
+            profile.Sidebars = [.. Workspace.ExportSidebars()];
+            profile.ComponentPlacements = [.. Workspace.ExportComponentPlacements()];
+        }
 
         try
         {
@@ -940,11 +1049,13 @@ public partial class MainWindow : Window
 
             ApplyWorkspaceProfile(
                 profile,
-                importStoredLayout: storageChange?.AppliedExistingConfiguration == true);
+                importStoredLayout: result.ResetLayout ||
+                    storageChange?.AppliedExistingConfiguration == true);
             SaveWorkspaceProfile(force: true);
 
             _settingsPage.ReloadPersonalization(_profileStore.StorageDirectory);
-            ShowStatus(CreateStorageChangeStatus(directoryChanged, storageChange));
+            var status = CreateStorageChangeStatus(directoryChanged, storageChange);
+            ShowStatus(result.ResetLayout ? $"已恢复默认布局。{status}" : status);
         }
         catch (Exception exception)
         {
@@ -1115,7 +1226,14 @@ public partial class MainWindow : Window
     private void Control_OnLoaded(object? sender, RoutedEventArgs e)
     {
         ApplySavedWindowSize();
-        MainWindowVersionText.Text = "NyaLauncher测试版,功能不稳定,不建议作为日常使用";
+        // 恢复特效开关与自定义背景（配置里关掉的特效在启动时静默生效）
+        ClickRing.ClickRingEnabled = ThemeSettings.LoadClickRing();
+        CustomBackgroundImage.SetOpacity(ThemeSettings.LoadCustomBackgroundOpacity());
+        CustomBackgroundImage.SetBlur(ThemeSettings.LoadCustomBackgroundBlur());
+        CustomBackgroundImage.SetImage(ThemeSettings.LoadCustomBackground());
+        // 测试版警告水印独立控制；版本号由 XAML 绑定 NyaLauncherInfo 常驻显示，
+        // 不再用运行时文本覆盖（避免破坏绑定、稳定版误藏版本号）
+        UnstableWatermarkText.IsVisible = NyaLauncherInfo.IsUnstable;
     }
 
     /// <summary>

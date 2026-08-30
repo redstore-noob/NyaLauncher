@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("NyaLauncher.Avalonia.Tests")]
+[assembly: InternalsVisibleTo("NyaLauncher.Avalonia.PluginExamples")]

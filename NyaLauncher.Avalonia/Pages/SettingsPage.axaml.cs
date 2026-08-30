@@ -1,19 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
-using NyaLauncher.Avalonia.Animations.Helpers;
-using NyaLauncher.Avalonia.Controls;
-using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Core.Config;
 using NyaLauncher.Core.Download;
 using NyaLauncher.Core.Launch;
@@ -48,7 +41,41 @@ public partial class SettingsPage : UserControl
     private bool _synchronizingIsolationSettings = true;
     private bool _synchronizingGameDirectory = true;
     private bool _synchronizingDownloadSettings = true;
-    private bool _initializingThemeSettings = true;
+
+    // ------------------------------------------------------------------
+    // 设置页搜索（由 SettingsHubPage 调用）
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// 应用搜索过滤：仅保留标题或关键词命中的卡片，返回命中卡片数；
+    /// 查询为空白时恢复全部卡片并返回 -1（表示非搜索态）。
+    /// </summary>
+    public int ApplySearchFilter(string? query)
+    {
+        query = query?.Trim() ?? string.Empty;
+        if (query.Length == 0)
+        {
+            CardGame.IsVisible = CardJava.IsVisible = CardDownload.IsVisible = CardAccount.IsVisible = true;
+            return -1;
+        }
+
+        var hits = 0;
+        void Match(Border card, string title, params string[] aliases)
+        {
+            var matched = Hit(title) || aliases.Any(Hit);
+            card.IsVisible = matched;
+            if (matched)
+                hits++;
+        }
+
+        Match(CardGame, "游戏设置", "实例", "版本隔离", "隔离", "游戏目录", "内存", "自动内存", "校验文件");
+        Match(CardJava, "Java 环境", "java", "jvm", "虚拟机", "路径", "参数", "运行时");
+        Match(CardDownload, "下载设置", "下载", "下载源", "镜像", "并发", "线程");
+        Match(CardAccount, "账户管理", "账号", "登录", "微软", "离线", "皮肤", "头像");
+        return hits;
+
+        bool Hit(string text) => text.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>用户点击"打开账户管理"时触发，由宿主页面转发给主窗口完成跳转。</summary>
     public event EventHandler? AccountManageRequested;
@@ -68,19 +95,7 @@ public partial class SettingsPage : UserControl
         ReloadGameDirectories();
         ReloadJavaSettings();
         ReloadDownloadSettings();
-        InitializeThemeSettings();
         RefreshJavaRuntimeList();
-        ReloadHotkeys();
-
-        // 离开设置页时中止快捷键录制，避免按键继续被吞
-        DetachedFromVisualTree += (_, _) =>
-        {
-            if (AppHotkeys.IsCapturing)
-            {
-                AppHotkeys.EndCapture();
-                ReloadHotkeys();
-            }
-        };
     }
 
     // ------------------------------------------------------------------
@@ -91,7 +106,7 @@ public partial class SettingsPage : UserControl
 
     private void OnSettingsScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        _cards ??= [CardGame, CardHotkeys, CardJava, CardDownload, CardLauncher, CardAccount, CardAi];
+        _cards ??= [CardGame, CardJava, CardDownload, CardAccount];
 
         var scroller = SettingsScroller;
         if (scroller is null) return;
@@ -242,86 +257,6 @@ public partial class SettingsPage : UserControl
     private void OnVerifyFilesChanged(object? sender, RoutedEventArgs e)
     {
         LauncherConfig.SaveVerifyFilesBeforeLaunch(VerifyFilesCheckBox.IsChecked == true);
-    }
-
-    // ------------------------------------------------------------------
-    // 快捷键设置（打开设置 / 快捷启动）
-    // ------------------------------------------------------------------
-
-    private HotkeyAction? _capturingAction;
-
-    private void ReloadHotkeys()
-    {
-        _capturingAction = null;
-        OpenSettingsHotkeyButton.Content = AppHotkeys.Format(AppHotkeys.OpenSettingsGesture);
-        OpenSettingsHotkeyHintText.Text =
-            "在启动器任意界面按下即可打开设置页。点击右侧按钮录制新组合键。";
-
-        var quickLaunch = AppHotkeys.QuickLaunchGesture;
-        QuickLaunchHotkeyButton.Content = quickLaunch is not null
-            ? AppHotkeys.Format(quickLaunch)
-            : "未设置";
-        QuickLaunchClearButton.IsVisible = quickLaunch is not null;
-        QuickLaunchHotkeyHintText.Text =
-            "以当前选中的实例与账户直接启动游戏（需先在启动页选好版本）。默认未设置。";
-    }
-
-    private void OnOpenSettingsHotkeyClick(object? sender, RoutedEventArgs e) =>
-        StartHotkeyCapture(HotkeyAction.OpenSettings);
-
-    private void OnQuickLaunchHotkeyClick(object? sender, RoutedEventArgs e) =>
-        StartHotkeyCapture(HotkeyAction.QuickLaunch);
-
-    private void OnQuickLaunchClearClick(object? sender, RoutedEventArgs e)
-    {
-        AppHotkeys.Clear(HotkeyAction.QuickLaunch);
-        ReloadHotkeys();
-    }
-
-    private void StartHotkeyCapture(HotkeyAction action)
-    {
-        // 录制中再次点击同一行 = 取消
-        if (_capturingAction == action)
-        {
-            AppHotkeys.EndCapture();
-            ReloadHotkeys();
-            return;
-        }
-
-        _capturingAction = action;
-        AppHotkeys.BeginCapture((outcome, gesture) => OnHotkeyCaptureResult(action, outcome, gesture));
-
-        var button = action == HotkeyAction.OpenSettings
-            ? OpenSettingsHotkeyButton
-            : QuickLaunchHotkeyButton;
-        button.Content = "按下组合键…";
-        SetHotkeyHint(action, "请按下新组合键（需包含 Ctrl 或 Alt）· Esc 取消 · 再点一次按钮取消");
-    }
-
-    private void OnHotkeyCaptureResult(HotkeyAction action, HotkeyCaptureOutcome outcome, KeyGesture? gesture)
-    {
-        switch (outcome)
-        {
-            case HotkeyCaptureOutcome.Captured when gesture is not null:
-                AppHotkeys.Save(action, gesture);
-                ReloadHotkeys();
-                break;
-            case HotkeyCaptureOutcome.Cancelled:
-                ReloadHotkeys();
-                break;
-            case HotkeyCaptureOutcome.Rejected:
-                // 捕获仍在进行，提示后继续等待下一次按键
-                SetHotkeyHint(action, "无效组合：需要包含 Ctrl 或 Alt，再试一次（Esc 取消）");
-                break;
-        }
-    }
-
-    private void SetHotkeyHint(HotkeyAction action, string text)
-    {
-        if (action == HotkeyAction.OpenSettings)
-            OpenSettingsHotkeyHintText.Text = text;
-        else
-            QuickLaunchHotkeyHintText.Text = text;
     }
 
     // ------------------------------------------------------------------
@@ -756,119 +691,5 @@ public partial class SettingsPage : UserControl
     private void OnOpenInstanceManagerClick(object? sender, RoutedEventArgs e)
     {
         InstanceManageRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void InitializeThemeSettings()
-    {
-        var currentFamily = ThemeSettings.LoadThemeFamily();
-        var currentMode = ThemeSettings.LoadThemeMode();
-
-        // 主题色卡：同步选中态（_initializingThemeSettings 守卫避免触发应用逻辑）
-        ThemeCardMiku.IsChecked = currentFamily == "HatsuneMiku";
-        ThemeCardDeepSeek.IsChecked = currentFamily == "DeepSeekPurple";
-        ThemeCardZhiShu.IsChecked = currentFamily == "ZhiShuBlue";
-        ThemeCardMojang.IsChecked = currentFamily == "MojangRed";
-
-        // 明暗分段按钮：同步选中态（System = 跟随系统）
-        ThemeModeDarkChip.IsChecked = currentMode == "Dark";
-        ThemeModeSystemChip.IsChecked = currentMode == "System";
-        ThemeModeLightChip.IsChecked = currentMode == "Light";
-        // 「彩虹背景」开关：初始化时同步到 AmbientGradient 全局开关
-        AmbientSwitch.IsChecked = ThemeSettings.LoadAmbientGradient();
-        AmbientGradient.AmbientGradientEnabled = AmbientSwitch.IsChecked == true;
-        // 「星尘特效」开关：同步到 SparkleTrail 全局开关
-        SparkleSwitch.IsChecked = ThemeSettings.LoadSparkleTrail();
-        SparkleTrail.SparkleTrailEnabled = SparkleSwitch.IsChecked == true;
-        _initializingThemeSettings = false;
-    }
-
-    private void OnAmbientChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_initializingThemeSettings) return;
-        var enabled = AmbientSwitch.IsChecked == true;
-        AmbientGradient.AmbientGradientEnabled = enabled;
-        AmbientGradient.RefreshGlobal(); // 立即生效：关则移除渐变层，开则重新注入
-        ThemeSettings.SaveAmbientGradient(enabled);
-    }
-
-    private void OnSparkleChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_initializingThemeSettings) return;
-        var enabled = SparkleSwitch.IsChecked == true;
-        SparkleTrail.SparkleTrailEnabled = enabled;
-        SparkleTrail.RefreshGlobal(); // 立即生效：关则移除星星层，开则重新注入
-        ThemeSettings.SaveSparkleTrail(enabled);
-    }
-
-    private void OnThemeFamilyChecked(object? sender, RoutedEventArgs e)
-    {
-        if (_initializingThemeSettings) return;
-        // IsCheckedChanged 在取消选中时也会触发，只响应选中
-        if (sender is RadioButton { Tag: string family, IsChecked: true })
-        {
-            ThemeSettings.SaveThemeFamily(family);
-            ApplyThemeHot(family, ThemeSettings.LoadThemeMode());
-        }
-    }
-
-    private void OnThemeModeChecked(object? sender, RoutedEventArgs e)
-    {
-        if (_initializingThemeSettings) return;
-        if (sender is RadioButton { Tag: string mode, IsChecked: true })
-        {
-            ThemeSettings.SaveThemeMode(mode);
-            ApplyThemeHot(ThemeSettings.LoadThemeFamily(), mode);
-        }
-    }
-
-    /// <summary>
-    /// 主题热重载（无需重启应用）；异常时回退到传统重启方案。
-    /// </summary>
-    private static void ApplyThemeHot(string family, string mode)
-    {
-        try
-        {
-            NyaLauncher.Avalonia.Themes.ThemeManager.ApplyTheme(family, mode);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[Settings] 主题热重载失败，回退重启：{ex}");
-            RestartApplication();
-        }
-    }
-
-    private static void RestartApplication()
-    {
-        try
-        {
-            var exe = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(exe))
-                return;
-
-            var psi = new ProcessStartInfo
-            {
-                WorkingDirectory = Environment.CurrentDirectory,
-                UseShellExecute = false
-            };
-
-            if (Path.GetFileNameWithoutExtension(exe) is "dotnet" or "dotnet.exe")
-            {
-                var dll = System.Reflection.Assembly.GetEntryAssembly()?.Location;
-                if (string.IsNullOrWhiteSpace(dll))
-                    return;
-                psi.FileName = exe;
-                psi.Arguments = $"\"{dll}\"";
-            }
-            else
-            {
-                psi.FileName = exe;
-            }
-
-            Process.Start(psi);
-            Environment.Exit(0);
-        }
-        catch
-        {
-        }
     }
 }

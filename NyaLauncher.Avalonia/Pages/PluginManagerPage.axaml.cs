@@ -586,6 +586,8 @@ public partial class PluginManagerPage : UserControl
             : plugin.Description;
         DetailsIdText.Text = plugin.Id;
         DetailsVersionText.Text = plugin.Version;
+        DetailsApiText.Text =
+            $"{NyaLauncher.Plugin.Abstractions.Plugins.PluginSdk.ApiVersion} · 兼容 {NyaLauncher.Plugin.Abstractions.Plugins.PluginSdk.PreviousApiVersion}+";
         DetailsOriginText.Text = plugin.InstallOrigin is { } origin
             ? $"{origin.LineageId}\n第 {origin.Generation} 代 · " +
               (origin.RepositoryId is long repositoryId && origin.OwnerId is long ownerId

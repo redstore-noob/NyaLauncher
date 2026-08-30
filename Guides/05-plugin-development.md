@@ -22,6 +22,39 @@
 
 运行时注册或移除区域后，工作区会自动刷新，无需重启。
 
+### 插件 API 版本
+
+宿主对外展示的插件 API 版本号为 `PluginSdk.ApiVersion`（当前 **v1-p2**，
+显示在插件管理页页头与插件详情中）。机器可读的兼容性判定以 plugin.json 的
+`apiVersion` 主版本号为准（当前主版本 1）：**同一主版本内，宿主对插件 API
+向前兼容**——旧插件在新宿主上原样可用，无需为 API 增量重新编译。
+
+版本历史：
+
+| 版本 | 内容 |
+|------|------|
+| **v1-p1** | 初始 API 集：组件、实例扩展、启动参数注入、设置、存储 |
+| **v1-p2** | v1-p1 + `IPluginNotifications` 通知服务（NyaAlert / NyaPrompt），纯增量 |
+
+### 通知服务（NyaAlert / NyaPrompt）
+
+插件经 `Context.GetService<IPluginNotifications>()` 获取启动器托管的通知
+UI（需在清单中声明 `ui.native` 能力；未授权时返回 `null`）：
+
+```csharp
+var notify = Context.GetService<IPluginNotifications>();
+if (notify is null)
+    return;
+
+notify.Alert(PluginNoticeSeverity.Success, "任务完成");             // 警示条，约 4s 自动收回
+await notify.ConfirmAsync("删除实例", "该操作不可撤销");              // 确认对话框 → bool
+var id = await notify.PromptAsync("选择", "选一个",
+    PluginNoticeSeverity.Info,
+    new PluginPromptButton("甲"), new PluginPromptButton("乙", IsDefault: true));
+```
+
+全部方法可在任意线程调用（内部自动封送 UI 线程）。
+
 ---
 
 ## 2. 注册按钮型功能区

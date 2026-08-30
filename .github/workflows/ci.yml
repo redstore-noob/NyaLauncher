@@ -10,6 +10,7 @@ on:
 
 env:
   DOTNET_VERSION: '10.0.x'
+  ASSEMBLY: NyaLauncher.Avalonia
 
 jobs:
   # 推送 / PR：快速编译校验
@@ -70,10 +71,55 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path publish/* -DestinationPath ${{ matrix.artifact }}
 
+      # Windows 额外提供免解压的裸单文件 exe
+      - name: Stage single-file exe
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item publish/${{ env.ASSEMBLY }}.exe NyaLauncher-Windows-x64.exe
+
       - name: Pack archive (tar.gz)
         if: runner.os != 'Windows'
         shell: bash
         run: tar -czf "${{ matrix.artifact }}" -C publish .
+
+      # Linux 额外提供 deb 包（安装到 /opt/nya-launcher，/usr/bin 提供启动命令）
+      - name: Install fpm
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev rubygems build-essential
+          sudo gem install --no-document fpm
+
+      - name: Build deb
+        if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          version="${VERSION#v}"
+          mkdir -p stage/opt/nya-launcher stage/usr/bin
+          cp -r publish/* stage/opt/nya-launcher/
+          cat > stage/usr/bin/nya-launcher <<'EOF'
+          #!/bin/bash
+          exec /opt/nya-launcher/NyaLauncher.Avalonia "$@"
+          EOF
+          chmod +x stage/usr/bin/nya-launcher
+          fpm -s dir -t deb -n nya-launcher -v "$version" \
+            -m "NyaLauncher <noreply@nyalauncher.local>" \
+            --description "NyaLauncher - A modern cross-platform lightweight Minecraft launcher" \
+            --url "https://github.com/${{ github.repository }}" \
+            --license "Apache-2.0" --force -C stage --architecture amd64
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: NyaLauncher-Windows-x64-singlefile
+          path: NyaLauncher-Windows-x64.exe
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: NyaLauncher-Linux-x64-deb
+          path: nya-launcher_*.deb
 
       - uses: actions/upload-artifact@v4
         with:

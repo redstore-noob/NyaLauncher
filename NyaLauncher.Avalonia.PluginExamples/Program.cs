@@ -12,7 +12,7 @@ using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Plugin.Abstractions.Components;
 using NyaLauncher.Plugin.Abstractions.Plugins;
 
-namespace NyaLauncher.Avalonia.Tests;
+namespace NyaLauncher.Avalonia.PluginExamples;
 
 internal static class Program
 {
@@ -144,7 +144,7 @@ internal static class Program
                 Id = "dev.example.preview",
                 Name = "Preview Compatibility Test",
                 Version = "1.0.0",
-                MinimumLauncherVersion = "0.1.0",
+                MinimumLauncherVersion = "1.0.0",
                 EntryAssembly = "TestPlugin.dll",
                 EntryType = "Dev.Example.PreviewPlugin"
             };
@@ -153,17 +153,17 @@ internal static class Program
 
             var incompatible = catalog.Scan().Single();
             Assert(incompatible.Status == PluginStatus.Incompatible,
-                "0.1.0-ppre2 does not satisfy a stable 0.1.0 minimum");
+                "stable minimum 1.0.0 should reject the prerelease launcher");
 
             File.WriteAllText(
                 manifestPath,
                 JsonSerializer.Serialize(manifest with
                 {
-                    MinimumLauncherVersion = "0.1.0-ppre2"
+                    MinimumLauncherVersion = "1.0.0-preview1"
                 }));
             var compatible = catalog.Scan().Single();
             Assert(compatible.Status == PluginStatus.Disabled,
-                "0.1.0-ppre2 satisfies the matching prerelease minimum");
+                "1.0.0-preview1 satisfies the matching prerelease minimum");
             return Task.CompletedTask;
         }
         finally
@@ -756,7 +756,7 @@ internal static class Program
                          StringComparison.Ordinal),
                      valid.Replace(
                          "\"minimumLauncherVersion\": \"0.1.0-ppre2\"",
-                         "\"minimumLauncherVersion\": \"0.1.0\"",
+                         "\"minimumLauncherVersion\": \"1.0.0\"",
                          StringComparison.Ordinal),
                      valid.Replace(
                          TestLineageId,
@@ -845,8 +845,8 @@ internal static class Program
                          StringComparison.Ordinal),
                      valid.Replace(
                          "\"minimumLauncherVersion\": \"0.1.0-ppre2\"",
-                         "\"minimumLauncherVersion\": \"0.1.0-ppre2\", " +
-                         "\"maximumLauncherVersionExclusive\": \"0.1.0-ppre2\"",
+                         "\"minimumLauncherVersion\": \"1.0.0-preview1\", " +
+                         "\"maximumLauncherVersionExclusive\": \"1.0.0-preview1\"",
                          StringComparison.Ordinal)
                   };
         for (var index = 0; index < invalidCases.Length; index++)

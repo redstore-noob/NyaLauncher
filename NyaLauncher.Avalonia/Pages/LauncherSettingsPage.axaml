@@ -1,0 +1,562 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="NyaLauncher.Avalonia.Pages.LauncherSettingsPage">
+  <UserControl.Styles>
+    <!-- 与 SettingsPage 保持一致的卡片通用样式 -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource PanelBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+    </Style>
+    <Style Selector="TextBlock.card-title">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.card-subtitle">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource HintTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource HintTextBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="Border.sub-card">
+      <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="18,14" />
+    </Style>
+    <Style Selector="Border.accent-bar">
+      <Setter Property="Width" Value="5" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="CornerRadius" Value="14,0,0,14" />
+    </Style>
+    <Style Selector="Border.icon-chip">
+      <Setter Property="Width" Value="36" />
+      <Setter Property="Height" Value="36" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*" Margin="40,40,40,32">
+
+    <!-- 页标题 -->
+    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,20">
+      <TextBlock Text="启动器设置"
+                 FontSize="28"
+                 FontWeight="Bold"
+                 Foreground="{DynamicResource PrimaryTextBrush}" />
+      <TextBlock Text="快捷键、个性化与 AI 功能"
+                 FontSize="13"
+                 Foreground="{DynamicResource HintTextBrush}" />
+    </StackPanel>
+
+    <!-- 设置内容 -->
+    <ScrollViewer x:Name="SettingsScroller"
+                  Grid.Row="1"
+                  ScrollChanged="OnSettingsScrollChanged">
+      <StackPanel x:Name="CardsStack" Spacing="20">
+
+        <!-- ==================== 快捷键设置 ==================== -->
+        <Border x:Name="CardHotkeys" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{DynamicResource AccentDeepBrush}" />
+            <StackPanel Margin="28,22" Spacing="22">
+              <StackPanel Spacing="2">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <Border Classes="icon-chip">
+                    <mi:MaterialIcon Kind="Keyboard" Width="19" Height="19" Foreground="{DynamicResource AccentDeepBrush}" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="快捷键" Classes="card-title" />
+                    <TextBlock Text="应用内操作快捷键，录制时需包含 Ctrl 或 Alt"
+                               Classes="card-subtitle" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+
+              <Border Classes="sub-card">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="打开设置"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                    <TextBlock x:Name="OpenSettingsHotkeyHintText"
+                               Classes="hint"
+                               Text="在启动器任意界面按下即可打开设置页。点击右侧按钮录制新组合键。" />
+                  </StackPanel>
+                  <Button x:Name="OpenSettingsHotkeyButton"
+                          Grid.Column="1"
+                          MinWidth="110"
+                          Padding="14,7"
+                          CornerRadius="8"
+                          FontSize="12"
+                          FontWeight="SemiBold"
+                          Background="{DynamicResource ButtonBgBrush}"
+                          BorderBrush="{DynamicResource EmphasizedBorderBrush}"
+                          BorderThickness="1"
+                          Foreground="{DynamicResource LinkTextColorBrush}"
+                          Cursor="Hand"
+                          VerticalAlignment="Center"
+                          Click="OnOpenSettingsHotkeyClick" />
+                </Grid>
+              </Border>
+
+              <Border Classes="sub-card">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="快捷启动"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                    <TextBlock x:Name="QuickLaunchHotkeyHintText"
+                               Classes="hint"
+                               Text="以当前选中的实例与账户直接启动游戏（需先在启动页选好版本）。默认未设置。" />
+                  </StackPanel>
+                  <Button x:Name="QuickLaunchClearButton"
+                          Grid.Column="1"
+                          Content="清除"
+                          Padding="10,7"
+                          CornerRadius="8"
+                          FontSize="12"
+                          Background="{DynamicResource ButtonBgBrush}"
+                          BorderBrush="{DynamicResource EmphasizedBorderBrush}"
+                          BorderThickness="1"
+                          Foreground="{DynamicResource HintTextBrush}"
+                          Cursor="Hand"
+                          VerticalAlignment="Center"
+                          IsVisible="False"
+                          Click="OnQuickLaunchClearClick" />
+                  <Button x:Name="QuickLaunchHotkeyButton"
+                          Grid.Column="2"
+                          MinWidth="110"
+                          Padding="14,7"
+                          CornerRadius="8"
+                          FontSize="12"
+                          FontWeight="SemiBold"
+                          Background="{DynamicResource ButtonBgBrush}"
+                          BorderBrush="{DynamicResource EmphasizedBorderBrush}"
+                          BorderThickness="1"
+                          Foreground="{DynamicResource LinkTextColorBrush}"
+                          Cursor="Hand"
+                          VerticalAlignment="Center"
+                          Click="OnQuickLaunchHotkeyClick" />
+                </Grid>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- ==================== 个性化设置 ==================== -->
+        <Border x:Name="CardLauncher" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{DynamicResource AccentBrush}" />
+            <StackPanel Margin="28,22" Spacing="22">
+              <StackPanel Spacing="2">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <Border Classes="icon-chip">
+                    <mi:MaterialIcon Kind="Palette" Width="19" Height="19" Foreground="{DynamicResource AccentBrush}" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="个性化设置" Classes="card-title" />
+                    <TextBlock Text="主题风格与外观配置" Classes="card-subtitle" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+
+              <StackPanel.Styles>
+                <!-- 主题卡片：渐变色条 + 主题名，选中态用强调色描边 + 对勾徽章 -->
+                <Style Selector="RadioButton.theme-card">
+                  <Setter Property="Cursor" Value="Hand" />
+                  <Setter Property="FocusAdorner" Value="{x:Null}" />
+                  <Setter Property="Template">
+                    <ControlTemplate>
+                      <Border x:Name="Bg"
+                              CornerRadius="10"
+                              Width="148"
+                              Background="{DynamicResource ControlBgBrush}"
+                              BorderBrush="{DynamicResource DefaultBorderBrush}"
+                              BorderThickness="1">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Margin="12,10" />
+                      </Border>
+                    </ControlTemplate>
+                  </Setter>
+                </Style>
+                <Style Selector="RadioButton.theme-card /template/ Border#Bg">
+                  <Setter Property="Transitions">
+                    <Transitions>
+                      <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                      <BrushTransition Property="Background" Duration="0:0:0.15" />
+                    </Transitions>
+                  </Setter>
+                </Style>
+                <Style Selector="RadioButton.theme-card:pointerover /template/ Border#Bg">
+                  <Setter Property="BorderBrush" Value="{DynamicResource MediumBorderBrush}" />
+                  <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+                </Style>
+                <Style Selector="RadioButton.theme-card:checked /template/ Border#Bg">
+                  <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                  <Setter Property="Background" Value="{DynamicResource HighlightBgBrush}" />
+                </Style>
+                <Style Selector="RadioButton.theme-card:checked Border.theme-check">
+                  <Setter Property="IsVisible" Value="True" />
+                </Style>
+
+                <!-- 明暗分段按钮：选中态填充强调色 -->
+                <Style Selector="RadioButton.mode-chip">
+                  <Setter Property="Cursor" Value="Hand" />
+                  <Setter Property="Foreground" Value="{DynamicResource BodyTextBrush}" />
+                  <Setter Property="Template">
+                    <ControlTemplate>
+                      <Border x:Name="Bg"
+                              CornerRadius="8"
+                              Padding="18,6"
+                              Background="{DynamicResource ControlBgBrush}"
+                              BorderBrush="{DynamicResource DefaultBorderBrush}"
+                              BorderThickness="1">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                      </Border>
+                    </ControlTemplate>
+                  </Setter>
+                </Style>
+                <Style Selector="RadioButton.mode-chip /template/ Border#Bg">
+                  <Setter Property="Transitions">
+                    <Transitions>
+                      <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                      <BrushTransition Property="Background" Duration="0:0:0.15" />
+                    </Transitions>
+                  </Setter>
+                </Style>
+                <Style Selector="RadioButton.mode-chip.mode-chip-left /template/ Border#Bg">
+                  <Setter Property="CornerRadius" Value="8,0,0,8" />
+                </Style>
+                <Style Selector="RadioButton.mode-chip.mode-chip-middle /template/ Border#Bg">
+                  <Setter Property="CornerRadius" Value="0" />
+                </Style>
+                <Style Selector="RadioButton.mode-chip.mode-chip-right /template/ Border#Bg">
+                  <Setter Property="CornerRadius" Value="0,8,8,0" />
+                </Style>
+                <Style Selector="RadioButton.mode-chip:pointerover /template/ Border#Bg">
+                  <Setter Property="BorderBrush" Value="{DynamicResource MediumBorderBrush}" />
+                </Style>
+                <Style Selector="RadioButton.mode-chip:checked">
+                  <Setter Property="Foreground" Value="{DynamicResource WhiteBrush}" />
+                </Style>
+                <Style Selector="RadioButton.mode-chip:checked /template/ Border#Bg">
+                  <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                  <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </Style>
+              </StackPanel.Styles>
+
+              <!-- 主题风格：色卡选择器 -->
+              <StackPanel Spacing="10">
+                <TextBlock Text="主题风格"
+                           FontSize="14"
+                           Foreground="{DynamicResource BodyTextBrush}" />
+                <WrapPanel>
+                  <RadioButton x:Name="ThemeCardMiku"
+                               Classes="theme-card"
+                               GroupName="ThemeFamily"
+                               Tag="HatsuneMiku"
+                               Margin="0,0,10,10"
+                               IsCheckedChanged="OnThemeFamilyChecked">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="7">
+                      <Border Height="5" CornerRadius="2.5">
+                        <Border.Background>
+                          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#39C5BB" />
+                            <GradientStop Color="#6FD8D1" Offset="1" />
+                          </LinearGradientBrush>
+                        </Border.Background>
+                      </Border>
+                      <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="初音未来" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <Border Classes="theme-check"
+                                Grid.Column="1"
+                                Width="16" Height="16"
+                                CornerRadius="8"
+                                Background="{DynamicResource AccentBrush}"
+                                VerticalAlignment="Center"
+                                IsVisible="False">
+                          <mi:MaterialIcon Kind="Check" Width="10" Height="10" Foreground="{DynamicResource WhiteBrush}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Grid.Row="2" Text="初音粉 × 初音青" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" />
+                    </Grid>
+                  </RadioButton>
+                  <RadioButton x:Name="ThemeCardDeepSeek"
+                               Classes="theme-card"
+                               GroupName="ThemeFamily"
+                               Tag="DeepSeekPurple"
+                               Margin="0,0,10,10"
+                               IsCheckedChanged="OnThemeFamilyChecked">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="7">
+                      <Border Height="5" CornerRadius="2.5">
+                        <Border.Background>
+                          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#7C3AED" />
+                            <GradientStop Color="#A78BFA" Offset="1" />
+                          </LinearGradientBrush>
+                        </Border.Background>
+                      </Border>
+                      <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="DeepSeek紫" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <Border Classes="theme-check"
+                                Grid.Column="1"
+                                Width="16" Height="16"
+                                CornerRadius="8"
+                                Background="{DynamicResource AccentBrush}"
+                                VerticalAlignment="Center"
+                                IsVisible="False">
+                          <mi:MaterialIcon Kind="Check" Width="10" Height="10" Foreground="{DynamicResource WhiteBrush}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Grid.Row="2" Text="幻紫 × 樱粉语义" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" />
+                    </Grid>
+                  </RadioButton>
+                  <RadioButton x:Name="ThemeCardZhiShu"
+                               Classes="theme-card"
+                               GroupName="ThemeFamily"
+                               Tag="ZhiShuBlue"
+                               Margin="0,0,10,10"
+                               IsCheckedChanged="OnThemeFamilyChecked">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="7">
+                      <Border Height="5" CornerRadius="2.5">
+                        <Border.Background>
+                          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#002FA7" />
+                            <GradientStop Color="#3068D8" Offset="1" />
+                          </LinearGradientBrush>
+                        </Border.Background>
+                      </Border>
+                      <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="植树蓝" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <Border Classes="theme-check"
+                                Grid.Column="1"
+                                Width="16" Height="16"
+                                CornerRadius="8"
+                                Background="{DynamicResource AccentBrush}"
+                                VerticalAlignment="Center"
+                                IsVisible="False">
+                          <mi:MaterialIcon Kind="Check" Width="10" Height="10" Foreground="{DynamicResource WhiteBrush}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Grid.Row="2" Text="克莱因蓝 × 晴空语义" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" />
+                    </Grid>
+                  </RadioButton>
+                  <RadioButton x:Name="ThemeCardMojang"
+                               Classes="theme-card"
+                               GroupName="ThemeFamily"
+                               Tag="MojangRed"
+                               Margin="0,0,10,10"
+                               IsCheckedChanged="OnThemeFamilyChecked">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="7">
+                      <Border Height="5" CornerRadius="2.5">
+                        <Border.Background>
+                          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#D32F2F" />
+                            <GradientStop Color="#EF5350" Offset="1" />
+                          </LinearGradientBrush>
+                        </Border.Background>
+                      </Border>
+                      <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Mojang红" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <Border Classes="theme-check"
+                                Grid.Column="1"
+                                Width="16" Height="16"
+                                CornerRadius="8"
+                                Background="{DynamicResource AccentBrush}"
+                                VerticalAlignment="Center"
+                                IsVisible="False">
+                          <mi:MaterialIcon Kind="Check" Width="10" Height="10" Foreground="{DynamicResource WhiteBrush}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Grid.Row="2" Text="经典红 × 方块绿" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" />
+                    </Grid>
+                  </RadioButton>
+                </WrapPanel>
+              </StackPanel>
+
+              <!-- 外观选项：明暗 / 彩虹背景 / 星尘特效 -->
+              <Border Classes="sub-card">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <TextBlock Text="明暗模式"
+                             FontSize="14"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource SecondaryTextBrush}"
+                             VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <RadioButton x:Name="ThemeModeDarkChip"
+                                 Classes="mode-chip mode-chip-left"
+                                 GroupName="ThemeMode"
+                                 Tag="Dark"
+                                 Margin="0,0,-1,0"
+                                 IsCheckedChanged="OnThemeModeChecked"
+                                 Content="暗色" />
+                    <RadioButton x:Name="ThemeModeSystemChip"
+                                 Classes="mode-chip mode-chip-middle"
+                                 GroupName="ThemeMode"
+                                 Tag="System"
+                                 Margin="0,0,-1,0"
+                                 IsCheckedChanged="OnThemeModeChecked"
+                                 Content="跟随系统" />
+                    <RadioButton x:Name="ThemeModeLightChip"
+                                 Classes="mode-chip mode-chip-right"
+                                 GroupName="ThemeMode"
+                                 Tag="Light"
+                                 IsCheckedChanged="OnThemeModeChecked"
+                                 Content="浅色" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+
+              <Border Classes="sub-card">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <TextBlock Text="彩虹背景"
+                             FontSize="14"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource SecondaryTextBrush}"
+                             VerticalAlignment="Center" />
+                  <ToggleSwitch x:Name="AmbientSwitch"
+                                Grid.Column="1"
+                                OnContent="开"
+                                OffContent="关"
+                                VerticalAlignment="Center"
+                                IsCheckedChanged="OnAmbientChanged" />
+                </Grid>
+              </Border>
+
+              <Border Classes="sub-card">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <TextBlock Text="星尘特效"
+                             FontSize="14"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource SecondaryTextBrush}"
+                             VerticalAlignment="Center" />
+                  <ToggleSwitch x:Name="SparkleSwitch"
+                                Grid.Column="1"
+                                OnContent="开"
+                                OffContent="关"
+                                VerticalAlignment="Center"
+                                IsCheckedChanged="OnSparkleChanged" />
+                </Grid>
+              </Border>
+
+              <Border Classes="sub-card">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <TextBlock Text="点击圆环"
+                             FontSize="14"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource SecondaryTextBrush}"
+                             VerticalAlignment="Center" />
+                  <ToggleSwitch x:Name="ClickRingSwitch"
+                                Grid.Column="1"
+                                OnContent="开"
+                                OffContent="关"
+                                VerticalAlignment="Center"
+                                IsCheckedChanged="OnClickRingChanged" />
+                </Grid>
+              </Border>
+
+              <Border Classes="sub-card">
+                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <TextBlock Text="自定义背景图"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                      <Button x:Name="CustomBgPickButton"
+                              Content="选择图片"
+                              Padding="12,4"
+                              CornerRadius="7"
+                              FontSize="12"
+                              Cursor="Hand"
+                              Click="OnCustomBgPickClick" />
+                      <Button x:Name="CustomBgClearButton"
+                              Content="清除"
+                              Padding="12,4"
+                              CornerRadius="7"
+                              FontSize="12"
+                              Cursor="Hand"
+                              IsVisible="False"
+                              Click="OnCustomBgClearClick" />
+                    </StackPanel>
+                  </Grid>
+                  <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="不透明度"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               VerticalAlignment="Center" />
+                    <Slider x:Name="CustomBgOpacitySlider"
+                            Grid.Column="1"
+                            Height="22"
+                            Minimum="0.05"
+                            Maximum="0.85"
+                            VerticalAlignment="Center"
+                            ValueChanged="OnCustomBgOpacityChanged" />
+                  </Grid>
+                  <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Text="模糊"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               VerticalAlignment="Center" />
+                    <Slider x:Name="CustomBgBlurSlider"
+                            Grid.Column="1"
+                            Height="22"
+                            Minimum="0"
+                            Maximum="30"
+                            VerticalAlignment="Center"
+                            ValueChanged="OnCustomBgBlurChanged" />
+                  </Grid>
+                </Grid>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- ==================== AI 设置（内容待添加） ==================== -->
+        <Border x:Name="CardAi" Classes="card">
+          <Grid>
+            <Border Classes="accent-bar" Background="{DynamicResource AccentDarkerBrush}" />
+            <StackPanel Margin="28,22" Spacing="14">
+              <StackPanel Spacing="2">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <Border Classes="icon-chip">
+                    <mi:MaterialIcon Kind="AutoAwesome" Width="19" Height="19" Foreground="{DynamicResource AccentDarkerBrush}" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="AI 设置" Classes="card-title" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+              <CheckBox Content="启用AI功能"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="{DynamicResource SecondaryTextBrush}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

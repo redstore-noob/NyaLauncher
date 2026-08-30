@@ -132,6 +132,7 @@
       <TabControl x:Name="DownloadTabs"
                   BorderThickness="0"
                   Background="{DynamicResource TransparentBrush}"
+                  TabStripPlacement="Left"
                   SelectionChanged="OnDownloadTabChanged">
 
         <!-- ===== Minecraft 本体 ===== -->
@@ -181,9 +182,10 @@
                       <DataTemplate DataType="models:MinecraftVersion">
                         <Border Classes="ItemHover" Background="{DynamicResource ControlBgBrush}" CornerRadius="10" Padding="16,12" Margin="0,0,0,4" Cursor="Hand">
                           <Grid ColumnDefinitions="Auto,*">
-                            <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource AccentDeepBrush}">
-                              <TextBlock Text="{Binding TypeIcon}" FontSize="18"
-                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource AccentDeepBrush}" ClipToBounds="True">
+                              <local:AsyncImage Width="40" Height="40"
+                                                SourceUrl="{Binding TypeIconSource}"
+                                                Stretch="UniformToFill" />
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
                               <TextBlock Text="{Binding DisplayName}"
@@ -267,8 +269,6 @@
                           <Grid ColumnDefinitions="Auto,*,Auto">
                             <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
                               <Grid>
-                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <local:AsyncImage Width="40" Height="40"
                                        SourceUrl="{Binding IconUrl}"
                                        Stretch="UniformToFill" />
@@ -347,8 +347,6 @@
                           <Grid ColumnDefinitions="Auto,*,Auto">
                             <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource ErrorDarkBrush}" ClipToBounds="True">
                               <Grid>
-                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <local:AsyncImage Width="40" Height="40"
                                        SourceUrl="{Binding IconUrl}"
                                        Stretch="UniformToFill" />
@@ -428,8 +426,6 @@
                           <Grid ColumnDefinitions="Auto,*,Auto">
                             <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource SuccessBrush}" ClipToBounds="True">
                               <Grid>
-                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <local:AsyncImage Width="40" Height="40"
                                        SourceUrl="{Binding IconUrl}"
                                        Stretch="UniformToFill" />
@@ -509,8 +505,6 @@
                           <Grid ColumnDefinitions="Auto,*,Auto">
                             <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource BadgeBgBrush}" ClipToBounds="True">
                               <Grid>
-                                <TextBlock Text="{Binding TypeIcon}" FontSize="18"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <local:AsyncImage Width="40" Height="40"
                                        SourceUrl="{Binding IconUrl}"
                                        Stretch="UniformToFill" />

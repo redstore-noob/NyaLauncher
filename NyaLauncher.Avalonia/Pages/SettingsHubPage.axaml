@@ -24,6 +24,13 @@
                      FontSize="11"
                      Foreground="{DynamicResource HintTextBrush}" />
         </StackPanel>
+        <TextBox x:Name="SettingsSearchBox"
+                 Grid.Column="1"
+                 Width="260"
+                 VerticalAlignment="Center"
+                 PlaceholderText="搜索设置…"
+                 TextChanged="OnSearchTextChanged"
+                 KeyDown="OnSearchKeyDown" />
       </Grid>
     </Border>
 
@@ -66,6 +73,56 @@
               <TextBlock Text="实例、目录与内存"
                          FontSize="10"
                          Foreground="{DynamicResource HintTextBrush}" />
+              <Border x:Name="TabGameSearchChip"
+                      Background="{DynamicResource BadgeBgBrush}"
+                      CornerRadius="6"
+                      Padding="6,1"
+                      HorizontalAlignment="Left"
+                      IsVisible="False">
+                <TextBlock x:Name="TabGameSearchCount"
+                           Text="0"
+                           FontSize="9"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource AccentTextBrush}" />
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <!-- 启动器设置 -->
+          <Border x:Name="TabLauncher"
+                  Background="{DynamicResource TransparentBrush}"
+                  CornerRadius="8"
+                  Margin="8,2"
+                  Padding="16,12"
+                  Cursor="Hand"
+                  PointerPressed="OnTabLauncherClick">
+            <StackPanel Spacing="3">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon Kind="Cog"
+                       Width="16" Height="16"
+                       Foreground="{DynamicResource SubtextTextBrush}"
+                       VerticalAlignment="Center" />
+                <TextBlock Text="启动器设置"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource SubtextTextBrush}"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Text="快捷键、主题与 AI"
+                         FontSize="10"
+                         Foreground="{DynamicResource HintTextBrush}" />
+              <Border x:Name="TabLauncherSearchChip"
+                      Background="{DynamicResource BadgeBgBrush}"
+                      CornerRadius="6"
+                      Padding="6,1"
+                      HorizontalAlignment="Left"
+                      IsVisible="False">
+                <TextBlock x:Name="TabLauncherSearchCount"
+                           Text="0"
+                           FontSize="9"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource AccentTextBrush}" />
+              </Border>
             </StackPanel>
           </Border>
 
@@ -130,8 +187,26 @@
               Classes="nya-fade nya-shimmer">
         <Grid>
           <ContentControl x:Name="LegacySettingsHost" />
+          <ContentControl x:Name="LauncherSettingsHost" IsVisible="False" />
           <ContentControl x:Name="PersonalizationHost" IsVisible="False" />
           <ContentControl x:Name="AboutHost" IsVisible="False" />
+          <!-- 搜索无命中时的空态提示（覆盖在内容之上） -->
+          <Border x:Name="SearchEmptyState"
+                  IsVisible="False"
+                  Background="{DynamicResource WindowBgBrush}">
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Spacing="8">
+              <mi:MaterialIcon Kind="Search"
+                               Width="30" Height="30"
+                               Foreground="{DynamicResource DisabledTextBrush}"
+                               HorizontalAlignment="Center" />
+              <TextBlock Text="没有找到相关设置，换个关键词试试喵~"
+                         FontSize="13"
+                         Foreground="{DynamicResource HintTextBrush}"
+                         HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
         </Grid>
       </Border>
     </Grid>

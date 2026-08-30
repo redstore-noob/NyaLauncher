@@ -9,8 +9,8 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using NyaLauncher.Avalonia.Framework;
-using NyaLauncher.Avalonia.Themes;
 
 namespace NyaLauncher.Avalonia.Windows;
 
@@ -22,12 +22,13 @@ namespace NyaLauncher.Avalonia.Windows;
 /// 编辑过程全部在内部的草稿状态里进行，<b>只有点击保存</b>才会把结果通过
 /// <see cref="Saved"/> 交回宿主真正落盘。
 /// </para>
+/// <para>
+/// 所有颜色一律经 <see cref="DynamicResourceExtension"/> 绑定主题资源键，
+/// 主题切换时界面实时跟随（禁止快照画刷）。
+/// </para>
 /// </summary>
 public partial class PersonalizationWindow : UserControl
 {
-    /// <summary>弱化文字画刷，取自主题资源（<c>ThemePolygonHelper.Muted</c>）。</summary>
-    private static readonly IBrush Muted = ThemePolygonHelper.Muted;
-
     /// <summary>内置简约图标预设，供用户直接点选；本地图片失效时也会回退到这里。</summary>
     private static readonly string[] PresetGlyphs =
     [
@@ -46,6 +47,12 @@ public partial class PersonalizationWindow : UserControl
     private readonly List<AreaEditorState> _editors = [];
     private readonly HashSet<string> _draftUserAreaIds = new(StringComparer.OrdinalIgnoreCase);
     private string _storageDirectory = WorkspaceProfileStore.PlatformDefaultDirectory;
+
+    /// <summary>
+    /// 用户点击「恢复默认」后置位：保存时连同工作区布局 / 侧边栏 / 组件摆放一起恢复出厂，
+    /// 而不是把当前布局原样写回。取消或外部重载会清除该标志。
+    /// </summary>
+    private bool _resetLayoutPending;
 
     /// <summary>
     /// 用户点击「保存」时触发，携带完整的个性化结果。
@@ -109,6 +116,15 @@ public partial class PersonalizationWindow : UserControl
         ToolTip.SetTip(StorageDirectoryText, _storageDirectory);
     }
 
+    /// <summary>
+    /// 以 DynamicResource 方式绑定画刷属性：主题切换时自动跟随，不做任何快照。
+    /// </summary>
+    private static void BindBrush(
+        AvaloniaObject control,
+        AvaloniaProperty property,
+        string resourceKey)
+        => control[!property] = new DynamicResourceExtension(resourceKey);
+
     private void BuildEditors(WorkspaceProfile profile)
     {
         ComponentScaleSlider.Value = Math.Clamp(
@@ -153,13 +169,13 @@ public partial class PersonalizationWindow : UserControl
                 : preference.DisplayName,
             PlaceholderText = sourceArea.Title,
             FontSize = 14,
-            Background = ThemePolygonHelper.EditorSurface,
-            BorderBrush = ThemePolygonHelper.EditorBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(12, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
+        BindBrush(nameBox, TextBox.BackgroundProperty, "SurfaceBgBrush");
+        BindBrush(nameBox, TextBox.BorderBrushProperty, "MediumBorderBrush");
 
         var descriptionBox = new TextBox
         {
@@ -168,13 +184,13 @@ public partial class PersonalizationWindow : UserControl
                 : preference.Description,
             PlaceholderText = sourceArea.Subtitle,
             FontSize = 14,
-            Background = ThemePolygonHelper.EditorSurface,
-            BorderBrush = ThemePolygonHelper.EditorBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(12, 8),
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
+        BindBrush(descriptionBox, TextBox.BackgroundProperty, "SurfaceBgBrush");
+        BindBrush(descriptionBox, TextBox.BorderBrushProperty, "MediumBorderBrush");
 
         var iconState = new IconEditorState(
             string.IsNullOrWhiteSpace(preference?.IconGlyph) ? sourceArea.Glyph : preference.IconGlyph,
@@ -184,8 +200,6 @@ public partial class PersonalizationWindow : UserControl
 
         var card = new Border
         {
-            Background = ThemePolygonHelper.CardBg,
-            BorderBrush = ThemePolygonHelper.CardBrd,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(16),
             Padding = new Thickness(18),
@@ -204,21 +218,28 @@ public partial class PersonalizationWindow : UserControl
                     new Border
                     {
                         Padding = new Thickness(12, 10),
-                        Background = ThemePolygonHelper.EditorSurface,
-                        BorderBrush = ThemePolygonHelper.CardBorder,
                         BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(10),
                         Child = new TextBlock
                         {
                             Text = "组件通过工作区底栏的“组件库”管理，也可直接在功能区之间拖动。",
                             FontSize = 11,
-                            Foreground = Muted,
                             TextWrapping = TextWrapping.Wrap
                         }
                     }
                 }
             }
         };
+        BindBrush(card, Border.BackgroundProperty, "CardBg2Brush");
+        BindBrush(card, Border.BorderBrushProperty, "CardBorderBrush");
+        if (card.Child is StackPanel panel && panel.Children.Count > 1 &&
+            panel.Children[1] is Border hintBorder &&
+            hintBorder.Child is TextBlock hintText)
+        {
+            BindBrush(hintBorder, Border.BackgroundProperty, "SurfaceBgBrush");
+            BindBrush(hintBorder, Border.BorderBrushProperty, "CardBorderBrush");
+            BindBrush(hintText, TextBlock.ForegroundProperty, "MutedTextBrush");
+        }
 
         AreaEditors.Children.Add(card);
         _editors.Add(new AreaEditorState(
@@ -249,9 +270,9 @@ public partial class PersonalizationWindow : UserControl
             Width = 44,
             Height = 44,
             CornerRadius = new CornerRadius(13),
-            Background = ThemePolygonHelper.IconBoxBg,
             ClipToBounds = true
         };
+        BindBrush(glyph, Border.BackgroundProperty, "IconBoxBgBrush");
         iconState.RegisterPreview(glyph);
 
         var identity = new StackPanel
@@ -263,19 +284,21 @@ public partial class PersonalizationWindow : UserControl
             {
                 new TextBlock
                 {
-                    Text = $"功能区 · {area.Id}",
+                    Text = deleteArea is not null
+                        ? $"自定义功能区 · {area.Id}"
+                        : $"内置功能区 · {area.Id}",
                     FontSize = 12,
-                    FontWeight = FontWeight.SemiBold,
-                    Foreground = ThemePolygonHelper.Muted
+                    FontWeight = FontWeight.SemiBold
                 },
                 new TextBlock
                 {
                     Text = area.Subtitle,
-                    FontSize = 10,
-                    Foreground = Muted
+                    FontSize = 10
                 }
             }
         };
+        BindBrush(identity.Children[0], TextBlock.ForegroundProperty, "MutedTextBrush");
+        BindBrush(identity.Children[1], TextBlock.ForegroundProperty, "MutedTextBrush");
         Grid.SetColumn(identity, 1);
 
         var fields = new Grid
@@ -292,8 +315,7 @@ public partial class PersonalizationWindow : UserControl
                 new TextBlock
                 {
                     Text = "显示名称",
-                    FontSize = 10,
-                    Foreground = Muted
+                    FontSize = 10
                 },
                 nameBox
             }
@@ -308,12 +330,13 @@ public partial class PersonalizationWindow : UserControl
                 new TextBlock
                 {
                     Text = "功能区简介",
-                    FontSize = 10,
-                    Foreground = Muted
+                    FontSize = 10
                 },
                 descriptionBox
             }
         };
+        BindBrush(namePanel.Children[0], TextBlock.ForegroundProperty, "MutedTextBrush");
+        BindBrush(descriptionPanel.Children[0], TextBlock.ForegroundProperty, "MutedTextBrush");
         Grid.SetColumn(descriptionPanel, 1);
         fields.Children.Add(namePanel);
         fields.Children.Add(descriptionPanel);
@@ -330,14 +353,13 @@ public partial class PersonalizationWindow : UserControl
                 Content = "删除功能区",
                 Margin = new Thickness(12, 17, 0, 0),
                 Padding = new Thickness(13, 8),
-                Background = ThemePolygonHelper.DeleteBg,
-                BorderBrush = ThemePolygonHelper.DeleteBorder,
-                BorderThickness = new Thickness(1),
-                Foreground = ThemePolygonHelper.DeleteFg,
                 CornerRadius = new CornerRadius(9),
                 Cursor = new Cursor(StandardCursorType.Hand),
                 VerticalAlignment = VerticalAlignment.Top
             };
+            BindBrush(deleteButton, Button.BackgroundProperty, "ErrorDarkBrush");
+            BindBrush(deleteButton, Button.BorderBrushProperty, "ErrorBrush");
+            BindBrush(deleteButton, Button.ForegroundProperty, "WhiteBrush");
             ToolTip.SetTip(deleteButton, "保存配置后永久删除此自定义功能区");
             deleteButton.Click += (_, _) => deleteArea();
             Grid.SetColumn(deleteButton, 3);
@@ -371,10 +393,10 @@ public partial class PersonalizationWindow : UserControl
             Width = 42,
             Height = 42,
             CornerRadius = new CornerRadius(12),
-            Background = ThemePolygonHelper.IconBoxBg,
             ClipToBounds = true,
             Margin = new Thickness(0, 0, 12, 0)
         };
+        BindBrush(preview, Border.BackgroundProperty, "IconBoxBgBrush");
         state.RegisterPreview(preview);
 
         var presets = new StackPanel
@@ -394,12 +416,11 @@ public partial class PersonalizationWindow : UserControl
                 Height = 32,
                 Padding = new Thickness(0),
                 FontSize = 15,
-                Background = ThemePolygonHelper.PresetBg,
-                BorderBrush = ThemePolygonHelper.PresetBorder,
-                BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Cursor = new Cursor(StandardCursorType.Hand)
             };
+            BindBrush(presetButton, Button.BackgroundProperty, "ComponentBgBrush");
+            BindBrush(presetButton, Button.BorderBrushProperty, "DefaultBorderBrush");
             presetButton.Click += (_, _) => state.SelectPreset(glyph);
             presets.Children.Add(presetButton);
         }
@@ -412,34 +433,33 @@ public partial class PersonalizationWindow : UserControl
                 new TextBlock
                 {
                     Text = "区域图标 · 选择简约预设，或浏览本地图片",
-                    FontSize = 10,
-                    Foreground = Muted
+                    FontSize = 10
                 },
                 presets
             }
         };
+        BindBrush(center.Children[0], TextBlock.ForegroundProperty, "MutedTextBrush");
         Grid.SetColumn(center, 1);
 
         var pathLabel = new TextBlock
         {
             FontSize = 10,
-            Foreground = Muted,
             MaxWidth = 190,
             TextTrimming = TextTrimming.CharacterEllipsis,
             HorizontalAlignment = HorizontalAlignment.Right
         };
+        BindBrush(pathLabel, TextBlock.ForegroundProperty, "MutedTextBrush");
         state.RegisterPathLabel(pathLabel);
 
         var browseButton = new Button
         {
             Content = "浏览本地图片…",
             Padding = new Thickness(13, 7),
-            Background = ThemePolygonHelper.PresetBg,
-            BorderBrush = ThemePolygonHelper.PresetBorder,
-            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Cursor = new Cursor(StandardCursorType.Hand)
         };
+        BindBrush(browseButton, Button.BackgroundProperty, "ComponentBgBrush");
+        BindBrush(browseButton, Button.BorderBrushProperty, "DefaultBorderBrush");
         browseButton.Click += async (_, _) =>
         {
             var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
@@ -521,11 +541,12 @@ public partial class PersonalizationWindow : UserControl
                 .ToList()
         };
 
-        Saved?.Invoke(this, new PersonalizationResult(profile, _storageDirectory));
+        Saved?.Invoke(this, new PersonalizationResult(profile, _storageDirectory, _resetLayoutPending));
     }
 
     private void OnResetClick(object? sender, RoutedEventArgs e)
     {
+        _resetLayoutPending = true;
         _draftUserAreaIds.Clear();
         _draftUserAreaIds.UnionWith(_registry.UserAreaIds);
         BuildEditors(WorkspaceDefaultProfile.Create());
@@ -586,6 +607,7 @@ public partial class PersonalizationWindow : UserControl
     /// <param name="storageDirectory">要显示并使用的配置目录。</param>
     public void Reload(string storageDirectory)
     {
+        _resetLayoutPending = false;
         SetStorageDirectory(storageDirectory);
         _draftUserAreaIds.Clear();
         _draftUserAreaIds.UnionWith(_registry.UserAreaIds);
@@ -678,6 +700,8 @@ public partial class PersonalizationWindow : UserControl
 /// <summary>个性化窗口的保存结果，经 <see cref="PersonalizationWindow.Saved"/> 交给宿主。</summary>
 /// <param name="Profile">用户编辑后的工作区档案，宿主可直接持久化。</param>
 /// <param name="StorageDirectory">用户最终选择的配置目录。</param>
+/// <param name="ResetLayout">用户是否点了「恢复默认」：宿主应把布局 / 侧边栏 / 组件摆放一并恢复出厂。</param>
 public sealed record PersonalizationResult(
     WorkspaceProfile Profile,
-    string StorageDirectory);
+    string StorageDirectory,
+    bool ResetLayout = false);

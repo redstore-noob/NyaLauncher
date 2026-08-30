@@ -747,7 +747,7 @@ internal sealed class PluginCatalog
         if (manifest.Settings.Count > MaximumSettingCount)
             return $"单个插件最多声明 {MaximumSettingCount} 项设置。";
         if (!TryParseApiMajor(manifest.ApiVersion, out var major) || major != 1)
-            return $"API 版本 {manifest.ApiVersion} 与当前主版本 1 不兼容。";
+            return $"API 版本 {manifest.ApiVersion} 与当前插件 API（{PluginSdk.ApiVersion}，主版本 1）不兼容。";
         if (!string.IsNullOrWhiteSpace(manifest.MinimumLauncherVersion))
         {
             if (!TryParseSemanticVersion(manifest.MinimumLauncherVersion, out var minimumVersion))

@@ -74,6 +74,25 @@ public static class PluginCapabilities
     public const string MinecraftLaunchModify = "minecraft.launch.modify";
 }
 
+/// <summary>
+/// 插件 SDK 的对外展示版本。机器可读的兼容性判定仍以 plugin.json 的
+/// <see cref="PluginManifest.ApiVersion"/> 主版本号为准（当前主版本 1）；
+/// 在同一主版本内，宿主对插件 API 保持向前兼容——旧插件在新宿主上原样可用，
+/// 插件作者无需为小的 API 增量重新编译或升级清单。
+/// </summary>
+public static class PluginSdk
+{
+    /// <summary>当前插件 API 的展示版本号（同时显示在插件管理页）。</summary>
+    public const string ApiVersion = "v1-p2";
+
+    /// <summary>
+    /// 上一代插件 API 的展示版本号：<see cref="ApiVersion"/> 之前、未含
+    /// <see cref="IPluginNotifications"/> 通知服务的 API 集。v1-p2 = v1-p1 + 通知服务，
+    /// 无任何破坏性改动，v1-p1 插件无需重编译即可继续运行。
+    /// </summary>
+    public const string PreviousApiVersion = "v1-p1";
+}
+
 /// <summary>The single executable entry point declared by a plugin manifest.</summary>
 public interface INyaLauncherPlugin
 {

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using NyaLauncher.Plugin.Abstractions.Components;
 using NyaLauncher.Plugin.Abstractions.Minecraft;
 using NyaLauncher.Plugin.Abstractions.Plugins;
+using NyaLauncher.Avalonia.Framework;
 
 namespace NyaLauncher.Avalonia.Plugins;
 
@@ -830,12 +831,67 @@ internal sealed class PluginContext(
     public bool IsCapabilityGranted(string capability) =>
         !string.IsNullOrWhiteSpace(capability) && grantedCapabilities.Contains(capability);
 
-    public TService? GetService<TService>() where TService : class => null;
+    public TService? GetService<TService>() where TService : class
+    {
+        if (typeof(TService) == typeof(IPluginNotifications))
+        {
+            // 通知 UI 由启动器渲染（NyaAlert/NyaPrompt），归入 ui.native 能力；
+            // 未授权时按契约返回 null，而不是抛异常或暴露宿主内部。
+            return IsCapabilityGranted(PluginCapabilities.NativeUi)
+                ? (TService)(object)PluginNotifications.Instance
+                : null;
+        }
+        return null;
+    }
 
     public void OpenRegistration(IPluginRegistrar registrar) =>
         Volatile.Write(ref _registrar, registrar);
 
     public void CloseRegistration() => Volatile.Write(ref _registrar, null);
+}
+
+/// <summary>
+/// <see cref="IPluginNotifications"/> 的宿主实现：把插件侧请求桥接到
+/// NyaAlert / NyaPrompt 门面。门面自身完成 UI 线程封送，可在任意线程调用。
+/// </summary>
+internal sealed class PluginNotifications : IPluginNotifications
+{
+    public static readonly PluginNotifications Instance = new();
+
+    private PluginNotifications()
+    {
+    }
+
+    public void Alert(PluginNoticeSeverity severity, string message, TimeSpan? duration = null) =>
+        NyaAlert.Show(message, Map(severity), duration);
+
+    public Task<string?> PromptAsync(
+        string title,
+        string message = "",
+        PluginNoticeSeverity severity = PluginNoticeSeverity.Info,
+        params PluginPromptButton[] buttons) =>
+        NyaPrompt.ShowAsync(title, message, Map(severity), Convert(buttons));
+
+    public Task<bool> ConfirmAsync(
+        string title,
+        string message = "",
+        PluginNoticeSeverity severity = PluginNoticeSeverity.Warning) =>
+        NyaPrompt.ConfirmAsync(title, message, severity: Map(severity));
+
+    private static NyaNoticeSeverity Map(PluginNoticeSeverity severity) => severity switch
+    {
+        PluginNoticeSeverity.Success => NyaNoticeSeverity.Success,
+        PluginNoticeSeverity.Warning => NyaNoticeSeverity.Warning,
+        PluginNoticeSeverity.Error => NyaNoticeSeverity.Error,
+        _ => NyaNoticeSeverity.Info,
+    };
+
+    private static NyaPromptButton[] Convert(PluginPromptButton[] buttons) =>
+        buttons is { Length: > 0 }
+            ? Array.ConvertAll(
+                buttons,
+                button => new NyaPromptButton(button.Label, button.Id, button.IsDefault))
+            : [];
 }
 
 internal sealed class PluginRegistrar(
