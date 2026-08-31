@@ -209,7 +209,7 @@ public partial class VersionManagerPage : UserControl
         if (_synchronizingVersions || VersionList.SelectedItem is not VersionListItem selected)
             return;
         GameInstanceStore.Select(selected.VersionId);
-        _ = LoadDetailsAsync(GameInstanceStore.Current, selected.VersionId);
+        _ = LoadDetailsAsync(GameInstanceStore.Current, selected.VersionId, animate: true);
     }
 
     private async void OnPluginActionClick(object? sender, RoutedEventArgs e)
@@ -397,7 +397,7 @@ public partial class VersionManagerPage : UserControl
         return await dialog.ShowDialog<bool?>(owner) == true;
     }
 
-    private async Task LoadDetailsAsync(GameInstanceSnapshot snapshot, string versionId)
+    private async Task LoadDetailsAsync(GameInstanceSnapshot snapshot, string versionId, bool animate = false)
     {
         _detailsCancellation?.Cancel();
         _detailsCancellation?.Dispose();
@@ -415,6 +415,11 @@ public partial class VersionManagerPage : UserControl
                 return;
             _currentDetails = details;
             DisplayDetails(snapshot, details);
+            if (animate)
+            {
+                // 实例切换：详情面板共享轴入场（M3，300ms），helper 自带代际防抖与 AnimationGate
+                _ = AnimationHelper.SlideFadeInAsync(DetailsView, MaterialMotion.MediumTransitionMs);
+            }
             StatusText.Text = $"已选择 {details.VersionId} · {details.LoaderName}";
         }
         catch (OperationCanceledException)

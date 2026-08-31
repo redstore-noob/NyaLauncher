@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:pab="using:NyaLauncher.Plugin.Abstractions.Plugins"
+             xmlns:controls="using:NyaLauncher.Avalonia.Controls"
              x:Class="NyaLauncher.Avalonia.Pages.PluginManagerPage"
              x:CompileBindings="False"
              Background="{DynamicResource WindowBgBrush}">
@@ -34,7 +35,8 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="26,22">
+  <Grid>
+    <Grid x:Name="ManagerView" RowDefinitions="Auto,Auto,*,Auto" Margin="26,22">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,16">
       <StackPanel Spacing="4" VerticalAlignment="Center">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
@@ -418,5 +420,10 @@
                Foreground="{DynamicResource MutedTextBrush}"
                Margin="2,13,0,0"
                TextWrapping="Wrap" />
+    </Grid>
+
+    <controls:PluginRepositoryView x:Name="RepositoryView"
+                                   IsVisible="False"
+                                   BackRequested="OnRepositoryBackRequested" />
   </Grid>
 </UserControl>

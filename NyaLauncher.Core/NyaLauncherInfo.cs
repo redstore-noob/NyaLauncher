@@ -8,8 +8,9 @@ public struct NyaLauncherInfo
     public static int MainVersion { get; } = 1;
     public static int SubVersion { get; } = 0;
     public static int FixVersion { get; } = 0;
-    public static string Suffix { get; } = "preview1";
+    public static string Suffix { get; } = "preview2";
     public static Boolean IsUnstable { get; } = false;
+    public static string UpdateChannel { get; } = "main";
 
     /// <summary>纯版本字符串，如 "1.0.0-preview1"；由上方字段拼接而来。</summary>
     public static string Version => $"{MainVersion}.{SubVersion}.{FixVersion}-{Suffix}";

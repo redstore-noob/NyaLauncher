@@ -133,6 +133,11 @@ public static partial class GameContentMetadataService
         catch (InvalidDataException)
         {
         }
+        catch (JsonException)
+        {
+            // 手写/损坏的 fabric.mod.json、quilt.mod.json、mcmod.info（如字符串里带真实换行符）
+            // 不应让整个版本详情页读取失败，降级为未知条目（PCL/HMCL 对此类损坏同样宽容）
+        }
         catch (IOException)
         {
         }

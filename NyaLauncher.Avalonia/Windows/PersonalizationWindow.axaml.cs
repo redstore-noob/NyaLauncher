@@ -200,6 +200,7 @@ public partial class PersonalizationWindow : UserControl
 
         var card = new Border
         {
+            Classes = { "nya-lift" },
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(16),
             Padding = new Thickness(18),

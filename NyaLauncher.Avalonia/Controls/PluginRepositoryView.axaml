@@ -1,15 +1,9 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="NyaLauncher.Avalonia.PluginRepositoryWindow"
-        x:CompileBindings="False"
-        Title="NyaLauncher 在线插件仓库"
-        Width="1040"
-        Height="720"
-        MinWidth="860"
-        MinHeight="600"
-        WindowStartupLocation="CenterOwner"
-        Background="{DynamicResource WindowBgBrush}">
-  <Window.Styles>
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NyaLauncher.Avalonia.Controls.PluginRepositoryView"
+             x:CompileBindings="False"
+             Background="{DynamicResource WindowBgBrush}">
+  <UserControl.Styles>
     <Style Selector="Border.RepositoryRow">
       <Setter Property="Background" Value="{DynamicResource SurfaceBgBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource DefaultBorderBrush}" />
@@ -55,11 +49,15 @@
     <Style Selector="Button.Primary:pointerover">
       <Setter Property="Background" Value="{DynamicResource ComponentPrimaryHoverBgBrush}" />
     </Style>
-  </Window.Styles>
+  </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24,20">
-    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,14">
-      <StackPanel Spacing="3">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="26,22">
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,14">
+      <Button Content="← 返回插件列表"
+              Padding="14,8"
+              VerticalAlignment="Center"
+              Click="OnBackClick" />
+      <StackPanel Grid.Column="1" Spacing="3" Margin="14,0,0,0">
         <TextBlock Text="在线插件仓库"
                    FontSize="23"
                    FontWeight="SemiBold"
@@ -68,16 +66,18 @@
                    FontSize="11"
                    Foreground="{DynamicResource MutedTextBrush}" />
       </StackPanel>
-      <Button Grid.Column="1"
+      <Button Grid.Column="2"
               Content="打开 GitHub 仓库"
               Margin="12,0,0,0"
               Padding="14,8"
+              VerticalAlignment="Center"
               Click="OnOpenRepositoryClick" />
       <Button x:Name="RefreshRepositoryButton"
-              Grid.Column="2"
+              Grid.Column="3"
               Content="刷新索引"
               Margin="8,0,0,0"
               Padding="14,8"
+              VerticalAlignment="Center"
               Click="OnRefreshRepositoryClick" />
     </Grid>
 
@@ -534,4 +534,4 @@
                  TextWrapping="Wrap" />
     </Border>
   </Grid>
-</Window>
+</UserControl>

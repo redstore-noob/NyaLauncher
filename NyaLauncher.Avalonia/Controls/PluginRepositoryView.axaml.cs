@@ -13,9 +13,13 @@ using Avalonia.Threading;
 using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Themes;
 
-namespace NyaLauncher.Avalonia;
+namespace NyaLauncher.Avalonia.Controls;
 
-public partial class PluginRepositoryWindow : Window
+/// <summary>
+/// 在线插件仓库的页内子视图（原独立 PluginRepositoryWindow 整合而来）。
+/// 由 PluginManagerPage 承载，通过 IsVisible 切换显示；首次显示时懒加载远程索引。
+/// </summary>
+public partial class PluginRepositoryView : UserControl
 {
     private static IBrush SuccessBackground => ThemeBrushes.BadgeBackground;
     private static IBrush SuccessForeground => ThemeBrushes.Success;
@@ -34,42 +38,71 @@ public partial class PluginRepositoryWindow : Window
     private string? _selectedReleaseVersion;
     private bool _loading;
     private bool _repositoryLoadFailed;
+    private bool _repositoryRequested;
     private bool _installing;
     private bool _confirmingInstall;
     private bool _synchronizingSelection;
     private bool _synchronizingVersionSelection;
-    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private bool _managerEventsAttached;
+    private CancellationTokenSource _lifetimeCancellation = new();
     private CancellationTokenSource? _installCancellation;
 
-    public PluginRepositoryWindow()
+    /// <summary>宿主页面订阅以切回插件列表视图。</summary>
+    public event EventHandler? BackRequested;
+
+    public PluginRepositoryView()
     {
         InitializeComponent();
-        Opened += OnOpened;
-        Closed += OnClosed;
+        AttachedToVisualTree += OnAttachedToVisualTree;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
         ThemeManager.ThemeChanged += OnThemeChanged;
         ApplyFilter();
     }
 
-    internal PluginRepositoryWindow(
-        PluginManager pluginManager,
-        PluginRepositoryClient repositoryClient) : this()
+    /// <summary>注入插件管理器与仓库客户端（幂等，重复调用只补挂 catalog 事件）。</summary>
+    internal void EnsureAttached(PluginManager pluginManager, PluginRepositoryClient repositoryClient)
     {
         _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
         _repositoryClient = repositoryClient ??
                             throw new ArgumentNullException(nameof(repositoryClient));
+        if (_managerEventsAttached)
+            return;
+
         _pluginManager.Changed += OnInstalledCatalogChanged;
+        _managerEventsAttached = true;
     }
 
-    private async void OnOpened(object? sender, EventArgs e) => await LoadRepositoryAsync();
+    /// <summary>显示仓库视图；首次显示时自动加载远程索引。</summary>
+    internal async void ShowRepository()
+    {
+        IsVisible = true;
+        if (_repositoryRequested)
+            return;
 
-    private void OnClosed(object? sender, EventArgs e)
+        _repositoryRequested = true;
+        await LoadRepositoryAsync();
+    }
+
+    internal void HideRepository() => IsVisible = false;
+
+    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        // 吸取 DockWorkspace 教训：重新挂回可视化树时必须重订阅主题事件
+        ThemeManager.ThemeChanged += OnThemeChanged;
+    }
+
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         _installCancellation?.Cancel();
         _lifetimeCancellation.Cancel();
         _lifetimeCancellation.Dispose();
+        _lifetimeCancellation = new CancellationTokenSource();
         ThemeManager.ThemeChanged -= OnThemeChanged;
-        if (_pluginManager is not null)
+        if (_pluginManager is not null && _managerEventsAttached)
+        {
             _pluginManager.Changed -= OnInstalledCatalogChanged;
+            _managerEventsAttached = false;
+        }
     }
 
     private void OnThemeChanged()
@@ -561,7 +594,7 @@ public partial class PluginRepositoryWindow : Window
         RefreshRepositoryButton.IsEnabled = false;
         SetBrowsingEnabled(false);
         InstallSelectionText.Text = $"正在安装 {item.Plugin.Name} · {item.Release.Version}";
-        InstallHintText.Text = "正在下载并校验固定 Release 包，请不要关闭窗口。";
+        InstallHintText.Text = "正在下载并校验固定 Release 包，离开页面不会中断下载。";
         RepositoryStatusText.Text = $"正在下载 {item.Plugin.Name} {item.Release.Version}…";
         var progress = new Progress<RepositoryDownloadProgress>(value =>
         {
@@ -615,6 +648,12 @@ public partial class PluginRepositoryWindow : Window
         RepositoryClearSearchButton.IsEnabled = enabled;
         RepositoryStateFilter.IsEnabled = enabled;
     }
+
+    private Window? FindOwnerWindow() => TopLevel.GetTopLevel(this) as Window;
+
+    private Window RequireOwnerWindow() =>
+        FindOwnerWindow()
+        ?? throw new InvalidOperationException("在线插件仓库视图尚未挂载到窗口。");
 
     private async Task<bool> ConfirmDowngradeAsync(RepositoryListItem item)
     {
@@ -700,7 +739,7 @@ public partial class PluginRepositoryWindow : Window
 
         cancelButton.Click += (_, _) => dialog.Close(false);
         downgradeButton.Click += (_, _) => dialog.Close(true);
-        return await dialog.ShowDialog<bool?>(this) == true;
+        return await dialog.ShowDialog<bool?>(RequireOwnerWindow()) == true;
     }
 
     private async Task<bool> ConfirmUnreviewedInstallAsync(RepositoryListItem item)
@@ -790,7 +829,7 @@ public partial class PluginRepositoryWindow : Window
 
         cancelButton.Click += (_, _) => dialog.Close(false);
         installButton.Click += (_, _) => dialog.Close(true);
-        return await dialog.ShowDialog<bool?>(this) == true;
+        return await dialog.ShowDialog<bool?>(RequireOwnerWindow()) == true;
     }
 
     private void OnCancelInstallClick(object? sender, RoutedEventArgs e)
@@ -799,6 +838,9 @@ public partial class PluginRepositoryWindow : Window
         CancelInstallButton.IsEnabled = false;
         RepositoryStatusText.Text = "正在取消插件下载…";
     }
+
+    private void OnBackClick(object? sender, RoutedEventArgs e) =>
+        BackRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnOpenRepositoryClick(object? sender, RoutedEventArgs e) =>
         OpenUrl(PluginRepositoryClient.RepositoryUrl);

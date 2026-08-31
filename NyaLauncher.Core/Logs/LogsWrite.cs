@@ -77,6 +77,7 @@ public class LogsWrite
             lock (WriteLock)
             {
                 File.AppendAllText(EnsureSharedFilePath(), $"[{TimeGet()}][{type}]{info}\n");
+                Console.WriteLine($"[{TimeGet()}][{type}]{info}\n");
             }
             if (type == "ERROR")
             {

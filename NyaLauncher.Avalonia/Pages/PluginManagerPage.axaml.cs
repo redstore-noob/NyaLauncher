@@ -13,6 +13,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Animations.Helpers;
 using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Themes;
 using NyaLauncher.Plugin.Abstractions.Plugins;
@@ -31,7 +32,6 @@ public partial class PluginManagerPage : UserControl
         new(StringComparer.OrdinalIgnoreCase);
     private PluginManager? _pluginManager;
     private PluginRepositoryClient? _repositoryClient;
-    private PluginRepositoryWindow? _repositoryWindow;
     private IReadOnlyList<PluginListItem> _allItems = [];
     private string? _selectedPluginId;
     private bool _synchronizingSelection;
@@ -1004,18 +1004,23 @@ public partial class PluginManagerPage : UserControl
             return;
         }
 
-        if (_repositoryWindow is not null)
-        {
-            _repositoryWindow.Activate();
-            return;
-        }
+        RepositoryView.EnsureAttached(_pluginManager, _repositoryClient);
+        ManagerView.IsVisible = false;
+        RepositoryView.ShowRepository();
+        // M3 shared-axis：新视图淡入并从下方 24px 上浮入场
+        _ = AnimationHelper.SlideFadeInAsync(
+            RepositoryView,
+            MaterialMotion.MediumTransitionMs);
+    }
 
-        _repositoryWindow = new PluginRepositoryWindow(_pluginManager, _repositoryClient);
-        _repositoryWindow.Closed += (_, _) => _repositoryWindow = null;
-        if (TopLevel.GetTopLevel(this) is Window owner)
-            _repositoryWindow.Show(owner);
-        else
-            _repositoryWindow.Show();
+    private void OnRepositoryBackRequested(object? sender, EventArgs e)
+    {
+        RepositoryView.HideRepository();
+        ManagerView.IsVisible = true;
+        // M3 shared-axis：切回插件列表时同样上浮入场
+        _ = AnimationHelper.SlideFadeInAsync(
+            ManagerView,
+            MaterialMotion.MediumTransitionMs);
     }
 
     private void OnOpenPackagesDirectoryClick(object? sender, RoutedEventArgs e)

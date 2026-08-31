@@ -66,9 +66,9 @@
                      FontWeight="SemiBold"
                      Foreground="{DynamicResource PrimaryTextBrush}" />
           <Grid ColumnDefinitions="160,*"
-                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                 ColumnSpacing="8"
-                RowSpacing="6">
+                RowSpacing="10">
             <TextBlock Text="Avalonia UI"
                        Grid.Row="0" FontSize="13"
                        Foreground="{DynamicResource MutedTextBrush}"
@@ -80,22 +80,11 @@
               https://github.com/AvaloniaUI/Avalonia
             </TextBlock>
 
-            <TextBlock Text="CommunityToolkit"
+            <TextBlock Text="Material.Avalonia"
                        Grid.Row="1" FontSize="13"
                        Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13"
-                       Foreground="{DynamicResource BodyTextBrush}"
-                       VerticalAlignment="Center">
-              Mvvm 8.4.2 · MVVM 组件库（MIT License）
-              
-            </TextBlock>
-
-            <TextBlock Text="Material.Avalonia"
-                       Grid.Row="4" FontSize="13"
-                       Foreground="{DynamicResource MutedTextBrush}"
-                       VerticalAlignment="Center" />
-            <TextBlock Grid.Row="4" Grid.Column="1" FontSize="13"
                        Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               3.19.0 · Material Design 风格与控件库（MIT License）
@@ -103,32 +92,54 @@
             </TextBlock>
 
             <TextBlock Text="Material.Icons.Avalonia"
-                       Grid.Row="5" FontSize="13"
+                       Grid.Row="2" FontSize="13"
                        Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
-            <TextBlock Grid.Row="5" Grid.Column="1" FontSize="13"
+            <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13"
                        Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               3.0.2 · Material Design 图标库（MIT License）
               https://github.com/SKProCH/Material.Icons
             </TextBlock>
 
-            <TextBlock Text="OpenAI"
-                       Grid.Row="6" FontSize="13"
+            <TextBlock Text="CommunityToolkit.Mvvm"
+                       Grid.Row="3" FontSize="13"
                        Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
-            <TextBlock Grid.Row="6" Grid.Column="1" FontSize="13"
+            <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13"
                        Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
-              2.13.0 · AI 对话接口调用（OpenAI 官方 .NET SDK）
+              8.4.2 · 现代化 MVVM 工具包（MIT License）
+              https://github.com/CommunityToolkit/dotnet
+            </TextBlock>
+
+            <TextBlock Text="NAudio"
+                       Grid.Row="4" FontSize="13"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="4" Grid.Column="1" FontSize="13"
+                       Foreground="{DynamicResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              2.2.1 · 音乐播放器音频后端（MS-PL License）
+              https://github.com/naudio/NAudio
+            </TextBlock>
+
+            <TextBlock Text="OpenAI .NET"
+                       Grid.Row="5" FontSize="13"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Row="5" Grid.Column="1" FontSize="13"
+                       Foreground="{DynamicResource BodyTextBrush}"
+                       VerticalAlignment="Center">
+              2.13.0 · AI 对话接口调用（OpenAI 官方 SDK · Apache-2.0）
               https://github.com/openai/openai-dotnet
             </TextBlock>
 
             <TextBlock Text="BMCLAPI"
-                       Grid.Row="7" FontSize="13"
+                       Grid.Row="6" FontSize="13"
                        Foreground="{DynamicResource MutedTextBrush}"
                        VerticalAlignment="Center" />
-            <TextBlock Grid.Row="7" Grid.Column="1" FontSize="13"
+            <TextBlock Grid.Row="6" Grid.Column="1" FontSize="13"
                        Foreground="{DynamicResource BodyTextBrush}"
                        VerticalAlignment="Center">
               Minecraft 下载镜像服务（bangbang93）
@@ -151,8 +162,6 @@
           <TextBlock Text="NyaLauncher"
                      FontSize="14"
                      x:Name="LauncherText"
-                     Background="Transparent"
-                     PointerPressed="LauncherText_OnPointerPressed"
                      Foreground="{DynamicResource BodyTextBrush}" />
           <TextBlock x:Name="EasterEggHint"
                      IsVisible="False"
@@ -183,60 +192,31 @@
         </StackPanel>
       </Border>
 
+      <!-- QQ 群 -->
+      <Border Background="{DynamicResource PanelBgBrush}"
+              CornerRadius="16"
+              Padding="24,20"
+              Classes="nya-lift nya-shimmer">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+          <StackPanel Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="加入我们"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource PrimaryTextBrush}" />
+            <TextBlock FontSize="14"
+                       Text="QQ 群：1108330006 · 反馈建议 · 版本抢先体验 · 日常摸鱼"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource BodyTextBrush}" />
+          </StackPanel>
+          <Button Grid.Column="1"
+                  VerticalAlignment="Center"
+                  Click="OnCopyGroupClick"
+                  Content="复制群号" />
+        </Grid>
+      </Border>
+
     </StackPanel>
   </ScrollViewer>
-
-  <!-- 彩蛋覆盖层：连点项目链接五次后触发；点猫猫可以 rua，点空白处关闭 -->
-  <Border x:Name="EasterEggOverlay"
-          IsVisible="False"
-          Background="#CC000000"
-          PointerPressed="EasterEggOverlay_OnPointerPressed">
-    <Grid>
-      <!-- 画布可命中测试：猫猫 TextBlock 才能收到 rua 点击；空白处点击冒泡到 Border 关闭 -->
-      <Canvas x:Name="NyaCanvas" IsHitTestVisible="True" />
-      <StackPanel x:Name="PartyPanel"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Center"
-                  Spacing="12"
-                  IsHitTestVisible="False">
-        <StackPanel.RenderTransform>
-          <TransformGroup>
-            <ScaleTransform />
-            <RotateTransform />
-          </TransformGroup>
-        </StackPanel.RenderTransform>
-        <TextBlock Text="🎉"
-                   FontSize="48"
-                   HorizontalAlignment="Center" />
-        <TextBlock x:Name="PartyTitle"
-                   Text="秘密派对！"
-                   FontSize="24"
-                   FontWeight="Bold"
-                   Foreground="White"
-                   HorizontalAlignment="Center" />
-        <TextBlock x:Name="PetCountText"
-                   IsVisible="False"
-                   Text="已rua × 0"
-                   FontSize="14"
-                   FontWeight="SemiBold"
-                   Foreground="#FF9EC4"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="你发现了 NyaLauncher 的隐藏猫猫！"
-                   FontSize="15"
-                   Foreground="#CCCCCC"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="No party, No life! ~ nya~"
-                   FontSize="13"
-                   Foreground="#999999"
-                   HorizontalAlignment="Center" />
-        <TextBlock Text="点猫猫可以 rua 它 · 点空白处关闭"
-                   FontSize="11"
-                   Foreground="#666666"
-                   HorizontalAlignment="Center"
-                   Margin="0,12,0,0" />
-      </StackPanel>
-    </Grid>
-  </Border>
 
   <!-- 猫娘彩蛋覆盖层：连点开发者卡片 7 次触发；点击任意处关闭 -->
   <Border x:Name="NekoOverlay"

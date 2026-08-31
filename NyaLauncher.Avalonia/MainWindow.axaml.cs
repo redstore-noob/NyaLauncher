@@ -485,6 +485,7 @@ public partial class MainWindow : Window
     {
         if (!NyaLauncherInfo.IsUnstable)
         {
+            _logSystem.AddLogs(message, null);
             return;
         }
         StatusText.Text = message;
