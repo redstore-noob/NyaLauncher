@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: dotnet build NyaLauncher.slnx -c Release --no-restore
 
-  # 打 tag（v*）：三平台自包含单文件发布
+  # 打 tag（v*）：全平台自包含单文件发布（x64 + ARM64）
   publish:
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     strategy:
@@ -38,15 +38,38 @@ jobs:
         include:
           - os: windows-latest
             rid: win-x64
+            platform: windows
             artifact: NyaLauncher-Windows-x64.zip
+            exeName: NyaLauncher-Windows-x64.exe
+          - os: windows-latest
+            rid: win-arm64
+            platform: windows
+            artifact: NyaLauncher-Windows-ARM64.zip
+            exeName: NyaLauncher-Windows-ARM64.exe
           - os: ubuntu-latest
             rid: linux-x64
+            platform: linux
             artifact: NyaLauncher-Linux-x64.tar.gz
+            debArch: amd64
+            rpmArch: x86_64
+            appImageArch: x86_64
+            appImageName: NyaLauncher-Linux-x64.AppImage
+          # 公共仓库免费提供的 ARM64 runner；私有仓库需付费套餐
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+            platform: linux
+            artifact: NyaLauncher-Linux-ARM64.tar.gz
+            debArch: arm64
+            rpmArch: aarch64
+            appImageArch: aarch64
+            appImageName: NyaLauncher-Linux-ARM64.AppImage
           - os: macos-latest
             rid: osx-x64
+            platform: macos
             artifact: NyaLauncher-macOS-x64.tar.gz
           - os: macos-latest
             rid: osx-arm64
+            platform: macos
             artifact: NyaLauncher-macOS-ARM64.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
@@ -71,18 +94,18 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path publish/* -DestinationPath ${{ matrix.artifact }}
 
-      # Windows 额外提供免解压的裸单文件 exe
+      # Windows 额外提供免解压的裸单文件 exe（x64 / ARM64 同样处理）
       - name: Stage single-file exe
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Copy-Item publish/${{ env.ASSEMBLY }}.exe NyaLauncher-Windows-x64.exe
+        run: Copy-Item publish/${{ env.ASSEMBLY }}.exe ${{ matrix.exeName }}
 
       - name: Pack archive (tar.gz)
         if: runner.os != 'Windows'
         shell: bash
         run: tar -czf "${{ matrix.artifact }}" -C publish .
 
-      # Linux 额外提供 deb 包（安装到 /opt/nya-launcher，/usr/bin 提供启动命令）
+      # Linux：deb + rpm（安装到 /opt/nya-launcher，/usr/bin 提供启动命令）
       - name: Install fpm
         if: runner.os == 'Linux'
         run: |
@@ -90,7 +113,7 @@ jobs:
           sudo apt-get install -y ruby ruby-dev rubygems build-essential
           sudo gem install --no-document fpm
 
-      - name: Build deb
+      - name: Build deb and rpm
         if: runner.os == 'Linux'
         env:
           VERSION: ${{ github.ref_name }}
@@ -107,26 +130,57 @@ jobs:
             -m "NyaLauncher <noreply@nyalauncher.local>" \
             --description "NyaLauncher - A modern cross-platform lightweight Minecraft launcher" \
             --url "https://github.com/${{ github.repository }}" \
-            --license "Apache-2.0" --force -C stage --architecture amd64
+            --license "Apache-2.0" --force -C stage \
+            --architecture ${{ matrix.debArch }}
+          fpm -s dir -t rpm -n nya-launcher -v "$version" \
+            -m "NyaLauncher <noreply@nyalauncher.local>" \
+            --description "NyaLauncher - A modern cross-platform lightweight Minecraft launcher" \
+            --url "https://github.com/${{ github.repository }}" \
+            --license "Apache-2.0" --force -C stage \
+            --architecture ${{ matrix.rpmArch }}
 
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
-        with:
-          name: NyaLauncher-Windows-x64-singlefile
-          path: NyaLauncher-Windows-x64.exe
-
-      - uses: actions/upload-artifact@v4
+      # Linux：AppImage（linuxdeploy 按架构取对应版本，extract-and-run 免 FUSE）
+      - name: Build AppImage
         if: runner.os == 'Linux'
-        with:
-          name: NyaLauncher-Linux-x64-deb
-          path: nya-launcher_*.deb
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          OUTPUT: ${{ matrix.appImageName }}
+          APPIMAGE_ARCH: ${{ matrix.appImageArch }}
+        run: |
+          wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage" -O linuxdeploy.AppImage
+          chmod +x linuxdeploy.AppImage
+          mkdir -p AppDir/usr/bin
+          cp -r publish/* AppDir/usr/bin/
+          cat > nya-launcher.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=NyaLauncher
+          Comment=A modern cross-platform lightweight Minecraft launcher
+          Exec=NyaLauncher.Avalonia %f
+          Icon=nya-launcher
+          Terminal=false
+          Categories=Game;Utility;
+          EOF
+          ./linuxdeploy.AppImage \
+            --appdir AppDir \
+            --desktop-file nya-launcher.desktop \
+            --icon-file NyaLauncher.Avalonia/Resources/WindowIcon.png \
+            --output appimage
 
+      # 每个矩阵条目产出一个 artifact，命名按 rid 去重
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: dist-${{ matrix.rid }}
+          path: |
+            NyaLauncher-Windows-*.zip
+            NyaLauncher-Windows-*.exe
+            NyaLauncher-Linux-*.tar.gz
+            NyaLauncher-Linux-*.AppImage
+            NyaLauncher-macOS-*.tar.gz
+            nya-launcher_*.deb
+            nya-launcher_*.rpm
 
-  # 打 tag：自动创建 GitHub Release 并附上三平台产物
+  # 打 tag：自动创建 GitHub Release 并附上全平台产物
   release:
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     needs: publish
