@@ -5,13 +5,13 @@
 
 | 适用项 | 当前值 |
 | --- | --- |
-| SDK | `NyaLauncher.Plugin.Abstractions` `0.1.0-ppre2` |
+| SDK | `NyaLauncher.Plugin.Abstractions` `1.0.0-preview1` |
 | 目标框架 | `.NET 10` / `net10.0` |
 | CLR 程序集版本 | `1.0.0.0`（API v1 内保持稳定） |
 | 运行时清单 | `manifestVersion: 1` |
 | 插件 API | `apiVersion: "1.0"` |
 | 插件中心 | [TouristH/NyaLauncher-Plugins](https://github.com/TouristH/NyaLauncher-Plugins) |
-| 完整示例 | [NyaLauncher.Clock](../examples/NyaLauncher.Clock/README.md) |
+| 完整示例 | [TouristH/NyaLauncher.Clock](https://github.com/TouristH/NyaLauncher.Clock) |
 
 > **安全警告：**插件 DLL 与启动器运行在同一进程。能力授权只约束部分宿主 API 并记录用户同意，
 > 不是操作系统沙箱；`AssemblyLoadContext` 也只负责依赖隔离和尝试卸载。插件仍能直接调用 .NET 的
@@ -1501,7 +1501,7 @@ API v1 **没有**公共 ILogger、日志级别协议、插件日志面板或固�
 | 当前可用工具 | 用途 |
 | --- | --- |
 | `dotnet build/test/publish` | 构建和测试 net10.0 类库。 |
-| [`examples/NyaLauncher.Clock/package.ps1`](../examples/NyaLauncher.Clock/package.ps1) | 打包脚本参考；输出 ZIP 大小和 SHA-256。 |
+| [`NyaLauncher.Clock/package.ps1`](https://github.com/TouristH/NyaLauncher.Clock/blob/main/package.ps1) | 独立示例仓库的打包脚本参考；输出 ZIP 大小和 SHA-256。 |
 | `PolygonComponentValidator` | 不启动宿主即可校验组件。 |
 | 插件页 | 重扫、筛选、启停、授权、全局设置、诊断、打开包目录。 |
 | 在线仓库页 | 浏览兼容版本、安装、更新或显式降级。 |
@@ -1695,7 +1695,7 @@ lineageId。作者仓库的 `_manifest.json` 不得自行指定或修改这些�
 
 完整规则见中心 [README](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/README.md) 和
 [CONTRIBUTING](https://github.com/TouristH/NyaLauncher-Plugins/blob/main/CONTRIBUTING.md)。身份索引
-（NyaLauncher 0.1.0-ppre2 及以上优先读取）：
+（NyaLauncher 1.0.0-preview1 及以上优先读取）：
 
 ```text
 https://raw.githubusercontent.com/TouristH/NyaLauncher-Plugins/main/public/v2/index.json
@@ -1795,16 +1795,18 @@ GitHub 数字发布者、版本和 ZIP SHA-256；它与包目录一起提交、�
 
 ## 15. 示例与模板
 
-### 15.1 仓库内完整示例
+### 15.1 独立仓库完整示例
 
-- [NyaLauncher.Clock](../examples/NyaLauncher.Clock/README.md)：动态电子钟、状态、设置、生命周期、测试和打包。
-- [Clock 源码](https://github.com/redstore-noob/NyaLauncher/tree/testplug/examples/NyaLauncher.Clock)
-- [Clock 测试](https://github.com/redstore-noob/NyaLauncher/tree/testplug/examples/NyaLauncher.Clock.Tests)
+- [NyaLauncher.Clock](https://github.com/TouristH/NyaLauncher.Clock)：动态电子钟、状态、设置、生命周期、测试和打包。
+- [Clock 源码](https://github.com/TouristH/NyaLauncher.Clock/tree/main)
+- [Clock 测试](https://github.com/TouristH/NyaLauncher.Clock/tree/main/tests)
 
 ```powershell
-dotnet build .\examples\NyaLauncher.Clock\NyaLauncher.Clock.csproj -c Release
-dotnet run --project .\examples\NyaLauncher.Clock.Tests\NyaLauncher.Clock.Tests.csproj -c Release
-powershell -NoProfile -ExecutionPolicy Bypass -File .\examples\NyaLauncher.Clock\package.ps1
+git clone https://github.com/TouristH/NyaLauncher.Clock.git
+Set-Location .\NyaLauncher.Clock
+dotnet build .\NyaLauncher.Clock.csproj -c Release
+dotnet run --project .\tests\NyaLauncher.Clock.Tests.csproj -c Release
+powershell -NoProfile -ExecutionPolicy Bypass -File .\package.ps1
 ```
 
 ### 15.2 模板边界
