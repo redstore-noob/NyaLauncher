@@ -1,15 +1,16 @@
-# NyaLauncher 第三方插件开发手册（API v1）
+# NyaLauncher 第三方插件开发手册（API V1.1）
 
 本文面向第三方插件开发者。按照本文即可完成插件的创建、调试、测试、打包、发布和更新，
 无需阅读 NyaLauncher 宿主源码。
 
 | 适用项 | 当前值 |
 | --- | --- |
-| SDK | `NyaLauncher.Plugin.Abstractions` `1.0.0-preview1` |
+| SDK | `NyaLauncher.Plugin.Abstractions` `1.1.0` |
 | 目标框架 | `.NET 10` / `net10.0` |
-| CLR 程序集版本 | `1.0.0.0`（API v1 内保持稳定） |
+| CLR 程序集版本 | `1.0.0.0`（API V1.x 内保持稳定） |
 | 运行时清单 | `manifestVersion: 1` |
-| 插件 API | `apiVersion: "1.0"` |
+| 插件 API | `V1.1`（机器值 `apiVersion: "1.1"`；原始 V1 为 `"1.0"`） |
+| 版本关系 | 插件 API 独立演进，不随 NyaLauncher 应用版本递增 |
 | 插件中心 | [TouristH/NyaLauncher-Plugins](https://github.com/TouristH/NyaLauncher-Plugins) |
 | 完整示例 | [TouristH/NyaLauncher.Clock](https://github.com/TouristH/NyaLauncher.Clock) |
 
@@ -43,7 +44,7 @@
 
 ### 1.1 能做什么
 
-API v1 提供四类公开能力：
+API V1 提供四类公开能力：
 
 - 声明并运行完全自定义的 Polygon 工作区组件，包括文本、进度、图片、按钮、下拉菜单、文本输入、
   开关和滑块，可制作电子钟、图片框、在线音乐控制器、AI 前端和状态面板。
@@ -51,25 +52,32 @@ API v1 提供四类公开能力：
 - 向版本详情页注册用户主动执行的实例动作，并通过受控文件事务持久修改 Minecraft 实例。
 - 在每次游戏启动前声明式修改 classpath、main class、Java、工作目录、参数和环境变量。
 
+V1.1 还通过 `IPluginContext.GetService<TService>()` 提供三种宿主管理的可选服务：
+`IPluginNotifications`（需 `ui.native`）、只读的 `IPluginTheme` 主题快照，以及
+`IPluginLogger` 日志入口。后两者不要求能力授权，也不向插件暴露 Avalonia 或宿主内部对象。
+
 实例动作和启动贡献可以组合成一套**由插件作者自行定义规范的新模组加载器**：插件安装作者自己的
 Java 加载器、清单与模组文件，再在启动时切换到作者自己的 main class。它不依赖 Forge、Fabric、
 NeoForge、Quilt 或其他既有加载器；NyaLauncher 也不会替作者解析其模组格式或依赖关系。
 
 ### 1.2 当前不能做什么
 
-API v1 当前不提供：
+API V1.1 当前不提供：
 
 - 任意 Avalonia `Control`、任意页面或原生窗口注入；
 - 宿主全局菜单、通用命令、编辑器、快捷键或工具栏扩展点；
 - 插件间依赖解析、服务发现或稳定插件间调用协议；
 - 运行中动态注册/撤销贡献；
-- 通用 HTTP、日志、数据库、凭据库、进程或文件选择服务；
+- 通用 HTTP、数据库、凭据库、进程或文件选择服务；
+- 插件日志面板、固定日志文件路径或日志查询/导出协议；
 - 实例设置自动 UI、实例动作参数表单；
 - 官方热重载、远程调试、CLI、脚手架、无头测试宿主或 IDE 插件；
 - 对恶意插件的进程级安全隔离。
 
-`ui.native`、`network.http` 等能力名不代表宿主已提供对应服务。当前
-`IPluginContext.GetService<TService>()` 始终返回 `null`。
+能力名本身不代表宿主已实现同名系统服务。当前 `GetService<TService>()` 只识别
+`IPluginNotifications`、`IPluginTheme` 和 `IPluginLogger`；未知服务仍返回 `null`。
+`network.http`、`system.info.read`、`user-files.write`、`process.start` 及任意原生 UI 注入
+仍是预留能力位，本轮没有改变其行为。
 
 ### 1.3 架构
 
@@ -177,6 +185,9 @@ Example.Hello/
 }
 ```
 
+该最小示例只使用 V1 成员，所以保留 `apiVersion: "1.0"`。调用 V1.1 的主题或日志服务时改为
+`"1.1"`，并按第 13 节填写首个实际承载 V1.1 的 `minimumLauncherVersion`。
+
 `PluginEntry.cs`：
 
 ```csharp
@@ -229,7 +240,7 @@ dotnet build .\Example.Hello.csproj -c Debug
 3. 点击“重新扫描”；插件应显示为“已禁用”，不是“无效”。
 4. 启用并确认 `ui.components`，再把 “Hello World” 从组件库拖入工作区。
 
-修改代码后先禁用，再替换 DLL、重新扫描并启用。若显示“需要重启”，必须重启；API v1 不承诺热替换。
+修改代码后先禁用，再替换 DLL、重新扫描并启用。若显示“需要重启”，必须重启；API V1.x 不承诺热替换。
 
 ---
 
@@ -280,7 +291,7 @@ JSON。包、入口、依赖和资源路径不得逃逸包根或穿过 symlink/j
 | `id` | 是 | 小写反向域名、至少含一点、最长 128，例如 `dev.example.toolbox`；发布后不变。 |
 | `name` | 是 | 非空，最长 256。 |
 | `version` | 是 | 最长 64；发布统一使用严格 SemVer。 |
-| `apiVersion` | 否 | 当前主版本必须为 `1`，推荐 `1.0`。 |
+| `apiVersion` | 否 | 原始 V1 写 `1.0`；使用 V1.1 新成员写 `1.1`。宿主拒绝未实现的未来 minor。 |
 | `minimumLauncherVersion` | 否 | 使用新增 API 所需最低宿主；插件中心要求严格 SemVer。 |
 | `description` | 否 | 最长 8192。 |
 | `authors` | 否 | 最多 64 项，每项最长 256。 |
@@ -330,7 +341,7 @@ JSON。包、入口、依赖和资源路径不得逃逸包根或穿过 symlink/j
 
 ## 4. 核心 API 参考
 
-除特别标注外，本节公共成员自 **API v1 / NyaLauncher 0.1.0-gp3** 起可用；
+除特别标注外，本节公共成员自 **API V1 / NyaLauncher 0.1.0-gp3** 起可用；
 `ComponentStateSnapshot.Scale` 自 **0.1.1-gp3** 起可用。异步 API 应传播取消令牌；
 不要把本地化异常文本当机器协议。
 
@@ -338,16 +349,19 @@ JSON。包、入口、依赖和资源路径不得逃逸包根或穿过 symlink/j
 
 | 类型 | 主要用途 | 典型失败 | Since |
 | --- | --- | --- | --- |
-| `PluginManifest` | 运行时清单只读快照。 | 清单错误在执行代码前成为 Invalid/Incompatible。 | API v1 |
-| `PluginCapabilities` | 十个标准能力字符串。 | 未知必要能力不兼容。 | API v1 |
-| `INyaLauncherPlugin` | `StartAsync(context, ct)`、`StopAsync(ct)`。 | 异常会失败/隔离；启动失败不发布贡献。 | API v1 |
-| `PluginBase` | 状态保护的 `Context`、`OnStartAsync`、`OnStopAsync`。 | 未启动访问 Context 抛 `InvalidOperationException`。 | API v1 |
-| `IPluginContext` | Manifest、Storage、Settings、Registrar、能力和可选服务。 | 未实现服务返回 `null`。 | API v1 |
-| `IPluginStorage` | Package/Data/Cache 与安全路径解析。 | 非法/越界/reparse 路径抛参数异常。 | API v1 |
-| `IPluginRegistrar` | 注册三种贡献，仅 Start 期间开放。 | 能力不足、窗口关闭或定义无效。 | API v1 |
-| `PluginComponentArea` | `Id/Title/Subtitle/Glyph/Icon/Components`。 | 注册时验证并深快照。 | API v1 |
-| `PluginSettingKind`、`PluginSettingScope`、`PluginSettingOption`、`PluginSettingDefinition` | 设置枚举、Choice 选项和 schema。 | 清单扫描时校验。 | API v1 |
-| `IPluginSettings`、`PluginSettingChangedEventArgs` | 强类型读写、重置和变化事件。 | 见下文。 | API v1 |
+| `PluginManifest` | 运行时清单只读快照。 | 清单错误在执行代码前成为 Invalid/Incompatible。 | V1 |
+| `PluginCapabilities` | 十个标准能力字符串。 | 未知必要能力不兼容。 | V1 |
+| `INyaLauncherPlugin` | `StartAsync(context, ct)`、`StopAsync(ct)`。 | 异常会失败/隔离；启动失败不发布贡献。 | V1 |
+| `PluginBase` | 状态保护的 `Context`、`OnStartAsync`、`OnStopAsync`。 | 未启动访问 Context 抛 `InvalidOperationException`。 | V1 |
+| `IPluginContext` | Manifest、Storage、Settings、Registrar、能力和可选服务。 | 未实现服务返回 `null`。 | V1 |
+| `IPluginStorage` | Package/Data/Cache 与安全路径解析。 | 非法/越界/reparse 路径抛参数异常。 | V1 |
+| `IPluginRegistrar` | 注册三种贡献，仅 Start 期间开放。 | 能力不足、窗口关闭或定义无效。 | V1 |
+| `PluginComponentArea` | `Id/Title/Subtitle/Glyph/Icon/Components`。 | 注册时验证并深快照。 | V1 |
+| `PluginSettingKind`、`PluginSettingScope`、`PluginSettingOption`、`PluginSettingDefinition` | 设置枚举、Choice 选项和 schema。 | 清单扫描时校验。 | V1 |
+| `IPluginSettings`、`PluginSettingChangedEventArgs` | 强类型读写、重置和变化事件。 | 见下文。 | V1 |
+| `IPluginNotifications`、`PluginNoticeSeverity`、`PluginPromptButton` | 宿主通知条与对话框。 | 未授权 `ui.native` 时服务为 `null`；运行时退役后安全降级。 | V1 |
+| `IPluginTheme`、`PluginThemeSnapshot`、`PluginThemePalette`、`PluginThemeColor` | 框架无关的当前主题与变化事件。 | 退役后自动移除插件事件处理器。 | V1.1 |
+| `IPluginLogger`、`PluginLogLevel` | 带插件归属、长度上限和限流的宿主日志。 | 运行时退役后写入被忽略。 | V1.1 |
 
 ```csharp
 public sealed record PluginManifest
@@ -394,13 +408,14 @@ public interface IPluginContext
     TService? GetService<TService>() where TService : class;
 }
 
-/// <summary>插件 SDK 的展示版本（当前 "v1-p2"，上一代为 "v1-p1" = 未含通知服务的
-/// API 集）。兼容性判定以 manifest.apiVersion 的主版本号为准；主版本内宿主对插件
-/// API 向前兼容，v1-p1 插件无需重编译。</summary>
+/// <summary>插件 SDK 的独立展示版本。兼容性判定以 manifest.apiVersion 为准；
+/// 同一主版本内的新宿主兼容旧 minor，并拒绝尚未实现的未来 minor。</summary>
 public static class PluginSdk
 {
-    public const string ApiVersion = "v1-p2";
-    public const string PreviousApiVersion = "v1-p1";
+    public const string ApiVersion = "V1.1";
+    public const string PreviousApiVersion = "V1";
+    public const string ManifestApiVersion = "1.1";
+    public const string PreviousManifestApiVersion = "1.0";
 }
 
 /// <summary>需要 ui.native 能力；经 Context.GetService&lt;IPluginNotifications&gt;() 获取。</summary>
@@ -415,6 +430,62 @@ public interface IPluginNotifications
 }
 
 public sealed record PluginPromptButton(string Label, string? Id = null, bool IsDefault = false);
+
+public interface IPluginTheme
+{
+    PluginThemeSnapshot Current { get; }
+    event EventHandler<PluginThemeChangedEventArgs>? Changed;
+}
+
+public enum PluginThemeMode { Light, Dark }
+public enum PluginThemePreference { Light, Dark, System }
+
+public sealed class PluginThemeChangedEventArgs : EventArgs
+{
+    public PluginThemeChangedEventArgs(PluginThemeSnapshot theme);
+    public PluginThemeSnapshot Theme { get; }
+}
+
+public sealed record PluginThemeSnapshot
+{
+    public long Revision { get; init; }
+    public string Family { get; init; }
+    public PluginThemePreference Preference { get; init; }
+    public PluginThemeMode EffectiveMode { get; init; }
+    public PluginThemePalette Palette { get; init; }
+    public static PluginThemeSnapshot Default { get; }
+}
+
+public sealed record PluginThemePalette
+{
+    public PluginThemeColor Accent { get; init; }
+    public PluginThemeColor AccentText { get; init; }
+    public PluginThemeColor WindowBackground { get; init; }
+    public PluginThemeColor SurfaceBackground { get; init; }
+    public PluginThemeColor CardBackground { get; init; }
+    public PluginThemeColor ControlBackground { get; init; }
+    public PluginThemeColor PrimaryText { get; init; }
+    public PluginThemeColor SecondaryText { get; init; }
+    public PluginThemeColor Border { get; init; }
+    public PluginThemeColor Success { get; init; }
+    public PluginThemeColor Warning { get; init; }
+    public PluginThemeColor Error { get; init; }
+    public PluginThemeColor Info { get; init; }
+}
+
+public readonly record struct PluginThemeColor(
+    byte Alpha, byte Red, byte Green, byte Blue)
+{
+    public uint Argb { get; }
+    public static PluginThemeColor FromArgb(uint argb);
+}
+
+public interface IPluginLogger
+{
+    void Log(PluginLogLevel level, string message, Exception? exception = null);
+}
+
+public enum PluginLogLevel { Trace, Debug, Information, Warning, Error, Critical }
 
 public interface IPluginStorage
 {
@@ -500,19 +571,55 @@ public sealed class PluginSettingChangedEventArgs : EventArgs
 - Directory 的读取、写入和 Reset 都要求 `user-files.read`，否则抛 `UnauthorizedAccessException`。
 - 成功 Set/Reset 后触发 `Changed`；停止时解除订阅。
 
+#### V1.1 宿主服务
+
+```csharp
+var theme = Context.GetService<IPluginTheme>();
+var logger = Context.GetService<IPluginLogger>();
+
+logger?.Log(PluginLogLevel.Information,
+    $"当前主题：{theme?.Current.Family}/{theme?.Current.EffectiveMode}");
+
+if (theme is not null)
+{
+    theme.Changed += (_, args) =>
+    {
+        var accent = args.Theme.Palette.Accent; // 不含 Avalonia 类型的 ARGB 值快照
+        logger?.Log(PluginLogLevel.Debug,
+            $"主题 revision={args.Theme.Revision}, accent={accent}");
+    };
+}
+```
+
+- `IPluginTheme` 和 `IPluginLogger` 不要求能力；V1.1 宿主会返回运行时独立的服务实例。
+- `PluginThemeSnapshot.Preference` 保留用户的 Light/Dark/System 偏好，`EffectiveMode` 是解析
+  System 后真正渲染的 Light/Dark；`Family` 是已配置家族，`Revision` 随成功应用主题严格递增。
+- `Palette` 是不可变值快照，提供 Accent、AccentText、WindowBackground、SurfaceBackground、
+  CardBackground、ControlBackground、PrimaryText、SecondaryText、Border、Success、Warning、
+  Error 和 Info。颜色格式为 ARGB；不要缓存 Avalonia Brush，也不要反射主题资源字典。
+- `Changed` 的处理器按顺序在工作线程执行，不是 UI 线程。宿主在插件停止、失败、隔离或卸载时
+  清除处理器；插件仍应在 `StopAsync` 中正常退订并停止自己的后台任务。Polygon 组件本身使用宿主
+  语义动态资源，通常不需要在事件中重建。
+- 已获准执行的事件回调会参与运行时排空；停止/隔离不是强杀线程。处理器应快速返回，避免阻塞卸载。
+- `IPluginLogger` 自动添加稳定插件 ID、转义控制字符、限制单条 message 为 8192 字符、异常文本为
+  16384 字符，并按每个插件每分钟 200 条限流。它只写入宿主管理的进程日志；不要记录 Secret、
+  token、用户路径或其他个人数据。运行时退役后的晚到调用被忽略。
+- `IPluginNotifications` 仍要求 `ui.native`。运行时退役后，晚到的 Alert 被忽略，Prompt/Confirm
+  分别返回 `null`/`false`；这不等于开放任意 Avalonia Control、页面或窗口。
+
 ### 4.2 `NyaLauncher.Plugin.Abstractions.Components`
 
 | 类型组 | 全部公共类型 | 用途 | Since |
 | --- | --- | --- | --- |
-| 几何 | `ComponentPoint`、`ComponentSize`、`ComponentRect`、`ComponentPixelRect`、`ComponentThickness` | 归一化/像素几何；Thickness 当前未接入其他公开渲染定义。 | API v1 |
-| 外形 | `PolygonShapeDefinition` | Rectangle、CutCorner、RegularPolygon、FromPoints、Contains。 | API v1 |
-| 声明 | `PolygonComponentDefinition`、`PolygonComponentTheme`、`ComponentActionDefinition` | 尺寸、形状、主题和动作。 | API v1 |
-| 元素 | `ComponentElementDefinition`、`TextElementDefinition`、`ProgressElementDefinition`、`TextInputElementDefinition`、`ToggleElementDefinition`、`SliderElementDefinition`、`ImageElementDefinition`、`ButtonElementDefinition`、`DropdownElementDefinition`、`ComponentMenuItem` | 全部声明式元素。 | API v1 |
-| 枚举 | `ComponentTextRole`、`ComponentImageStretch` | 文本角色和图片缩放。 | API v1 |
-| 构建 | `PolygonComponentBuilder` | 链式构建；Build 时校验和快照。 | API v1 |
-| 校验 | `PolygonComponentValidator`、`ComponentValidationResult`、`ComponentValidationError`、`ComponentDefinitionException` | 结构化 `Code/Path/Message`。 | API v1 |
-| 工厂 | `PolygonComponentRegistration`、`IPolygonComponentProvider`、`IPolygonComponentFactory`、`DelegatePolygonComponentFactory`、`ComponentInstanceContext` | 声明与实例创建。 | API v1 |
-| 运行时 | `IPolygonComponentInstance`、`ComponentActionInvocation`、`ComponentActionResult`、`ComponentStateSnapshot`、`ComponentElementState`、`ComponentStateChangedEventArgs` | 动作、完整快照和释放。 | API v1 |
+| 几何 | `ComponentPoint`、`ComponentSize`、`ComponentRect`、`ComponentPixelRect`、`ComponentThickness` | 归一化/像素几何；Thickness 当前未接入其他公开渲染定义。 | V1 |
+| 外形 | `PolygonShapeDefinition` | Rectangle、CutCorner、RegularPolygon、FromPoints、Contains。 | V1 |
+| 声明 | `PolygonComponentDefinition`、`PolygonComponentTheme`、`ComponentActionDefinition` | 尺寸、形状、主题和动作。 | V1 |
+| 元素 | `ComponentElementDefinition`、`TextElementDefinition`、`ProgressElementDefinition`、`TextInputElementDefinition`、`ToggleElementDefinition`、`SliderElementDefinition`、`ImageElementDefinition`、`ButtonElementDefinition`、`DropdownElementDefinition`、`ComponentMenuItem` | 全部声明式元素。 | V1 |
+| 枚举 | `ComponentTextRole`、`ComponentImageStretch` | 文本角色和图片缩放。 | V1 |
+| 构建 | `PolygonComponentBuilder` | 链式构建；Build 时校验和快照。 | V1 |
+| 校验 | `PolygonComponentValidator`、`ComponentValidationResult`、`ComponentValidationError`、`ComponentDefinitionException` | 结构化 `Code/Path/Message`。 | V1 |
+| 工厂 | `PolygonComponentRegistration`、`IPolygonComponentProvider`、`IPolygonComponentFactory`、`DelegatePolygonComponentFactory`、`ComponentInstanceContext` | 声明与实例创建。 | V1 |
+| 运行时 | `IPolygonComponentInstance`、`ComponentActionInvocation`、`ComponentActionResult`、`ComponentStateSnapshot`、`ComponentElementState`、`ComponentStateChangedEventArgs` | 动作、完整快照和释放。 | V1 |
 
 `IPolygonComponentProvider` 只是可供插件内部组织集合的辅助接口；Registrar 不会自动发现它。
 
@@ -796,7 +903,7 @@ public static class PolygonComponentValidator
 }
 ```
 
-这些类型均自 API v1 起提供。几何 record 只保存数值，真正的范围和组合校验在 Validator 中完成。
+这些类型均自 API V1 起提供。几何 record 只保存数值，真正的范围和组合校验在 Validator 中完成。
 `Validate` 不抛定义错误，而是返回全部已发现的 `Code/Path/Message`；传入 `null` 会得到
 `definition.null`。`ThrowIfInvalid` 和 `ValidateAndSnapshot` 在结果无效时抛
 `ComponentDefinitionException`，其 `Errors` 可用于结构化展示；构造校验结果或异常时传入空引用会抛
@@ -902,7 +1009,7 @@ public sealed class ComponentStateChangedEventArgs : EventArgs
 `ComponentElementState` 可覆盖 Text、Value、IsChecked、ImageSource、ProgressValue、启用/可见/不确定状态和
 动态菜单。Scale 为 null 时使用全局缩放；非空值须为有限正数并按尺寸范围钳制。
 
-Validator 当前公开的结构化错误码如下；代码读取 Code/Path，不解析中文 Message。后续 API v1 可能新增
+Validator 当前公开的结构化错误码如下；代码读取 Code/Path，不解析中文 Message。后续 API V1.x 可能新增
 更细的 Code，因此按未知码可显示/记录的方式编写，不把此列表当封闭枚举：
 
 ```text
@@ -930,12 +1037,12 @@ menu.itemActionMissing  menu.argumentsNull  menu.argumentsCount  menu.argumentVa
 
 | 类型 | 主要成员 | Since |
 | --- | --- | --- |
-| `MinecraftInstanceDescriptor` | InstanceId、DisplayName、VersionId、两个根和 Metadata。 | API v1 |
-| `MinecraftPathRoot`、`MinecraftInstancePath`、`MinecraftFileEntry` | 受控相对路径和枚举条目。 | API v1 |
-| `IMinecraftInstanceFiles` | Exists/OpenRead/Enumerate。 | API v1 |
-| `MinecraftFileWriteMode` / `IMinecraftEditSession` | 暂存写删、Commit、Dispose。 | API v1 |
-| 实例动作 | `MinecraftInstanceActionDefinition`、`MinecraftInstanceActionContext`、`MinecraftInstanceActionResult`、`IMinecraftInstanceExtension` | 定义、调用和结果。 | API v1 |
-| 启动 | `MinecraftLaunchPlanSnapshot`、`MinecraftLaunchContext`、`MinecraftLaunchContribution`、`MinecraftClasspathEntryReplacement`、`IMinecraftLaunchContributor` | 当前计划和声明式变换。 | API v1 |
+| `MinecraftInstanceDescriptor` | InstanceId、DisplayName、VersionId、两个根和 Metadata。 | V1 |
+| `MinecraftPathRoot`、`MinecraftInstancePath`、`MinecraftFileEntry` | 受控相对路径和枚举条目。 | V1 |
+| `IMinecraftInstanceFiles` | Exists/OpenRead/Enumerate。 | V1 |
+| `MinecraftFileWriteMode` / `IMinecraftEditSession` | 暂存写删、Commit、Dispose。 | V1 |
+| 实例动作 | `MinecraftInstanceActionDefinition`、`MinecraftInstanceActionContext`、`MinecraftInstanceActionResult`、`IMinecraftInstanceExtension` | 定义、调用和结果。 | V1 |
+| 启动 | `MinecraftLaunchPlanSnapshot`、`MinecraftLaunchContext`、`MinecraftLaunchContribution`、`MinecraftClasspathEntryReplacement`、`IMinecraftLaunchContributor` | 当前计划和声明式变换。 | V1 |
 
 <details>
 <summary>展开：Minecraft 数据类型的完整公开属性</summary>
@@ -1113,7 +1220,7 @@ WorkingDirectory；前后插入 JVM/game 参数；设置或删除环境变量。
 | Minecraft 实例动作 | `AddMinecraftInstanceExtension` | `minecraft.instance.modify` | 版本详情页“插件操作” |
 | 每次启动贡献 | `AddMinecraftLaunchContributor` | `minecraft.launch.modify`；读实例另需 `minecraft.instance.read` | 游戏启动管线 |
 | 菜单/通用命令/编辑器/快捷键 | 不支持 | — | — |
-| 任意 Avalonia 页面/Control | 不支持 | `ui.native` 仍为预留 | — |
+| 任意 Avalonia 页面/Control | 不支持 | `ui.native` 只开放通知服务，不开放 UI 注入 | — |
 
 所有注册仅能在 StartAsync。任一注册无效都会使整个启动失败，不发布半套功能。
 
@@ -1328,7 +1435,7 @@ stateDiagram-v2
 7. **禁用：**阻止新调用、组件变休眠占位、排空实例，再调用 `StopAsync`。
 8. **卸载：**解除宿主引用并尝试卸载；不安全时标记 RestartRequired，不加载第二份。
 
-API v1 只有 `StartAsync` 和 `StopAsync`，没有 Pause、Resume、Update 或 OnUnload。更新是
+API V1.x 只有 `StartAsync` 和 `StopAsync`，没有 Pause、Resume、Update 或 OnUnload。更新是
 “禁用 → 替换整个包 → 重新扫描 → 启用”，不是生命周期回调。
 
 ### 6.2 当前故障保护时限
@@ -1412,7 +1519,7 @@ API v1 只有 `StartAsync` 和 `StopAsync`，没有 Pause、Resume、Update 或 
 | SDK 常量 / 清单字符串 | 当前行为 |
 | --- | --- |
 | `Components` / `ui.components` | 强制门控 AddComponentArea。 |
-| `NativeUi` / `ui.native` | 预留；没有原生 UI 服务。 |
+| `NativeUi` / `ui.native` | 强制门控 `IPluginNotifications`；任意 Control、页面和窗口注入仍未开放。 |
 | `NetworkHttp` / `network.http` | 记录联网意图；没有统一 HTTP 服务或系统级阻断，插件自行使用 HttpClient。 |
 | `SystemInformationRead` / `system.info.read` | 记录读取系统信息意图；没有统一服务。 |
 | `UserFilesRead` / `user-files.read` | 强制门控 Directory 设置的选择和运行时访问。 |
@@ -1421,6 +1528,9 @@ API v1 只有 `StartAsync` 和 `StopAsync`，没有 Pause、Resume、Update 或 
 | `MinecraftInstanceRead` / `minecraft.instance.read` | 强制门控启动贡献中的 context.Files。 |
 | `MinecraftInstanceModify` / `minecraft.instance.modify` | 强制门控实例扩展注册；EditSession 自身可受控读写。 |
 | `MinecraftLaunchModify` / `minecraft.launch.modify` | 强制门控启动贡献注册。 |
+
+`IPluginTheme` 和 `IPluginLogger` 是宿主管理、无系统权限副作用的 V1.1 服务，因此不要求能力。
+它们没有启用或替代任何预留能力。未知 `GetService<TService>()` 请求仍返回 `null`。
 
 可选能力不会自动批准，必须检查并降级：
 
@@ -1437,7 +1547,7 @@ if (Context.IsCapabilityGranted(PluginCapabilities.NetworkHttp))
 ### 8.2 不是沙箱
 
 能力不能阻止 DLL 直接调用 System.IO、HttpClient、Process、P/Invoke 或反射；ALC 不能隔离内存。
-需要运行不可信代码时必须使用未来的进程外/WASM/OS 沙箱，API v1 没有这些保证。
+需要运行不可信代码时必须使用未来的进程外/WASM/OS 沙箱，API V1.x 没有这些保证。
 
 ### 8.3 禁止行为
 
@@ -1455,14 +1565,34 @@ if (Context.IsCapabilityGranted(PluginCapabilities.NetworkHttp))
 
 ### 9.1 日志现状
 
-API v1 **没有**公共 ILogger、日志级别协议、插件日志面板或固定日志文件。
+V1.1 提供最小的 `IPluginLogger` 与 `PluginLogLevel` 协议，但没有插件日志面板、固定日志文件路径、
+日志读取接口或导出协议。服务由宿主按插件运行时管理，无需能力授权：
+
+```csharp
+var log = Context.GetService<IPluginLogger>();
+log?.Log(PluginLogLevel.Information, "索引同步完成");
+
+try
+{
+    await RefreshAsync(cancellationToken);
+}
+catch (Exception exception)
+{
+    log?.Log(PluginLogLevel.Error, "索引同步失败", exception);
+    throw;
+}
+```
 
 - 开发期可用 `System.Diagnostics.Debug.WriteLine` 查看 IDE 调试输出。
-- 如需持久日志，可写 `DataDirectory/logs`；自行轮转、限额、并发和脱敏。
+- 需要插件自有、可解析的持久日志时才写 `DataDirectory/logs`，并自行负责轮转、限额、并发和脱敏；
+  不要猜测或依赖宿主进程日志路径。
+- 宿主日志会带 `[plugin:<稳定插件 ID>]` 前缀；控制字符被转义，超长记录被截断，噪声插件会被限流。
+- 插件停止、启动失败、隔离或卸载后，旧 logger 引用的写入被忽略；日志入口不能延长运行时生命周期。
 - 预期用户错误用 `ComponentActionResult.Message` / `MinecraftInstanceActionResult.Message`。
 - 无法安全继续的启动贡献抛带上下文异常，让宿主中止错误启动。
 
-插件页显示状态和最后诊断，但不会自动收集插件自己的日志。
+插件页显示状态和最后诊断，但当前没有单插件日志浏览界面。日志可能包含在用户主动提供的宿主诊断中，
+因此调用方必须在写入前去除凭据、Secret、个人路径和隐私数据。
 
 ### 9.2 状态与失败
 
@@ -1733,23 +1863,30 @@ GitHub 数字发布者、版本和 ZIP SHA-256；它与包目录一起提交、�
 
 ## 13. 版本兼容与迁移
 
-### 13.1 四种版本
+### 13.1 独立版本与兼容性
 
 | 版本 | 职责 |
 | --- | --- |
 | `manifestVersion` | 运行时清单格式。 |
-| `apiVersion` | SDK 二进制/语义契约主版本。 |
-| `minimumLauncherVersion` | 新 API 或宿主行为所需最低版本。 |
+| `apiVersion` | 独立的插件 API 机器版本；`1.0` = V1，`1.1` = V1.1。 |
+| `PluginSdk.ApiVersion` | 面向用户的独立 API 名称；只在公共插件契约变化时递增。 |
+| `minimumLauncherVersion` | 实际包含所需 API/行为的最低宿主发行版；不用于命名插件 API。 |
 | 插件 `version` | 插件代码、设置和数据格式的 SemVer。 |
 
-| 公共成员 | 最低宿主/SDK |
-| --- | --- |
-| API v1 其余公开类型和成员 | `0.1.0-gp3` |
-| `ComponentStateSnapshot.Scale` | `0.1.1-gp3` |
+| API 契约 | `apiVersion` | SDK 版本 | 新增内容 | 首个可用宿主 |
+| --- | --- | --- | --- | --- |
+| V1 | `1.0` | 历史发布 SDK | 初始公开类型、Scale、通知服务 | 最迟 `v1.0.0-preview1` |
+| V1.1 | `1.1` | `1.1.0` | 主题快照与宿主日志服务 | 当前 `dev`；发行版号尚未分配 |
 
-插件中心使用严格 SemVer；发布清单最低宿主通常写稳定数字版本，例如 `0.1.1`。使用后续新增的 API v1
-成员时，即使 AssemblyVersion 仍为 1.0.0.0，也必须提高 minimumLauncherVersion，避免旧宿主运行时报
-`MissingMethodException`。
+插件 API 与启动器版本独立：NyaLauncher 日常发版不会改变 V1.1；只有公共插件契约再次增量时才进入
+V1.2。当前宿主接受 `apiVersion` 1.0 和 1.1，并在加载插件代码前拒绝自身未实现的未来 minor。
+
+`minimumLauncherVersion` 仍是必要的分发保护：旧版 V1 宿主无法预知 V1.1 类型。使用 V1.1 新成员时，
+即使 CLR AssemblyVersion 仍为 1.0.0.0，也必须同时写 `apiVersion: "1.1"`，并在首个承载 V1.1 的
+启动器发行后把其真实 SemVer 写入 `minimumLauncherVersion`，避免旧宿主出现类型加载错误。在该发行号
+确定以前，不要发布硬依赖 `IPluginTheme` 或 `IPluginLogger` 的插件包，也不要猜版本号。
+
+只使用 V1 API 的既有插件继续保留 `apiVersion: "1.0"`，无需重编译或随启动器发版修改清单。
 
 ### 13.2 兼容和数据迁移
 
@@ -1760,8 +1897,9 @@ GitHub 数字发布者、版本和 ZIP SHA-256；它与包目录一起提交、�
 - 数据迁移应幂等、崩溃可重试；写新文件后原子替换，备份不可降级格式。
 - 降级前提示并备份无法向后兼容的数据。
 
-当前没有正式 `[Obsolete]` 宽限周期、独立 API changelog 页面或 Update 回调。每次更新 SDK 时应对照
-本文件版本和公共 API 表，并在真实最低宿主上运行集成测试。
+当前没有正式 `[Obsolete]` 宽限周期或 Update 回调。每次更新 SDK 时应对照本文件版本和公共 API 表，
+并在真实最低宿主上运行集成测试。已确认 bug 的独立修复记录见
+[`Guides/08-plugin-api-v1.1-bugfixes.md`](../Guides/08-plugin-api-v1.1-bugfixes.md)。
 
 ---
 
@@ -1831,7 +1969,7 @@ reparse point 和设置 schema。entryType 解析和组件注册发生在启用�
 
 ### 显示 Incompatible
 
-检查 apiVersion 主版本、minimumLauncherVersion、未知必要能力和当前启动器版本。
+检查 apiVersion 的主/minor 是否由当前宿主实现、minimumLauncherVersion、未知必要能力和当前启动器版本。
 
 ### entryType 存在却找不到
 

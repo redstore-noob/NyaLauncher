@@ -716,7 +716,7 @@ internal sealed class PluginCatalog
             return "name 和 version 不能为空。";
         if (!TryParseSemanticVersion(manifest.Version, out _))
             return "version 必须是语义版本号。";
-        if (manifest.ApiVersion.Length > 32 ||
+        if (manifest.ApiVersion is null || manifest.ApiVersion.Length > 32 ||
             manifest.MinimumLauncherVersion?.Length > 64 ||
             manifest.Description.Length > 8192 ||
             manifest.Homepage?.Length > 2048 ||
@@ -746,8 +746,11 @@ internal sealed class PluginCatalog
         }
         if (manifest.Settings.Count > MaximumSettingCount)
             return $"单个插件最多声明 {MaximumSettingCount} 项设置。";
-        if (!TryParseApiMajor(manifest.ApiVersion, out var major) || major != 1)
-            return $"API 版本 {manifest.ApiVersion} 与当前插件 API（{PluginSdk.ApiVersion}，主版本 1）不兼容。";
+        if (!IsSupportedApiVersion(manifest.ApiVersion))
+        {
+            return $"API 版本 {manifest.ApiVersion} 与当前插件 API（{PluginSdk.ApiVersion} / " +
+                   $"apiVersion {PluginSdk.ManifestApiVersion}）不兼容。";
+        }
         if (!string.IsNullOrWhiteSpace(manifest.MinimumLauncherVersion))
         {
             if (!TryParseSemanticVersion(manifest.MinimumLauncherVersion, out var minimumVersion))
@@ -1074,11 +1077,44 @@ internal sealed class PluginCatalog
         }
     }
 
-    private static bool TryParseApiMajor(string apiVersion, out int major)
+    internal static bool IsSupportedApiVersion(string? apiVersion)
     {
-        major = 0;
-        var first = apiVersion?.Split('.', 2)[0];
-        return int.TryParse(first, NumberStyles.None, CultureInfo.InvariantCulture, out major);
+        if (!TryParseApiVersion(apiVersion, out var candidate) ||
+            !TryParseApiVersion(PluginSdk.ManifestApiVersion, out var supported))
+        {
+            return false;
+        }
+
+        return candidate.Major == supported.Major &&
+               candidate.CompareTo(supported) <= 0;
+    }
+
+    private static bool TryParseApiVersion(string? value, out Version version)
+    {
+        version = new Version(0, 0);
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        var parts = value.Split('.');
+        if (parts.Length is < 1 or > 3)
+            return false;
+
+        Span<int> numbers = stackalloc int[3];
+        numbers.Clear();
+        for (var index = 0; index < parts.Length; index++)
+        {
+            if (!int.TryParse(
+                    parts[index],
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out numbers[index]))
+            {
+                return false;
+            }
+        }
+
+        version = new Version(numbers[0], numbers[1], numbers[2]);
+        return true;
     }
 
     private static bool TryParseSemanticVersion(string value, out SemanticVersion version) =>

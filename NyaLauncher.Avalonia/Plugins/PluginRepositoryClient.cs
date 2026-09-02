@@ -476,7 +476,7 @@ internal sealed class PluginRepositoryClient : IDisposable
         "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$",
         RegexOptions.CultureInvariant);
     private static readonly Regex ApiVersionPattern = new(
-        "^1(?:\\.[0-9]+){1,2}$",
+        "^[0-9]+(?:\\.[0-9]+){1,2}$",
         RegexOptions.CultureInvariant);
     private static readonly Regex LineageIdPattern = new(
         "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
@@ -554,15 +554,22 @@ internal sealed class PluginRepositoryClient : IDisposable
             new ProductInfoHeaderValue("NyaLauncher", SemanticVersion.LauncherVersion.ToString()));
     }
 
+    public Task<PluginRepositoryIndex> LoadIndexAsync(
+        CancellationToken cancellationToken = default) =>
+        LoadIndexAsync(PluginRepositorySources.Official, cancellationToken);
+
     public async Task<PluginRepositoryIndex> LoadIndexAsync(
+        PluginRepositorySource source,
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(source);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        var canonicalV2Uri = new Uri(IndexUrl);
         using var v2Response = await SendWithRedirectsAsync(
-            new Uri(IndexUrl),
-            IsAllowedIndexUri,
+            source.Resolve(canonicalV2Uri),
+            candidate => IsAllowedIndexUri(candidate, source, canonicalV2Uri),
             timeout.Token);
         if (v2Response.StatusCode != HttpStatusCode.NotFound)
         {
@@ -573,9 +580,10 @@ internal sealed class PluginRepositoryClient : IDisposable
         // A missing v2 endpoint means the registry has not deployed identity
         // generations yet. Do not downgrade on malformed/forbidden v2 data or
         // transient failures; only an explicit 404 may use the legacy contract.
+        var canonicalV1Uri = new Uri(LegacyIndexUrl);
         using var legacyResponse = await SendWithRedirectsAsync(
-            new Uri(LegacyIndexUrl),
-            IsAllowedIndexUri,
+            source.Resolve(canonicalV1Uri),
+            candidate => IsAllowedIndexUri(candidate, source, canonicalV1Uri),
             timeout.Token);
         legacyResponse.EnsureSuccessStatusCode();
         return await ReadIndexResponseAsync(legacyResponse, expectedSchemaVersion: 1, timeout.Token);
@@ -643,6 +651,7 @@ internal sealed class PluginRepositoryClient : IDisposable
         if (release.Compatibility.ManifestVersion != 1 ||
             string.IsNullOrWhiteSpace(release.Compatibility.ApiVersion) ||
             !ApiVersionPattern.IsMatch(release.Compatibility.ApiVersion) ||
+            !PluginCatalog.IsSupportedApiVersion(release.Compatibility.ApiVersion) ||
             !SemanticVersion.TryParse(
                 release.Compatibility.MinimumLauncherVersion,
                 out var minimum) ||
@@ -658,7 +667,22 @@ internal sealed class PluginRepositoryClient : IDisposable
                SemanticVersion.LauncherVersion.CompareTo(maximum) < 0;
     }
 
+    public Task DownloadPackageAsync(
+        RepositoryPlugin plugin,
+        RepositoryRelease release,
+        string destinationPath,
+        IProgress<RepositoryDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default) =>
+        DownloadPackageAsync(
+            PluginRepositorySources.Official,
+            plugin,
+            release,
+            destinationPath,
+            progress,
+            cancellationToken);
+
     public async Task DownloadPackageAsync(
+        PluginRepositorySource source,
         RepositoryPlugin plugin,
         RepositoryRelease release,
         string destinationPath,
@@ -666,6 +690,7 @@ internal sealed class PluginRepositoryClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(plugin);
         ArgumentNullException.ThrowIfNull(release);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
@@ -688,9 +713,10 @@ internal sealed class PluginRepositoryClient : IDisposable
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
         try
         {
+            var canonicalPackageUri = new Uri(release.Download.Url);
             using var response = await SendWithRedirectsAsync(
-                new Uri(release.Download.Url),
-                IsAllowedPackageUri,
+                source.Resolve(canonicalPackageUri),
+                candidate => IsAllowedPackageUri(candidate, source),
                 timeout.Token);
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength is long contentLength &&
@@ -700,7 +726,7 @@ internal sealed class PluginRepositoryClient : IDisposable
                     $"插件包长度与索引不一致（期望 {release.Download.Size}，实际 {contentLength}）。");
             }
 
-            await using var source = await response.Content.ReadAsStreamAsync(timeout.Token);
+            await using var responseStream = await response.Content.ReadAsStreamAsync(timeout.Token);
             await using var destination = new FileStream(
                 destinationPath,
                 FileMode.CreateNew,
@@ -714,7 +740,9 @@ internal sealed class PluginRepositoryClient : IDisposable
             try
             {
                 int read;
-                while ((read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), timeout.Token)) > 0)
+                while ((read = await responseStream.ReadAsync(
+                           buffer.AsMemory(0, buffer.Length),
+                           timeout.Token)) > 0)
                 {
                     total += read;
                     if (total > release.Download.Size || total > MaximumPackageBytes)
@@ -797,14 +825,24 @@ internal sealed class PluginRepositoryClient : IDisposable
         throw new HttpRequestException("插件下载重定向失败。");
     }
 
-    private static bool IsAllowedIndexUri(Uri uri) =>
+    private static bool IsAllowedIndexUri(
+        Uri uri,
+        PluginRepositorySource source,
+        Uri canonicalUri) =>
         IsSafeHttpsUri(uri) &&
-        string.Equals(uri.Host, "raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase);
+        (source.AllowsMirrorUri(uri) || SameRequestUri(uri, canonicalUri));
 
-    private static bool IsAllowedPackageUri(Uri uri) =>
+    private static bool IsAllowedPackageUri(Uri uri, PluginRepositorySource source) =>
         IsSafeHttpsUri(uri) &&
-        (string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+        (source.AllowsMirrorUri(uri) ||
+         string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
          uri.Host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase));
+
+    private static bool SameRequestUri(Uri left, Uri right) =>
+        string.Equals(
+            left.AbsoluteUri,
+            right.AbsoluteUri,
+            StringComparison.Ordinal);
 
     private static bool IsSafeHttpsUri(Uri uri) =>
         uri.IsAbsoluteUri &&

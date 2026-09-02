@@ -14,7 +14,8 @@ internal sealed partial class PluginManager
         RepositoryRelease release,
         IProgress<RepositoryDownloadProgress>? progress = null,
         CancellationToken cancellationToken = default,
-        string? confirmedDowngradeFromVersion = null)
+        string? confirmedDowngradeFromVersion = null,
+        PluginRepositorySource? source = null)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(repositoryClient);
@@ -161,6 +162,7 @@ internal sealed partial class PluginManager
                     existing?.PackageDirectory,
                     progress,
                     operationToken,
+                    source: source,
                     beforeCommit: () =>
                     {
                         _catalog.UpdateState(plugin.Id, entry =>

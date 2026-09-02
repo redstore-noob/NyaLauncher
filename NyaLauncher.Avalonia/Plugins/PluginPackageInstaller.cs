@@ -487,6 +487,7 @@ internal static class PluginPackageInstaller
         string? existingPackageDirectory,
         IProgress<RepositoryDownloadProgress>? progress,
         CancellationToken cancellationToken,
+        PluginRepositorySource? source = null,
         Action? beforeCommit = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
@@ -525,6 +526,7 @@ internal static class PluginPackageInstaller
             try
             {
                 await client.DownloadPackageAsync(
+                    source ?? PluginRepositorySources.Official,
                     plugin,
                     release,
                     archivePath,

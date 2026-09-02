@@ -22,7 +22,10 @@ public sealed record PluginManifest
     /// <summary>The plugin's semantic version.</summary>
     public required string Version { get; init; }
 
-    /// <summary>The SDK contract version requested by the plugin, for example <c>1.0</c>.</summary>
+    /// <summary>
+    /// The independent SDK contract requested by the plugin. The compatibility
+    /// default remains <c>1.0</c> (V1); plugins using V1.1 members set <c>1.1</c>.
+    /// </summary>
     public string ApiVersion { get; init; } = "1.0";
 
     public string? MinimumLauncherVersion { get; init; }
@@ -76,21 +79,31 @@ public static class PluginCapabilities
 
 /// <summary>
 /// 插件 SDK 的对外展示版本。机器可读的兼容性判定仍以 plugin.json 的
-/// <see cref="PluginManifest.ApiVersion"/> 主版本号为准（当前主版本 1）；
-/// 在同一主版本内，宿主对插件 API 保持向前兼容——旧插件在新宿主上原样可用，
-/// 插件作者无需为小的 API 增量重新编译或升级清单。
+/// <see cref="PluginManifest.ApiVersion"/> 为准；同一主版本内的新宿主兼容旧 minor，
+/// 但会拒绝自身尚未实现的未来 minor。旧插件在新宿主上原样可用，插件作者
+/// 无需仅因宿主应用版本更新而重新编译或升级清单。
 /// </summary>
 public static class PluginSdk
 {
-    /// <summary>当前插件 API 的展示版本号（同时显示在插件管理页）。</summary>
-    public const string ApiVersion = "v1-p2";
+    /// <summary>
+    /// 当前插件 API 的独立展示版本号（同时显示在插件管理页）。它不随
+    /// NyaLauncher 应用版本变化；只有公共插件契约发生增量时才递增。
+    /// </summary>
+    public const string ApiVersion = "V1.1";
 
     /// <summary>
-    /// 上一代插件 API 的展示版本号：<see cref="ApiVersion"/> 之前、未含
-    /// <see cref="IPluginNotifications"/> 通知服务的 API 集。v1-p2 = v1-p1 + 通知服务，
-    /// 无任何破坏性改动，v1-p1 插件无需重编译即可继续运行。
+    /// 上一代插件 API 的独立展示版本号：<see cref="ApiVersion"/> 之前、未含
+    /// <see cref="IPluginTheme"/> 与 <see cref="IPluginLogger"/> 服务的 API 集。
+    /// V1.1 只新增可选服务并保留程序集版本 1.0.0.0；V1 插件
+    /// 无需重编译即可继续运行。
     /// </summary>
-    public const string PreviousApiVersion = "v1-p1";
+    public const string PreviousApiVersion = "V1";
+
+    /// <summary>新插件使用 V1.1 新成员时写入 plugin.json 的机器版本。</summary>
+    public const string ManifestApiVersion = "1.1";
+
+    /// <summary>只使用原始 V1 契约的 plugin.json 机器版本。</summary>
+    public const string PreviousManifestApiVersion = "1.0";
 }
 
 /// <summary>The single executable entry point declared by a plugin manifest.</summary>

@@ -63,6 +63,33 @@ public class LogsWrite
     }
 
     /// <summary>
+    /// Writes through the process-wide launcher log without constructing another
+    /// logger instance. Host bridges such as the plugin logger use this entry so
+    /// they share the same file and console mirror without emitting extra INIT rows.
+    /// </summary>
+    public static bool Write(string info, string type = "INFO")
+    {
+        try
+        {
+            var normalizedType = string.IsNullOrWhiteSpace(type) ? "INFO" : type.Trim();
+            var normalizedInfo = info ?? string.Empty;
+            lock (WriteLock)
+            {
+                var entry = $"[{TimeGet()}][{normalizedType}]{normalizedInfo}";
+                File.AppendAllText(EnsureSharedFilePath(), entry + Environment.NewLine);
+                Console.WriteLine(entry);
+            }
+
+            return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 创建一条新的日志.
     /// </summary>
     /// <param name="info">需要在日志中显示的具体信息.</param>

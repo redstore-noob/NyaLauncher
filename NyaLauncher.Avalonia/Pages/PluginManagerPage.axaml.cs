@@ -73,6 +73,9 @@ public partial class PluginManagerPage : UserControl
         ApplyCatalog(_pluginManager.Current);
     }
 
+    internal void ReloadRepositorySourceSettings() =>
+        RepositoryView.ReloadRepositorySourceSettings();
+
     public void Activate()
     {
         if (_pluginManager is null)

@@ -51,7 +51,7 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="26,22">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="26,22">
     <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,14">
       <Button Content="← 返回插件列表"
               Padding="14,8"
@@ -67,7 +67,7 @@
                    Foreground="{DynamicResource MutedTextBrush}" />
       </StackPanel>
       <Button Grid.Column="2"
-              Content="打开 GitHub 仓库"
+              Content="打开官方仓库"
               Margin="12,0,0,0"
               Padding="14,8"
               VerticalAlignment="Center"
@@ -82,6 +82,60 @@
     </Grid>
 
     <Border Grid.Row="1"
+            Background="{DynamicResource SurfaceBgBrush}"
+            BorderBrush="{DynamicResource DefaultBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            Padding="12,9"
+            Margin="0,0,0,10">
+      <Grid ColumnDefinitions="Auto,260,*,Auto,Auto" ColumnSpacing="10">
+        <TextBlock Text="镜像线路"
+                   VerticalAlignment="Center"
+                   FontSize="11"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource BodyTextBrush}" />
+        <ComboBox x:Name="RepositorySourceComboBox"
+                  Grid.Column="1"
+                  MinWidth="220"
+                  SelectionChanged="OnRepositorySourceSelectionChanged">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock Text="{Binding Name}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding KindLabel}"
+                           FontSize="9"
+                           Foreground="{DynamicResource MutedTextBrush}" />
+              </Grid>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="1">
+          <TextBlock x:Name="RepositorySourceDescriptionText"
+                     FontSize="10"
+                     Foreground="{DynamicResource SecondaryTextBrush}"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock x:Name="RepositorySourceRouteText"
+                     FontSize="9"
+                     Foreground="{DynamicResource MutedTextBrush}"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button x:Name="AddRepositorySourceButton"
+                Grid.Column="3"
+                Content="添加自定义源"
+                Padding="12,7"
+                Click="OnAddRepositorySourceClick" />
+        <Button x:Name="RemoveRepositorySourceButton"
+                Grid.Column="4"
+                Content="删除"
+                IsVisible="False"
+                Padding="12,7"
+                Click="OnRemoveRepositorySourceClick" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="2"
             Background="{DynamicResource DialogAltBgBrush}"
             BorderBrush="{DynamicResource WarningBrush}"
             BorderThickness="1"
@@ -93,14 +147,14 @@
                    FontWeight="Bold"
                    Foreground="{DynamicResource WarningBrush}" />
         <TextBlock Grid.Column="1"
-                   Text="收录和版本审核均不等同于安全保证。安装前请核对来源与能力；下载时会校验固定大小与 SHA-256。"
+                   Text="插件收录与版本审核不等同于安全保证。官方直连以外的线路均为第三方服务，可能读取或替换索引与下载内容；仅使用你信任的镜像。固定大小与 SHA-256 校验仍会执行，但不能证明插件或镜像本身可信。"
                    FontSize="10"
                    Foreground="{DynamicResource WarningBrush}"
                    TextWrapping="Wrap" />
       </Grid>
     </Border>
 
-    <Grid Grid.Row="2" ColumnDefinitions="330,16,*">
+    <Grid Grid.Row="3" ColumnDefinitions="330,16,*">
       <Border Background="{DynamicResource PanelBgBrush}"
               BorderBrush="{DynamicResource DefaultBorderBrush}"
               BorderThickness="1"
@@ -520,7 +574,7 @@
       </Border>
     </Grid>
 
-    <Border Grid.Row="3"
+    <Border Grid.Row="4"
             Background="{DynamicResource SurfaceBgBrush}"
             BorderBrush="{DynamicResource SubtleBorderBrush}"
             BorderThickness="1"

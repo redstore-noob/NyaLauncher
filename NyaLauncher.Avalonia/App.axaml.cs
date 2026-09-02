@@ -20,17 +20,14 @@ public partial class App : Application
         // 1. 读取用户选择的主题风格和明暗模式（主题家族与明暗模式完全解耦；
         //    「跟随系统」模式在此解析为操作系统当前的具体明暗）
         var themeFamily = ThemeSettings.LoadThemeFamily();
-        var themeMode = ThemeSettings.ResolveThemeMode();
+        var themeMode = ThemeSettings.LoadThemeMode();
 
         System.Diagnostics.Debug.WriteLine($"[App] themeFamily={themeFamily}, themeMode={themeMode}");
 
-        // 2. 设置全局明暗模式（Material 基础控件跟随 RequestedThemeVariant）
-        System.Diagnostics.Debug.WriteLine($"[App] Setting RequestedThemeVariant={themeMode}");
-        RequestedThemeVariant = themeMode == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
-
-        // 3. 从家族资源文件中加载当前明暗变体到 Application.Current.Resources
+        // 2. 通过唯一入口设置明暗、资源与插件主题快照。必须保留原始
+        //    "System" 偏好，ThemeManager 才会安装系统主题变化监听。
         System.Diagnostics.Debug.WriteLine($"[App] Applying family={themeFamily}, mode={themeMode}");
-        StyleAlter.ApplyTheme(themeFamily, themeMode);
+        ThemeManager.ApplyTheme(themeFamily, themeMode);
         System.Diagnostics.Debug.WriteLine($"[App] Theme applied");
     }
 
@@ -43,9 +40,9 @@ public partial class App : Application
             // （Initialize 中已调用一次，此处幂等重复，保证时序）
             try
             {
-                StyleAlter.ApplyTheme(
+                ThemeManager.ApplyTheme(
                     ThemeSettings.LoadThemeFamily(),
-                    ThemeSettings.ResolveThemeMode());
+                    ThemeSettings.LoadThemeMode());
             }
             catch (Exception ex)
             {

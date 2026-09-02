@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using NyaLauncher.Avalonia.Framework;
 using NyaLauncher.Avalonia.Plugins;
 using NyaLauncher.Avalonia.Themes;
 
@@ -32,6 +33,8 @@ public partial class PluginRepositoryView : UserControl
 
     private PluginManager? _pluginManager;
     private PluginRepositoryClient? _repositoryClient;
+    private PluginRepositorySourceConfiguration _sourceConfiguration = new();
+    private PluginRepositorySource? _loadedSource;
     private PluginRepositoryIndex? _index;
     private IReadOnlyList<RepositoryListItem> _allItems = [];
     private string? _selectedPluginId;
@@ -43,9 +46,15 @@ public partial class PluginRepositoryView : UserControl
     private bool _confirmingInstall;
     private bool _synchronizingSelection;
     private bool _synchronizingVersionSelection;
+    private bool _synchronizingSourceSelection;
     private bool _managerEventsAttached;
+    private bool _themeEventsAttached;
+    private bool _pendingRepositoryReload;
+    private long _repositoryLoadGeneration;
     private CancellationTokenSource _lifetimeCancellation = new();
+    private CancellationTokenSource? _repositoryLoadCancellation;
     private CancellationTokenSource? _installCancellation;
+    private PluginRepositorySource? _loadingSource;
 
     /// <summary>宿主页面订阅以切回插件列表视图。</summary>
     public event EventHandler? BackRequested;
@@ -55,7 +64,6 @@ public partial class PluginRepositoryView : UserControl
         InitializeComponent();
         AttachedToVisualTree += OnAttachedToVisualTree;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
-        ThemeManager.ThemeChanged += OnThemeChanged;
         ApplyFilter();
     }
 
@@ -65,6 +73,7 @@ public partial class PluginRepositoryView : UserControl
         _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
         _repositoryClient = repositoryClient ??
                             throw new ArgumentNullException(nameof(repositoryClient));
+        ReloadRepositorySourceSettings();
         if (_managerEventsAttached)
             return;
 
@@ -85,19 +94,375 @@ public partial class PluginRepositoryView : UserControl
 
     internal void HideRepository() => IsVisible = false;
 
+    internal void ReloadRepositorySourceSettings()
+    {
+        var previousSource = _sourceConfiguration.ActiveSource;
+        _sourceConfiguration = PluginRepositorySourceStore.Load(out var warning);
+        PopulateRepositorySourceChoices(_sourceConfiguration.ActiveSourceId);
+        var activeSource = _sourceConfiguration.ActiveSource;
+        if (previousSource != activeSource ||
+            (_loadedSource is not null && _loadedSource != activeSource) ||
+            (_loadingSource is not null && _loadingSource != activeSource))
+        {
+            Interlocked.Increment(ref _repositoryLoadGeneration);
+            _repositoryLoadCancellation?.Cancel();
+            ClearRepositoryResults();
+            _repositoryRequested = false;
+            _pendingRepositoryReload = IsVisible;
+        }
+        if (!string.IsNullOrWhiteSpace(warning))
+            RepositoryStatusText.Text = warning;
+        TryStartPendingRepositoryReload();
+    }
+
+    private void TryStartPendingRepositoryReload()
+    {
+        if (!_pendingRepositoryReload || !IsVisible || _repositoryClient is null ||
+            _loading || _installing || _confirmingInstall)
+        {
+            return;
+        }
+
+        _pendingRepositoryReload = false;
+        _repositoryRequested = true;
+        _ = LoadRepositoryAsync(clearPrevious: true);
+    }
+
+    private void PopulateRepositorySourceChoices(string selectedSourceId)
+    {
+        _synchronizingSourceSelection = true;
+        try
+        {
+            var items = _sourceConfiguration.AllSources
+                .Select(source => new RepositorySourceListItem(source))
+                .ToArray();
+            RepositorySourceComboBox.ItemsSource = items;
+            RepositorySourceComboBox.SelectedItem = items.FirstOrDefault(item => string.Equals(
+                item.Source.Id,
+                selectedSourceId,
+                StringComparison.OrdinalIgnoreCase)) ?? items[0];
+        }
+        finally
+        {
+            _synchronizingSourceSelection = false;
+        }
+        UpdateRepositorySourceSummary();
+    }
+
+    private PluginRepositorySource? GetSelectedRepositorySource() =>
+        (RepositorySourceComboBox.SelectedItem as RepositorySourceListItem)?.Source;
+
+    private void UpdateRepositorySourceSummary()
+    {
+        var source = GetSelectedRepositorySource() ?? _sourceConfiguration.ActiveSource;
+        RepositorySourceDescriptionText.Text = source.Description;
+        RepositorySourceRouteText.Text = source.RouteLabel;
+        ToolTip.SetTip(RepositorySourceRouteText, source.RouteLabel);
+        RemoveRepositorySourceButton.IsVisible = !source.IsBuiltIn;
+        RemoveRepositorySourceButton.IsEnabled = !source.IsBuiltIn && !_loading && !_installing;
+    }
+
+    private void SetRepositorySourceControlsEnabled(bool enabled)
+    {
+        RepositorySourceComboBox.IsEnabled = enabled;
+        AddRepositorySourceButton.IsEnabled = enabled;
+        RemoveRepositorySourceButton.IsEnabled =
+            enabled && GetSelectedRepositorySource() is { IsBuiltIn: false };
+    }
+
+    private void ClearRepositoryResults()
+    {
+        _index = null;
+        _loadedSource = null;
+        _allItems = [];
+        _selectedPluginId = null;
+        _selectedReleaseVersion = null;
+        _repositoryLoadFailed = false;
+        ApplyFilter();
+    }
+
+    private async void OnRepositorySourceSelectionChanged(
+        object? sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_synchronizingSourceSelection ||
+            _loading ||
+            _installing ||
+            GetSelectedRepositorySource() is not { } source ||
+            string.Equals(
+                source.Id,
+                _sourceConfiguration.ActiveSourceId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateRepositorySourceSummary();
+            return;
+        }
+
+        var previousSourceId = _sourceConfiguration.ActiveSourceId;
+        var updated = _sourceConfiguration.WithActive(source.Id);
+        if (!PluginRepositorySourceStore.Save(updated, out var error))
+        {
+            RepositoryStatusText.Text = $"镜像线路切换未保存：{error}";
+            PopulateRepositorySourceChoices(previousSourceId);
+            return;
+        }
+
+        _sourceConfiguration = updated;
+        UpdateRepositorySourceSummary();
+        RepositoryStatusText.Text = $"已切换到 {source.Name}，正在重新读取索引…";
+        await LoadRepositoryAsync(clearPrevious: true);
+    }
+
+    private async void OnAddRepositorySourceClick(object? sender, RoutedEventArgs e)
+    {
+        if (_loading || _installing ||
+            _sourceConfiguration.CustomSources.Count >=
+            PluginRepositorySources.MaximumCustomSourceCount)
+        {
+            RepositoryStatusText.Text =
+                $"最多可添加 {PluginRepositorySources.MaximumCustomSourceCount} 个自定义镜像源。";
+            return;
+        }
+
+        var source = await ShowAddRepositorySourceDialogAsync();
+        if (source is null)
+            return;
+        if (_sourceConfiguration.AllSources.Any(existing =>
+                string.Equals(existing.Name, source.Name, StringComparison.OrdinalIgnoreCase) ||
+                existing.MirrorBaseUri is not null &&
+                string.Equals(
+                    existing.MirrorBaseUri.AbsoluteUri,
+                    source.MirrorBaseUri!.AbsoluteUri,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            RepositoryStatusText.Text = "已有同名或相同地址的镜像源。";
+            return;
+        }
+
+        var updated = new PluginRepositorySourceConfiguration
+        {
+            ActiveSourceId = source.Id,
+            CustomSources = [.. _sourceConfiguration.CustomSources, source]
+        };
+        if (!PluginRepositorySourceStore.Save(updated, out var error))
+        {
+            RepositoryStatusText.Text = $"自定义镜像源未保存：{error}";
+            return;
+        }
+
+        _sourceConfiguration = updated;
+        PopulateRepositorySourceChoices(source.Id);
+        RepositoryStatusText.Text = $"已添加并切换到 {source.Name}，正在读取索引…";
+        await LoadRepositoryAsync(clearPrevious: true);
+    }
+
+    private async void OnRemoveRepositorySourceClick(object? sender, RoutedEventArgs e)
+    {
+        if (_loading ||
+            _installing ||
+            GetSelectedRepositorySource() is not { IsBuiltIn: false } source)
+        {
+            return;
+        }
+
+        SetRepositorySourceControlsEnabled(false);
+        bool confirmed;
+        try
+        {
+            confirmed = await NyaPrompt.ConfirmAsync(
+                "删除自定义镜像源",
+                $"确定删除“{source.Name}”吗？删除后将切回 GitHub 官方直连。",
+                confirm: "删除",
+                cancel: "取消");
+        }
+        finally
+        {
+            SetRepositorySourceControlsEnabled(true);
+        }
+        if (!confirmed)
+            return;
+
+        var updated = new PluginRepositorySourceConfiguration
+        {
+            ActiveSourceId = PluginRepositorySources.Official.Id,
+            CustomSources = _sourceConfiguration.CustomSources
+                .Where(item => !string.Equals(
+                    item.Id,
+                    source.Id,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToArray()
+        };
+        if (!PluginRepositorySourceStore.Save(updated, out var error))
+        {
+            RepositoryStatusText.Text = $"自定义镜像源未删除：{error}";
+            return;
+        }
+
+        _sourceConfiguration = updated;
+        PopulateRepositorySourceChoices(PluginRepositorySources.Official.Id);
+        RepositoryStatusText.Text = $"已删除 {source.Name}，正在通过 GitHub 官方直连读取索引…";
+        await LoadRepositoryAsync(clearPrevious: true);
+    }
+
+    private async Task<PluginRepositorySource?> ShowAddRepositorySourceDialogAsync()
+    {
+        var nameBox = new TextBox
+        {
+            PlaceholderText = "例如：我的 GitHub 镜像",
+            MaxLength = PluginRepositorySources.MaximumSourceNameLength
+        };
+        var urlBox = new TextBox
+        {
+            PlaceholderText = "https://mirror.example.com/",
+            MaxLength = PluginRepositorySources.MaximumMirrorBaseUrlLength
+        };
+        var validationText = new TextBlock
+        {
+            Foreground = ErrorForeground,
+            FontSize = 10,
+            TextWrapping = TextWrapping.Wrap,
+            IsVisible = false
+        };
+        var cancelButton = new Button
+        {
+            Content = "取消",
+            MinWidth = 88,
+            Padding = new Thickness(14, 7)
+        };
+        var addButton = new Button
+        {
+            Content = "添加并使用",
+            MinWidth = 112,
+            Padding = new Thickness(14, 7),
+            Background = ThemeBrushes.AccentDark,
+            Foreground = ThemeBrushes.White
+        };
+        var dialog = new Window
+        {
+            Title = "添加自定义 GitHub 镜像源",
+            Width = 620,
+            MinWidth = 500,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = ThemeBrushes.DialogBackground,
+            Content = new Border
+            {
+                Padding = new Thickness(22),
+                Child = new StackPanel
+                {
+                    Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "自定义镜像线路",
+                            FontSize = 18,
+                            FontWeight = FontWeight.SemiBold,
+                            Foreground = ThemeBrushes.PrimaryText
+                        },
+                        new TextBlock
+                        {
+                            Text = "名称",
+                            Foreground = ThemeBrushes.SecondaryText
+                        },
+                        nameBox,
+                        new TextBlock
+                        {
+                            Text = "HTTPS 前缀",
+                            Foreground = ThemeBrushes.SecondaryText
+                        },
+                        urlBox,
+                        new TextBlock
+                        {
+                            Text =
+                                "填写可在前缀后直接拼接完整 GitHub URL 的地址，例如：\n" +
+                                "https://mirror.example.com/https://github.com/owner/repo/releases/download/…",
+                            FontSize = 10,
+                            Foreground = ThemeBrushes.TertiaryText,
+                            TextWrapping = TextWrapping.Wrap
+                        },
+                        new Border
+                        {
+                            Background = WarningBackground,
+                            CornerRadius = new CornerRadius(8),
+                            Padding = new Thickness(11),
+                            Child = new TextBlock
+                            {
+                                Text = "不要填写密码或令牌。自定义镜像可看到并替换索引与下载内容，请仅使用可信服务。",
+                                Foreground = WarningForeground,
+                                FontSize = 10,
+                                TextWrapping = TextWrapping.Wrap
+                            }
+                        },
+                        validationText,
+                        new StackPanel
+                        {
+                            Orientation = Orientation.Horizontal,
+                            HorizontalAlignment = HorizontalAlignment.Right,
+                            Spacing = 8,
+                            Children = { cancelButton, addButton }
+                        }
+                    }
+                }
+            }
+        };
+        cancelButton.Click += (_, _) => dialog.Close(null);
+        addButton.Click += (_, _) =>
+        {
+            if (!PluginRepositorySources.TryCreateCustom(
+                    nameBox.Text,
+                    urlBox.Text,
+                    out var source,
+                    out var error))
+            {
+                validationText.Text = error;
+                validationText.IsVisible = true;
+                return;
+            }
+            if (_sourceConfiguration.AllSources.Any(existing =>
+                    string.Equals(existing.Name, source.Name, StringComparison.OrdinalIgnoreCase) ||
+                    existing.MirrorBaseUri is not null &&
+                    string.Equals(
+                        existing.MirrorBaseUri.AbsoluteUri,
+                        source.MirrorBaseUri!.AbsoluteUri,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                validationText.Text = "已有同名或相同地址的镜像源。";
+                validationText.IsVisible = true;
+                return;
+            }
+            dialog.Close(source);
+        };
+        return await dialog.ShowDialog<PluginRepositorySource?>(RequireOwnerWindow());
+    }
+
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        // 吸取 DockWorkspace 教训：重新挂回可视化树时必须重订阅主题事件
-        ThemeManager.ThemeChanged += OnThemeChanged;
+        // 根主题热重载会 detach/attach 本视图。严格保持一次静态事件订阅，
+        // 否则构造期 + 首次挂载会留下无法解除的重复订阅并永久钉住视图。
+        if (!_themeEventsAttached)
+        {
+            ThemeManager.ThemeChanged += OnThemeChanged;
+            _themeEventsAttached = true;
+        }
     }
 
     private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         _installCancellation?.Cancel();
+        _pendingRepositoryReload = false;
+        Interlocked.Increment(ref _repositoryLoadGeneration);
+        _repositoryLoadCancellation?.Cancel();
         _lifetimeCancellation.Cancel();
         _lifetimeCancellation.Dispose();
         _lifetimeCancellation = new CancellationTokenSource();
-        ThemeManager.ThemeChanged -= OnThemeChanged;
+        if (_themeEventsAttached)
+        {
+            ThemeManager.ThemeChanged -= OnThemeChanged;
+            _themeEventsAttached = false;
+        }
         if (_pluginManager is not null && _managerEventsAttached)
         {
             _pluginManager.Changed -= OnInstalledCatalogChanged;
@@ -117,46 +482,76 @@ public partial class PluginRepositoryView : UserControl
             RebuildItems();
     }
 
-    private async Task LoadRepositoryAsync()
+    private async Task LoadRepositoryAsync(bool clearPrevious = false)
     {
-        if (_loading || _repositoryClient is null)
+        if (_loading || _installing || _confirmingInstall || _repositoryClient is null)
             return;
 
+        _pendingRepositoryReload = false;
+        var source = GetSelectedRepositorySource() ?? _sourceConfiguration.ActiveSource;
+        if (clearPrevious)
+            ClearRepositoryResults();
+        var generation = Interlocked.Increment(ref _repositoryLoadGeneration);
+        var loadCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetimeCancellation.Token);
+        _repositoryLoadCancellation = loadCancellation;
+        _loadingSource = source;
         _loading = true;
         var initialLoad = _index is null && _allItems.Count == 0;
         RepositoryLoadingOverlay.IsVisible = initialLoad;
-        RepositoryLoadingText.Text = initialLoad ? "正在读取远程索引…" : "正在刷新远程索引…";
+        RepositoryLoadingText.Text = initialLoad
+            ? $"正在通过 {source.Name} 读取远程索引…"
+            : $"正在通过 {source.Name} 刷新远程索引…";
         RefreshRepositoryButton.IsEnabled = false;
         RefreshRepositoryButton.Content = "刷新中…";
+        InstallPluginButton.IsEnabled = false;
+        SetRepositorySourceControlsEnabled(false);
         EmptyRepositoryActionButton.IsVisible = false;
-        RepositoryStatusText.Text = "正在读取 NyaLauncher-Plugins 远程索引…";
+        RepositoryStatusText.Text = $"正在通过 {source.Name} 读取 NyaLauncher-Plugins 远程索引…";
         try
         {
-            _index = await _repositoryClient.LoadIndexAsync(_lifetimeCancellation.Token);
+            var loadedIndex = await _repositoryClient.LoadIndexAsync(
+                source,
+                loadCancellation.Token);
+            if (generation != Volatile.Read(ref _repositoryLoadGeneration))
+                return;
+            _index = loadedIndex;
+            _loadedSource = source;
             _repositoryLoadFailed = false;
             RebuildItems();
             RepositoryStatusText.Text =
-                $"已从在线仓库读取 {_index.Plugins.Count} 个插件条目，" +
+                $"已通过 {source.Name} 读取 {_index.Plugins.Count} 个插件条目，" +
                 $"当前显示 {_allItems.Count} 个；已隐藏的撤回插件仅对已安装用户显示。";
         }
         catch (OperationCanceledException)
         {
-            RepositoryStatusText.Text = "在线仓库请求已取消。";
+            if (generation == Volatile.Read(ref _repositoryLoadGeneration))
+                RepositoryStatusText.Text = "在线仓库请求已取消。";
         }
         catch (Exception exception)
         {
+            if (generation != Volatile.Read(ref _repositoryLoadGeneration))
+                return;
             _repositoryLoadFailed = true;
-            RepositoryStatusText.Text = $"在线仓库读取失败：{exception.Message}";
+            RepositoryStatusText.Text = $"通过 {source.Name} 读取在线仓库失败：{exception.Message}";
             EmptyRepositoryTitle.Text = "无法读取在线仓库";
-            EmptyRepositoryHint.Text = "请检查网络连接，然后重试；已读取的列表不会被清空。";
+            EmptyRepositoryHint.Text = clearPrevious
+                ? "请检查此镜像线路，或切换其他线路后重试。"
+                : "请检查网络连接，然后重试；已读取的列表不会被清空。";
         }
         finally
         {
+            if (ReferenceEquals(_repositoryLoadCancellation, loadCancellation))
+                _repositoryLoadCancellation = null;
+            loadCancellation.Dispose();
+            _loadingSource = null;
             _loading = false;
             RepositoryLoadingOverlay.IsVisible = false;
             RefreshRepositoryButton.IsEnabled = true;
             RefreshRepositoryButton.Content = "刷新索引";
+            SetRepositorySourceControlsEnabled(!_installing);
             ApplyFilter();
+            TryStartPendingRepositoryReload();
         }
     }
 
@@ -516,10 +911,12 @@ public partial class PluginRepositoryView : UserControl
 
     private async void OnInstallPluginClick(object? sender, RoutedEventArgs e)
     {
-        if (_installing ||
+        if (_loading ||
+            _installing ||
             _confirmingInstall ||
             _pluginManager is null ||
             _repositoryClient is null ||
+            _loadedSource is null ||
             RepositoryPluginList.SelectedItem is not RepositoryListItem
             {
                 CanInstall: true,
@@ -528,6 +925,11 @@ public partial class PluginRepositoryView : UserControl
         {
             return;
         }
+
+        // Keep the exact source and release that the user is confirming. A
+        // configuration reload during a modal must not silently change route.
+        var installSource = _loadedSource;
+        var installRelease = item.Release;
 
         if (item.IsDowngrade)
         {
@@ -545,6 +947,7 @@ public partial class PluginRepositoryView : UserControl
                 InstallPluginButton.IsEnabled = item.CanInstall && !_installing;
                 RepositoryVersionComboBox.IsEnabled = !_installing &&
                                                        item.VersionChoices.Count > 0;
+                TryStartPendingRepositoryReload();
             }
 
             if (!confirmed)
@@ -571,6 +974,7 @@ public partial class PluginRepositoryView : UserControl
                 InstallPluginButton.IsEnabled = item.CanInstall && !_installing;
                 RepositoryVersionComboBox.IsEnabled = !_installing &&
                                                        item.VersionChoices.Count > 0;
+                TryStartPendingRepositoryReload();
             }
 
             if (!confirmed)
@@ -579,6 +983,16 @@ public partial class PluginRepositoryView : UserControl
                     $"已取消安装 {item.Plugin.Name}；未开始下载插件包。";
                 return;
             }
+        }
+
+        if (_loading ||
+            _loadedSource != installSource ||
+            installSource != _sourceConfiguration.ActiveSource ||
+            !ReferenceEquals(RepositoryPluginList.SelectedItem, item) ||
+            !ReferenceEquals(item.Release, installRelease))
+        {
+            RepositoryStatusText.Text = "仓库内容、镜像线路或所选版本已变化，请重新选择并确认安装。";
+            return;
         }
 
         _installing = true;
@@ -594,15 +1008,18 @@ public partial class PluginRepositoryView : UserControl
         RefreshRepositoryButton.IsEnabled = false;
         SetBrowsingEnabled(false);
         InstallSelectionText.Text = $"正在安装 {item.Plugin.Name} · {item.Release.Version}";
-        InstallHintText.Text = "正在下载并校验固定 Release 包，离开页面不会中断下载。";
-        RepositoryStatusText.Text = $"正在下载 {item.Plugin.Name} {item.Release.Version}…";
+        InstallHintText.Text =
+            $"正在通过 {installSource.Name} 下载并校验固定 Release 包，离开页面不会中断下载。";
+        RepositoryStatusText.Text =
+            $"正在通过 {installSource.Name} 下载 {item.Plugin.Name} {item.Release.Version}…";
         var progress = new Progress<RepositoryDownloadProgress>(value =>
         {
             InstallProgressBar.Value = value.TotalBytes == 0
                 ? 0
                 : Math.Clamp((double)value.BytesReceived / value.TotalBytes, 0, 1);
             RepositoryStatusText.Text =
-                $"正在下载 {item.Plugin.Name}：{FormatBytes(value.BytesReceived)} / " +
+                $"正在通过 {installSource.Name} 下载 {item.Plugin.Name}：" +
+                $"{FormatBytes(value.BytesReceived)} / " +
                 FormatBytes(value.TotalBytes);
             InstallHintText.Text =
                 $"已下载 {FormatBytes(value.BytesReceived)} / {FormatBytes(value.TotalBytes)}";
@@ -617,7 +1034,8 @@ public partial class PluginRepositoryView : UserControl
                 _installCancellation.Token,
                 confirmedDowngradeFromVersion: item.IsDowngrade
                     ? item.Installed?.Version
-                    : null);
+                    : null,
+                source: installSource);
             RepositoryStatusText.Text = result.Message;
         }
         catch (OperationCanceledException)
@@ -638,6 +1056,7 @@ public partial class PluginRepositoryView : UserControl
             RefreshRepositoryButton.IsEnabled = true;
             SetBrowsingEnabled(true);
             RebuildItems();
+            TryStartPendingRepositoryReload();
         }
     }
 
@@ -647,6 +1066,7 @@ public partial class PluginRepositoryView : UserControl
         RepositorySearchBox.IsEnabled = enabled;
         RepositoryClearSearchButton.IsEnabled = enabled;
         RepositoryStateFilter.IsEnabled = enabled;
+        SetRepositorySourceControlsEnabled(enabled);
     }
 
     private Window? FindOwnerWindow() => TopLevel.GetTopLevel(this) as Window;
@@ -915,6 +1335,17 @@ public partial class PluginRepositoryView : UserControl
             unit++;
         }
         return $"{size:0.##} {units[unit]}";
+    }
+
+    private sealed record RepositorySourceListItem(PluginRepositorySource Source)
+    {
+        public string Name => Source.Name;
+
+        public string KindLabel => Source.IsDirect
+            ? "官方"
+            : Source.IsBuiltIn
+                ? "内置 · 第三方"
+                : "自定义";
     }
 
     private sealed class RepositoryVersionChoice

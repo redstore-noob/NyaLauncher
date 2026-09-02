@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using NyaLauncher.Plugin.Abstractions.Plugins;
 
 namespace NyaLauncher.Avalonia.Themes;
 
@@ -21,8 +24,15 @@ namespace NyaLauncher.Avalonia.Themes;
 /// </summary>
 public static class ThemeManager
 {
+    private static long _pluginThemeRevision;
+    private static PluginThemeSnapshot _currentPluginTheme = PluginThemeSnapshot.Default;
+
     /// <summary>主题已切换，宿主应刷新整个界面。</summary>
     public static event Action? ThemeChanged;
+
+    /// <summary>供插件运行时桥接层读取的线程安全、框架无关主题快照。</summary>
+    internal static PluginThemeSnapshot CurrentPluginTheme =>
+        Volatile.Read(ref _currentPluginTheme);
 
     /// <summary>
     /// 热应用主题。设置标准控件明暗 + 更新资源字典 + 广播刷新。
@@ -34,6 +44,8 @@ public static class ThemeManager
         var app = Application.Current;
         if (app is null)
             return;
+
+        var preference = ParsePreference(themeMode);
 
         // 0. 跟随系统：把 System 解析为具体明暗
         if (string.Equals(themeMode, "System", StringComparison.OrdinalIgnoreCase))
@@ -49,8 +61,79 @@ public static class ThemeManager
         // 2. 主题资源字典（家族资源文件的明暗变体条目复制到 Application.Resources）
         StyleAlter.ApplyTheme(themeFamily, themeMode);
 
-        // 3. 广播热重载
+        // 3. 在广播前发布不可变语义色快照。插件事件桥接只读取该快照，
+        //    不会从后台线程触碰 Avalonia Application.Resources。
+        Volatile.Write(
+            ref _currentPluginTheme,
+            CreatePluginThemeSnapshot(app, themeFamily, preference, mode));
+
+        // 4. 广播热重载
         ThemeChanged?.Invoke();
+    }
+
+    private static PluginThemePreference ParsePreference(string mode) =>
+        mode switch
+        {
+            { } value when value.Equals("Light", StringComparison.OrdinalIgnoreCase) =>
+                PluginThemePreference.Light,
+            { } value when value.Equals("System", StringComparison.OrdinalIgnoreCase) =>
+                PluginThemePreference.System,
+            _ => PluginThemePreference.Dark
+        };
+
+    private static PluginThemeSnapshot CreatePluginThemeSnapshot(
+        Application app,
+        string themeFamily,
+        PluginThemePreference preference,
+        ThemeVariant mode) => new()
+        {
+            Revision = Interlocked.Increment(ref _pluginThemeRevision),
+            Family = string.IsNullOrWhiteSpace(themeFamily)
+                ? "HatsuneMiku"
+                : themeFamily.Trim(),
+            Preference = preference,
+            EffectiveMode = mode == ThemeVariant.Light
+                ? PluginThemeMode.Light
+                : PluginThemeMode.Dark,
+            Palette = new PluginThemePalette
+            {
+                Accent = ReadColor(app, "AccentColor", 0xFF3EC9A0),
+                AccentText = ReadColor(app, "AccentTextColor", 0xFF3EC9A0),
+                WindowBackground = ReadColor(app, "WindowBgColor", 0xFF101914),
+                SurfaceBackground = ReadColor(app, "SurfaceBgColor", 0xFF192520),
+                CardBackground = ReadColor(app, "CardBgColor", 0xFF1B2822),
+                ControlBackground = ReadColor(app, "ControlBgColor", 0xFF1E2E27),
+                PrimaryText = ReadColor(app, "PrimaryTextColor", 0xFFF0F7F4),
+                SecondaryText = ReadColor(app, "SecondaryTextColor", 0xFFE0ECE6),
+                Border = ReadColor(app, "DefaultBorderColor", 0xFF203028),
+                Success = ReadColor(app, "SuccessColor", 0xFF3EC97A),
+                Warning = ReadColor(app, "WarningColor", 0xFFF0A83C),
+                Error = ReadColor(app, "ErrorColor", 0xFFF05B5B),
+                Info = ReadColor(app, "InfoColor", 0xFF3C9CF0)
+            }
+        };
+
+    private static PluginThemeColor ReadColor(
+        Application app,
+        string key,
+        uint fallback)
+    {
+        if (app.Resources.TryGetValue(key, out var value))
+        {
+            if (value is Color color)
+                return new PluginThemeColor(color.A, color.R, color.G, color.B);
+            if (value is ISolidColorBrush brush)
+            {
+                var brushColor = brush.Color;
+                return new PluginThemeColor(
+                    brushColor.A,
+                    brushColor.R,
+                    brushColor.G,
+                    brushColor.B);
+            }
+        }
+
+        return PluginThemeColor.FromArgb(fallback);
     }
 
     private static bool _systemThemeHooked;

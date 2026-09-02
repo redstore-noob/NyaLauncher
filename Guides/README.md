@@ -16,6 +16,7 @@
 | 05 | [插件与功能区开发](05-plugin-development.md) | 功能区注册、工作区停靠与侧栏、用户个性化、持久化、跨平台发布 | **插件作者** |
 | 06 | [多边形组件开发](06-polygon-components.md) | 与 UI 框架无关的组件契约、Builder API、状态快照、生命周期、校验规则 | **插件作者** |
 | 07 | [通知框架 NyaNotice](07-notifications.md) | 警示条 `NyaAlert` 与弹窗 `NyaPrompt` 的完整 API | 插件作者 / UI 贡献者 |
+| 08 | [Plugin API V1.1 Bug 修复日志](08-plugin-api-v1.1-bugfixes.md) | 已确认问题的触发条件、根因、修复与兼容性边界 | 插件作者 / 维护者 |
 
 ---
 

@@ -1041,6 +1041,7 @@ public partial class MainWindow : Window
                     throw;
                 }
                 AccountStore.Reload();
+                _pluginManagerPage.ReloadRepositorySourceSettings();
                 profile = storageChange.AppliedProfile;
             }
             else

@@ -28,6 +28,13 @@ internal static class Program
             ("SemanticVersion ordering", TestSemanticVersionAsync),
             ("Plugin catalog prerelease compatibility", TestPluginCatalogPrereleaseCompatibilityAsync),
             ("Repository index validation", TestRepositoryIndexAsync),
+            ("Repository source validation and persistence", TestRepositorySourceValidationAndPersistenceAsync),
+            ("Repository built-in mirror routing", TestRepositoryBuiltInMirrorRoutingAsync),
+            ("Repository mirror v1 routing", TestRepositoryMirrorV1RoutingAsync),
+            ("Repository mirror failures do not switch sources", TestRepositoryMirrorFailureDoesNotSwitchSourcesAsync),
+            ("Repository mirror download integrity", TestRepositoryMirrorDownloadIntegrityAsync),
+            ("Repository mirror safe redirects", TestRepositoryMirrorSafeRedirectsAsync),
+            ("Repository mirror cross-origin redirect rejection", TestRepositoryMirrorCrossOriginRedirectAsync),
             ("Repository rename history validation", TestRepositoryRenameHistoryValidationAsync),
             ("Repository v1 fallback is 404-only", TestRepositoryV1FallbackAsync),
             ("Malformed repository v2 fails closed", TestMalformedV2DoesNotFallbackAsync),
@@ -63,6 +70,10 @@ internal static class Program
             ("Plugin components start in library", TestPluginComponentsStartInLibraryAsync),
             ("Built-in component catalog and layered avatar", TestBuiltInComponentCatalogAndAvatarAsync),
             ("Polygon component host theme inheritance", TestPolygonComponentThemeInheritanceAsync),
+            ("Plugin theme and runtime services", TestPluginThemeAndRuntimeServicesAsync),
+            ("Plugin theme event lifetime and isolation", TestPluginThemeEventLifetimeAsync),
+            ("Plugin runtime restart and service capabilities", TestPluginRuntimeRestartAsync),
+            ("Polygon component base revision repair", TestPolygonComponentBaseRevisionRepairAsync),
             ("Plugin area removal persists", TestPluginAreaRemovalAsync),
             ("All workspace areas can be removed", TestAllWorkspaceAreasCanBeRemovedAsync),
             ("Component scale snapshot validation", TestComponentScaleSnapshotAsync),
@@ -164,6 +175,28 @@ internal static class Program
             var compatible = catalog.Scan().Single();
             Assert(compatible.Status == PluginStatus.Disabled,
                 "1.0.0-preview1 satisfies the matching prerelease minimum");
+
+            File.WriteAllText(
+                manifestPath,
+                JsonSerializer.Serialize(manifest with
+                {
+                    ApiVersion = PluginSdk.ManifestApiVersion,
+                    MinimumLauncherVersion = "1.0.0-preview1"
+                }));
+            var currentApi = catalog.Scan().Single();
+            Assert(currentApi.Status == PluginStatus.Disabled,
+                "the current independent V1.1 API version is accepted");
+
+            File.WriteAllText(
+                manifestPath,
+                JsonSerializer.Serialize(manifest with
+                {
+                    ApiVersion = "1.2",
+                    MinimumLauncherVersion = "1.0.0-preview1"
+                }));
+            var futureApi = catalog.Scan().Single();
+            Assert(futureApi.Status == PluginStatus.Incompatible,
+                "a future plugin API minor is rejected before loading plugin code");
             return Task.CompletedTask;
         }
         finally
@@ -348,6 +381,227 @@ internal static class Program
         return Task.CompletedTask;
     }
 
+    private static async Task TestPluginThemeAndRuntimeServicesAsync()
+    {
+        Assert(
+            PluginSdk.ApiVersion == "V1.1" &&
+            PluginSdk.PreviousApiVersion == "V1" &&
+            PluginSdk.ManifestApiVersion == "1.1",
+            "plugin API versioning is independent from launcher releases");
+        Assert(
+            typeof(PluginSdk).Assembly.GetName().Version == new Version(1, 0, 0, 0),
+            "additive V1.1 keeps the V1 CLR assembly identity");
+
+        var color = PluginThemeColor.FromArgb(0x7F123456);
+        Assert(
+            color.Alpha == 0x7F && color.Red == 0x12 &&
+            color.Green == 0x34 && color.Blue == 0x56,
+            "framework-neutral theme color exposes exact ARGB channels");
+        Assert(color.Argb == 0x7F123456 && color.ToString() == "#7F123456",
+            "theme color round-trips its stable ARGB representation");
+
+        // Snapshot extraction is platform-neutral: this application has no
+        // native window, lifetime or dispatcher loop and never becomes Current.
+        var application = new global::Avalonia.Application();
+        application.Resources["AccentColor"] = global::Avalonia.Media.Color.FromUInt32(0xFF2468AC);
+        application.Resources["PrimaryTextColor"] = global::Avalonia.Media.Color.FromUInt32(0xFF102030);
+        var createSnapshot = typeof(ThemeManager).GetMethod("CreatePluginThemeSnapshot",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var snapshot = (PluginThemeSnapshot)createSnapshot.Invoke(null,
+            [application, "Fixture", PluginThemePreference.System, global::Avalonia.Styling.ThemeVariant.Light])!;
+        Assert(snapshot.Family == "Fixture" && snapshot.Preference == PluginThemePreference.System &&
+               snapshot.EffectiveMode == PluginThemeMode.Light,
+            "theme snapshots distinguish configured preference from effective light/dark mode");
+        Assert(snapshot.Palette.Accent.Argb == 0xFF2468AC &&
+               snapshot.Palette.PrimaryText.Argb == 0xFF102030,
+            "theme snapshots read actual semantic host colors instead of fixed fallback colors");
+        application.Resources["AccentColor"] = global::Avalonia.Media.Color.FromUInt32(0xFFABCDEF);
+        Assert(snapshot.Palette.Accent.Argb == 0xFF2468AC,
+            "published theme values do not change when the host resource dictionary changes");
+
+        var themeLease = new PluginThemeLease(() => new CallbackDisposable(() => { }));
+        var rejectedBeforeStart = false;
+        try
+        {
+            themeLease.Changed += (_, _) => { };
+        }
+        catch (ObjectDisposedException)
+        {
+            rejectedBeforeStart = true;
+        }
+        Assert(rejectedBeforeStart, "theme handlers cannot attach outside runtime lifetime");
+
+        themeLease.Resume();
+        EventHandler<PluginThemeChangedEventArgs> handler = (_, _) => { };
+        themeLease.Changed += handler;
+        Assert(themeLease.Current is not null, "theme service always exposes a snapshot");
+        themeLease.Changed -= handler;
+        themeLease.Suspend();
+
+        var writes = new List<(string Message, string Level)>();
+        var logger = new PluginLogger(
+            "dev.example.test",
+            (message, level) =>
+            {
+                writes.Add((message, level));
+                return true;
+            });
+        logger.Resume();
+        logger.Log(PluginLogLevel.Warning, "line one\nline two\u001b");
+        Assert(writes.Count == 1 && writes[0].Level == "WARN",
+            "plugin logger maps structured severity");
+        Assert(
+            writes[0].Message.Contains("[plugin:dev.example.test]", StringComparison.Ordinal) &&
+            writes[0].Message.Contains("\\n", StringComparison.Ordinal) &&
+            writes[0].Message.Contains("\\u001B", StringComparison.Ordinal),
+            "plugin logger attributes records and escapes control characters");
+        logger.Suspend();
+        logger.Log(PluginLogLevel.Error, "must be ignored");
+        Assert(writes.Count == 1, "retired plugin logger ignores late calls");
+
+        var failingLogger = new PluginLogger(
+            "dev.example.failing-sink",
+            (_, _) => throw new IOException("simulated log sink failure"));
+        failingLogger.Resume();
+        failingLogger.Log(PluginLogLevel.Error, "logging remains diagnostic-only");
+        failingLogger.Suspend();
+
+        var notifications = new PluginNotifications();
+        Assert(
+            await notifications.PromptAsync("inactive") is null,
+            "retired notification service resolves prompts without UI");
+        notifications.Resume();
+        Assert(
+            !await notifications.ConfirmAsync("no host"),
+            "notification service safely resolves when no UI host exists");
+        notifications.Suspend();
+    }
+
+    private static async Task TestPluginThemeEventLifetimeAsync()
+    {
+        var activeInvocations = 0;
+        var lease = new PluginThemeLease(() =>
+        {
+            Interlocked.Increment(ref activeInvocations);
+            return new CallbackDisposable(() => Interlocked.Decrement(ref activeInvocations));
+        });
+        const System.Reflection.BindingFlags instanceFlags =
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var publish = typeof(PluginThemeLease).GetMethod("OnThemeChanged", instanceFlags)!;
+        var dispatchTail = typeof(PluginThemeLease).GetField("_dispatchTail", instanceFlags)!;
+        var hostEvent = typeof(ThemeManager).GetField(
+            "ThemeChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var calls = new List<string>();
+        lease.Resume();
+        try
+        {
+            lease.Changed += (_, _) =>
+            {
+                calls.Add("throwing observer");
+                throw new InvalidOperationException("A plugin observer must not break another observer");
+            };
+            lease.Changed += (_, _) => calls.Add("healthy observer");
+            publish.Invoke(lease, null);
+            publish.Invoke(lease, null);
+            await ((Task)dispatchTail.GetValue(lease)!).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert(calls.SequenceEqual([
+                    "throwing observer", "healthy observer", "throwing observer", "healthy observer"]),
+                "theme observers are serialized and failures do not interrupt later observers");
+            Assert(activeInvocations == 0, "every admitted callback releases its runtime invocation lease");
+
+            lease.Suspend();
+            var bridges = ((Action?)hostEvent.GetValue(null))?.GetInvocationList() ?? [];
+            Assert(bridges.All(bridge => !ReferenceEquals(bridge.Target, lease)),
+                "retirement removes the bridge from the static host theme event");
+            publish.Invoke(lease, null);
+            Assert(calls.Count == 4, "retired theme services do not dispatch new plugin callbacks");
+
+            lease.Resume();
+            publish.Invoke(lease, null);
+            Assert(calls.Count == 4, "restart does not revive handlers from the previous runtime session");
+        }
+        finally
+        {
+            lease.Suspend();
+        }
+    }
+
+    private static async Task TestPluginRuntimeRestartAsync()
+    {
+        var storage = CreateTemporaryDirectory();
+        try
+        {
+            // Load the test entry from the existing build output. A collectible
+            // ALC may hold its DLL mapped until GC, so temporary settings teardown
+            // must not attempt to delete that assembly while this frame is alive.
+            var entryPath = typeof(global::Tests.PluginEntry).Assembly.Location;
+            var packageDirectory = Path.GetDirectoryName(entryPath)!;
+            var manifest = new PluginManifest
+            {
+                Id = "dev.example.runtime", Name = "Runtime test", Version = "1.0.0",
+                EntryAssembly = Path.GetFileName(entryPath), EntryType = "Tests.PluginEntry"
+            };
+            var package = new PluginPackage(packageDirectory,
+                Path.Combine(packageDirectory, "plugin.json"), manifest, PluginStatus.Disabled, null);
+            var settings = new PluginSettingsStore(Path.Combine(storage, "settings"), []);
+            await using var runtime = PluginRuntimeHost.Create(package, settings, new HashSet<string>());
+            var context = (IPluginContext)typeof(PluginRuntimeHost).GetField("_context",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(runtime)!;
+            Assert(context.GetService<IPluginTheme>() is not null &&
+                   context.GetService<IPluginLogger>() is not null,
+                "theme and logging do not depend on reserved system capabilities");
+            Assert(context.GetService<IPluginNotifications>() is null,
+                "native notifications still require explicit ui.native authorization");
+            Assert(context.GetService<IDisposable>() is null, "unknown services stay unavailable");
+
+            await runtime.StartAsync(CancellationToken.None);
+            using (runtime.EnterInvocation()) { }
+            await runtime.StopAsync(CancellationToken.None);
+            var rejected = false;
+            try { using var unexpected = runtime.EnterInvocation(); }
+            catch (InvalidOperationException) { rejected = true; }
+            Assert(rejected, "stopped runtimes reject new host callbacks");
+
+            await runtime.StartAsync(CancellationToken.None);
+            using (runtime.EnterInvocation()) { }
+            Assert(runtime.IsStarted, "restarting the same runtime admits callbacks again");
+            await runtime.StopAsync(CancellationToken.None);
+        }
+        finally
+        {
+            Directory.Delete(storage, recursive: true);
+        }
+    }
+
+    private static async Task TestPolygonComponentBaseRevisionRepairAsync()
+    {
+        var instance = new RevisionProbeComponent();
+        var revisions = new List<long>();
+        instance.StateChanged += (_, args) => revisions.Add(args.State.Revision);
+
+        instance.Publish(40);
+        instance.Publish(0);
+        instance.Publish(12);
+        instance.PublishReserved();
+        Assert(revisions.SequenceEqual([40L, 41L, 42L]),
+            "automatic revisions follow explicit revisions while stale snapshots stay ignored");
+        Assert(instance.CurrentState.Revision == 42,
+            "current state retains the repaired newest revision");
+
+        instance.Publish(long.MaxValue);
+        instance.Publish(0);
+        Assert(instance.CurrentState.Revision == long.MaxValue,
+            "revision allocation saturates without wrapping into negative values");
+        Assert(revisions.SequenceEqual([40L, 41L, 42L, long.MaxValue]),
+            "a saturated duplicate revision is not republished");
+
+        await instance.DisposeAsync();
+        instance.Publish(100);
+        Assert(instance.CurrentState.Revision == long.MaxValue,
+            "disposed component ignores late state publication");
+    }
+
     private static Task TestPluginAreaRemovalAsync()
     {
         var registry = CreateRegistryWithWorkspace(
@@ -493,6 +747,434 @@ internal static class Program
         Assert(plugin.LineageId == TestLineageId, "v2 lineage UUID parsed");
         Assert(plugin.Publisher?.RepositoryId == 1001, "v2 numeric repository identity parsed");
         Assert(parsedRelease?.Generation == 1, "release generation parsed");
+    }
+
+    private static Task TestRepositorySourceValidationAndPersistenceAsync()
+    {
+        const string customId = "custom-0123456789abcdef0123456789abcdef";
+        Assert(
+            PluginRepositorySources.TryCreateCustom(
+                "  Test mirror  ",
+                "https://mirror.example/proxy",
+                out var source,
+                out var createError,
+                customId),
+            $"valid custom source is accepted: {createError}");
+        Assert(source.Id == customId && source.Name == "Test mirror",
+            "custom source keeps its stable ID and trims its display name");
+        Assert(source.MirrorBaseUri?.AbsoluteUri == "https://mirror.example/proxy/",
+            "custom mirror prefix is normalized with one trailing slash");
+
+        var canonicalIndex = new Uri(PluginRepositoryClient.IndexUrl);
+        var mirroredIndex = source.Resolve(canonicalIndex);
+        Assert(
+            mirroredIndex.AbsoluteUri ==
+            "https://mirror.example/proxy/" + canonicalIndex.AbsoluteUri,
+            "mirror resolution prefixes the complete canonical GitHub URL");
+        Assert(
+            PluginRepositorySources.Official.Resolve(canonicalIndex) == canonicalIndex,
+            "official source leaves canonical URLs unchanged");
+
+        var invalidBaseUrls = new[]
+        {
+            "http://mirror.example/",
+            "https://user:secret@mirror.example/",
+            "https://mirror.example:8443/",
+            "https://mirror.example/?target=github",
+            "https://mirror.example/#fragment",
+            "https://mirror.example/has space/",
+            "https://mirror.example\\bad/",
+            "https://mirror.example/%zz/",
+            "https://localhost/",
+            "https://127.0.0.1/",
+            "https://10.0.0.1/",
+            "https://192.168.1.1/",
+            "https://172.16.0.1/",
+            "https://169.254.169.254/",
+            "https://subdomain.localhost/",
+            "https://localhost./",
+            "https://foo.localhost./",
+            "https://[::1]/",
+            "https://[::ffff:127.0.0.1]/",
+            "https://[::ffff:192.168.1.1]/",
+            "https://[fc00::1]/",
+            "https://mirror.example/" + new string('界', 60),
+            "https://mirror.example/" + new string('a', 512 - "https://mirror.example/".Length),
+            "https://mirror.example/proxy/../other/",
+            "https://mirror.example/proxy/%2e%2e/other/",
+            "https://mirror.example/proxy/./"
+        };
+        foreach (var invalid in invalidBaseUrls)
+        {
+            Assert(
+                !PluginRepositorySources.TryNormalizeMirrorBaseUri(
+                    invalid,
+                    out _,
+                    out _),
+                $"unsafe custom mirror prefix is rejected: {invalid}");
+        }
+        Assert(
+            !PluginRepositorySources.TryCreateCustom(
+                "Bad ID",
+                "https://another-mirror.example/",
+                out _,
+                out _,
+                PluginRepositorySources.Official.Id),
+            "custom sources cannot reuse a built-in source ID");
+
+        var maximumLengthUrl = "https://mirror.example/" +
+                               new string('a', 511 - "https://mirror.example/".Length) + "/";
+        Assert(PluginRepositorySources.TryCreateCustom(
+                "Maximum URL length", maximumLengthUrl, out var maximumLengthSource, out _),
+            "an already normalized 512-character prefix remains valid");
+        var maximumLengthConfiguration = new PluginRepositorySourceConfiguration
+        {
+            ActiveSourceId = maximumLengthSource.Id,
+            CustomSources = [maximumLengthSource]
+        };
+        var maximumLengthRestored = PluginRepositorySourceStore.Deserialize(
+            PluginRepositorySourceStore.Serialize(maximumLengthConfiguration),
+            out var maximumLengthWarning);
+        Assert(maximumLengthWarning is null && maximumLengthRestored.ActiveSource == maximumLengthSource,
+            "maximum normalized prefix length is stable across persistence");
+
+        var configuration = new PluginRepositorySourceConfiguration
+        {
+            ActiveSourceId = source.Id,
+            CustomSources = [source]
+        };
+        var serialized = PluginRepositorySourceStore.Serialize(configuration);
+        var restored = PluginRepositorySourceStore.Deserialize(serialized, out var warning);
+        Assert(warning is null, "valid repository source configuration round-trips without warning");
+        Assert(restored.ActiveSourceId == source.Id && restored.ActiveSource.Id == source.Id,
+            "active custom source survives configuration round-trip");
+        Assert(
+            restored.CustomSources.Count == 1 &&
+            restored.CustomSources[0].Id == source.Id &&
+            restored.CustomSources[0].Name == source.Name &&
+            restored.CustomSources[0].MirrorBaseUri == source.MirrorBaseUri,
+            "custom source identity and normalized prefix survive configuration round-trip");
+
+        const string unsafeConfiguration = """
+        {
+          "schemaVersion": 1,
+          "activeSourceId": "custom-0123456789abcdef0123456789abcdef",
+          "customSources": [
+            {
+              "id": "custom-0123456789abcdef0123456789abcdef",
+              "name": "Injected credentials",
+              "mirrorBaseUrl": "https://user:secret@mirror.example/"
+            }
+          ]
+        }
+        """;
+        var recovered = PluginRepositorySourceStore.Deserialize(
+            unsafeConfiguration,
+            out var recoveryWarning);
+        Assert(recoveryWarning is not null, "unsafe persisted source emits a recovery warning");
+        Assert(
+            recovered.CustomSources.Count == 0 &&
+            recovered.ActiveSource.Id == PluginRepositorySources.Official.Id,
+            "unsafe persisted source is discarded and selection falls back to official");
+
+        foreach (var missingId in new[] { false, true })
+        {
+            var invalidIdentityConfiguration = JsonNode.Parse(serialized)!.AsObject();
+            var invalidIdentitySource = invalidIdentityConfiguration["customSources"]![0]!.AsObject();
+            if (missingId)
+                invalidIdentitySource.Remove("id");
+            else
+                invalidIdentitySource["id"] = null;
+            var invalidIdentityFallback = PluginRepositorySourceStore.Deserialize(
+                invalidIdentityConfiguration.ToJsonString(), out var invalidIdentityWarning);
+            Assert(invalidIdentityWarning is not null && invalidIdentityFallback.CustomSources.Count == 0 &&
+                   invalidIdentityFallback.ActiveSource == PluginRepositorySources.Official,
+                "null or missing persisted source IDs are discarded instead of being regenerated");
+        }
+
+        var duplicateConfiguration = JsonNode.Parse(serialized)!.AsObject();
+        var duplicateSources = duplicateConfiguration["customSources"]!.AsArray();
+        duplicateSources.Add(duplicateSources[0]!.DeepClone());
+        var sameAddress = duplicateSources[0]!.DeepClone().AsObject();
+        sameAddress["id"] = "custom-11111111111111111111111111111111";
+        sameAddress["name"] = "Same address";
+        duplicateSources.Add(sameAddress);
+        var sameName = duplicateSources[0]!.DeepClone().AsObject();
+        sameName["id"] = "custom-22222222222222222222222222222222";
+        sameName["mirrorBaseUrl"] = "https://second-mirror.example/";
+        duplicateSources.Add(sameName);
+        var deduplicated = PluginRepositorySourceStore.Deserialize(
+            duplicateConfiguration.ToJsonString(), out var duplicateWarning);
+        Assert(duplicateWarning is not null && deduplicated.CustomSources.Count == 1,
+            "persisted duplicate IDs, names and addresses are ignored with a warning");
+        Assert(deduplicated.ActiveSource == source,
+            "discarding later duplicates preserves the first valid active source");
+
+        foreach (var damagedConfiguration in new[]
+                 {
+                     "{",
+                     "null",
+                     "{\"schemaVersion\":2,\"activeSourceId\":\"official\",\"customSources\":[]}",
+                     "{\"schemaVersion\":1,\"activeSourceId\":\"official\",\"customSources\":null}",
+                     "{\"schemaVersion\":1,\"activeSourceId\":\"missing\",\"customSources\":[]}",
+                     "{\"schemaVersion\":1,\"activeSourceId\":\"official\",\"customSources\":[],\"unknown\":true}",
+                     new string('x', 64 * 1024 + 1)
+                 })
+        {
+            var fallback = PluginRepositorySourceStore.Deserialize(
+                damagedConfiguration, out var damagedWarning);
+            Assert(damagedWarning is not null && fallback.CustomSources.Count == 0 &&
+                   fallback.ActiveSource == PluginRepositorySources.Official,
+                "damaged, unsupported, oversized or stale source configuration recovers to official");
+        }
+        return Task.CompletedTask;
+    }
+
+    private static async Task TestRepositoryBuiltInMirrorRoutingAsync()
+    {
+        var expectedPrefixes = new[]
+        {
+            "https://gh-proxy.com/",
+            "https://ghfast.top/",
+            "https://gh.xmly.dev/"
+        };
+        Assert(PluginRepositorySources.BuiltIn.Count == 4 &&
+               PluginRepositorySources.BuiltIn[0] == PluginRepositorySources.Official,
+            "built-in sources start with official and contain three mirrors");
+        Assert(PluginRepositorySources.BuiltIn.Skip(1)
+                .Select(source => source.MirrorBaseUri!.AbsoluteUri)
+                .SequenceEqual(expectedPrefixes),
+            "built-in mirror prefixes match the supported public routes");
+        var payload = CreatePackage(includeTraversal: false);
+        var release = CreateRelease(payload);
+        var indexPayload = Encoding.UTF8.GetBytes(CreateRepositoryIndexJson(release));
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            foreach (var source in PluginRepositorySources.BuiltIn)
+            {
+                var indexHandler = new PayloadHandler(indexPayload);
+                using var indexHttp = new HttpClient(indexHandler);
+                using var indexClient = new PluginRepositoryClient(indexHttp);
+                await indexClient.LoadIndexAsync(source);
+                Assert(indexHandler.RequestUris.SequenceEqual(
+                        [source.Resolve(new Uri(PluginRepositoryClient.IndexUrl))]),
+                    $"{source.Name} requests the index through its declared transport");
+
+                var packageHandler = new PayloadHandler(payload);
+                using var packageHttp = new HttpClient(packageHandler);
+                using var packageClient = new PluginRepositoryClient(packageHttp);
+                var destination = Path.Combine(directory, source.Id + ".zip");
+                await packageClient.DownloadPackageAsync(source, CreatePlugin(), release, destination);
+                Assert(packageHandler.RequestUris.SequenceEqual(
+                        [source.Resolve(new Uri(release.Download.Url))]) &&
+                       File.ReadAllBytes(destination).SequenceEqual(payload),
+                    $"{source.Name} downloads the verified package through the same transport");
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static async Task TestRepositoryMirrorV1RoutingAsync()
+    {
+        Assert(
+            PluginRepositorySources.TryCreateCustom(
+                "Routing mirror",
+                "https://routing-mirror.example/proxy/",
+                out var source,
+                out var sourceError),
+            $"routing mirror is valid: {sourceError}");
+        var package = CreatePackage(includeTraversal: false);
+        var legacy = CreateLegacyRepositoryIndexJson(CreateRelease(package));
+        var handler = new VersionedIndexHandler(
+            v2Status: HttpStatusCode.NotFound,
+            v2Payload: null,
+            v1Payload: Encoding.UTF8.GetBytes(legacy));
+        using var http = new HttpClient(handler);
+        using var client = new PluginRepositoryClient(http);
+
+        var index = await client.LoadIndexAsync(source);
+
+        Assert(index.SchemaVersion == 1, "mirrored v2 404 still loads the legacy contract");
+        Assert(handler.RequestUris.Count == 2, "mirror fallback performs exactly v2 and v1 requests");
+        Assert(
+            handler.RequestUris[0] == source.Resolve(new Uri(PluginRepositoryClient.IndexUrl)),
+            "v2 index request uses the selected mirror route");
+        Assert(
+            handler.RequestUris[1] == source.Resolve(new Uri(PluginRepositoryClient.LegacyIndexUrl)),
+            "v1 fallback remains on the same selected mirror route");
+    }
+
+    private static async Task TestRepositoryMirrorFailureDoesNotSwitchSourcesAsync()
+    {
+        var source = PluginRepositorySources.BuiltIn[1];
+        var legacyPayload = Encoding.UTF8.GetBytes(
+            CreateLegacyRepositoryIndexJson(CreateRelease(CreatePackage(includeTraversal: false))));
+        foreach (var status in new[]
+                 {
+                     HttpStatusCode.Forbidden,
+                     HttpStatusCode.TooManyRequests,
+                     HttpStatusCode.ServiceUnavailable
+                 })
+        {
+            var handler = new VersionedIndexHandler(status, null, legacyPayload);
+            using var http = new HttpClient(handler);
+            using var client = new PluginRepositoryClient(http);
+            await AssertThrowsAsync<HttpRequestException>(() => client.LoadIndexAsync(source));
+            Assert(handler.RequestUris.SequenceEqual(
+                    [source.Resolve(new Uri(PluginRepositoryClient.IndexUrl))]),
+                $"mirror HTTP {(int)status} neither downgrades nor retries another source");
+        }
+
+        var malformedHandler = new VersionedIndexHandler(
+            HttpStatusCode.OK, Encoding.UTF8.GetBytes("{\"schemaVersion\":2}"), legacyPayload);
+        using var malformedHttp = new HttpClient(malformedHandler);
+        using var malformedClient = new PluginRepositoryClient(malformedHttp);
+        await AssertThrowsAsync<InvalidDataException>(() => malformedClient.LoadIndexAsync(source));
+        Assert(malformedHandler.RequestUris.Count == 1 && malformedHandler.V1RequestCount == 0,
+            "malformed mirror index fails closed without requesting another route or legacy index");
+    }
+
+    private static async Task TestRepositoryMirrorDownloadIntegrityAsync()
+    {
+        Assert(
+            PluginRepositorySources.TryCreateCustom(
+                "Package mirror",
+                "https://package-mirror.example/",
+                out var source,
+                out var sourceError),
+            $"package mirror is valid: {sourceError}");
+        var payload = Encoding.UTF8.GetBytes("mirrored bytes with the wrong digest");
+        var release = CreateRelease(payload) with
+        {
+            Download = CreateRelease(payload).Download with
+            {
+                Sha256 = new string('0', 64)
+            }
+        };
+        var handler = new PayloadHandler(payload);
+        using var http = new HttpClient(handler);
+        using var client = new PluginRepositoryClient(http);
+        var directory = CreateTemporaryDirectory();
+        var destination = Path.Combine(directory, "mirrored.zip");
+        try
+        {
+            await AssertThrowsAsync<InvalidDataException>(() =>
+                client.DownloadPackageAsync(source, CreatePlugin(), release, destination));
+            Assert(handler.RequestUris.Count == 1,
+                "mirrored package integrity failure performs one network request");
+            Assert(
+                handler.RequestUris[0] == source.Resolve(new Uri(release.Download.Url)),
+                "package request prefixes the validated canonical GitHub release URL");
+            Assert(!File.Exists(destination),
+                "SHA-256 failure removes the partially downloaded mirrored package");
+
+            var maliciousRelease = release with
+            {
+                Download = release.Download with
+                {
+                    Url = "https://github.com.evil.example/example/test-plugin/releases/" +
+                          "download/v1.0.0/test-plugin.zip"
+                }
+            };
+            await AssertThrowsAsync<InvalidDataException>(() =>
+                client.DownloadPackageAsync(source, CreatePlugin(), maliciousRelease, destination));
+            Assert(handler.RequestUris.Count == 1,
+                "non-GitHub package URL is rejected before it reaches the mirror");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static async Task TestRepositoryMirrorSafeRedirectsAsync()
+    {
+        Assert(PluginRepositorySources.TryCreateCustom(
+                "Safe redirect mirror", "https://redirect-mirror.example/proxy/",
+                out var source, out _),
+            "safe redirect source is valid");
+        var payload = CreatePackage(includeTraversal: false);
+        var release = CreateRelease(payload);
+        var indexPayload = Encoding.UTF8.GetBytes(CreateRepositoryIndexJson(release));
+        foreach (var target in new[]
+                 {
+                     new Uri("/proxy/cached-index.json", UriKind.Relative),
+                     new Uri(PluginRepositoryClient.IndexUrl)
+                 })
+        {
+            var handler = new RedirectHandler(target, indexPayload);
+            using var http = new HttpClient(handler);
+            using var client = new PluginRepositoryClient(http);
+            var index = await client.LoadIndexAsync(source);
+            var expectedTarget = new Uri(source.Resolve(new Uri(PluginRepositoryClient.IndexUrl)), target);
+            Assert(index.SchemaVersion == 2 && handler.RequestUris.Count == 2 &&
+                   handler.RequestUris[1] == expectedTarget,
+                "index redirect permits the selected mirror prefix or the exact canonical index");
+        }
+
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            foreach (var target in new[]
+                     {
+                         new Uri("https://redirect-mirror.example/proxy/cached-package.zip"),
+                         new Uri(release.Download.Url),
+                         new Uri("https://release-assets.githubusercontent.com/github-production-release-asset/123/package.zip?token=signed")
+                     })
+            {
+                var handler = new RedirectHandler(target, payload);
+                using var http = new HttpClient(handler);
+                using var client = new PluginRepositoryClient(http);
+                var destination = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".zip");
+                await client.DownloadPackageAsync(source, CreatePlugin(), release, destination);
+                Assert(handler.RequestUris.Count == 2 && handler.RequestUris[1] == target &&
+                       File.ReadAllBytes(destination).SequenceEqual(payload),
+                    "package redirects preserve mirror or GitHub asset routing and integrity checks");
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static async Task TestRepositoryMirrorCrossOriginRedirectAsync()
+    {
+        Assert(
+            PluginRepositorySources.TryCreateCustom(
+                "Redirect mirror",
+                "https://redirect-mirror.example/proxy/",
+                out var source,
+                out var sourceError),
+            $"redirect mirror is valid: {sourceError}");
+        foreach (var target in new[]
+                 {
+                     "https://evil.example/stolen-index.json",
+                     "https://redirect-mirror.example/outside-prefix/index.json",
+                     "https://redirect-mirror.example/proxy-lookalike/index.json",
+                     "http://redirect-mirror.example/proxy/index.json",
+                     "https://redirect-mirror.example:8443/proxy/index.json",
+                     "https://user:secret@redirect-mirror.example/proxy/index.json",
+                     PluginRepositoryClient.IndexUrl + "?other=1",
+                     PluginRepositoryClient.LegacyIndexUrl
+                 })
+        {
+            var handler = new RedirectHandler(new Uri(target));
+            using var http = new HttpClient(handler);
+            using var client = new PluginRepositoryClient(http);
+
+            await AssertThrowsAsync<InvalidDataException>(() => client.LoadIndexAsync(source));
+
+            Assert(handler.RequestUris.Count == 1,
+                "unsafe or wrong-index redirect is rejected before the target endpoint is requested");
+            Assert(
+                handler.RequestUris[0] == source.Resolve(new Uri(PluginRepositoryClient.IndexUrl)),
+                "redirect test starts from the selected mirror's v2 route");
+        }
     }
 
     private static async Task TestRepositoryRenameHistoryValidationAsync()
@@ -660,9 +1342,16 @@ internal static class Program
                 MinimumLauncherVersion = "999.0.0"
             }
         };
+        var futureApi = CreateRelease(payload, "4.0.0") with
+        {
+            Compatibility = CreateRelease(payload).Compatibility with
+            {
+                ApiVersion = "1.2"
+            }
+        };
         var plugin = CreatePlugin() with
         {
-            Releases = [oldStable, yanked, incompatible, preview, newStable]
+            Releases = [oldStable, yanked, incompatible, futureApi, preview, newStable]
         };
         using var http = new HttpClient(new PayloadHandler(payload));
         using var client = new PluginRepositoryClient(http);
@@ -2593,13 +3282,42 @@ internal static class Program
             throw new InvalidOperationException(message);
     }
 
+    private sealed class CallbackDisposable(Action dispose) : IDisposable
+    {
+        private Action? _dispose = dispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+
+    private sealed class RevisionProbeComponent : PolygonComponentInstanceBase
+    {
+        public void Publish(long revision) => SetState(new ComponentStateSnapshot
+        {
+            Revision = revision
+        });
+
+        public void PublishReserved() => SetState(new ComponentStateSnapshot
+        {
+            Revision = NextRevision()
+        });
+
+        public override ValueTask<ComponentActionResult> InvokeAsync(
+            ComponentActionInvocation invocation,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(ComponentActionResult.Completed());
+    }
+
     private sealed class PayloadHandler(byte[] payload) : HttpMessageHandler
     {
+        public List<Uri> RequestUris { get; } = [];
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (request.RequestUri is { } requestUri)
+                RequestUris.Add(requestUri);
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 RequestMessage = request,
@@ -2616,11 +3334,15 @@ internal static class Program
     {
         public int V1RequestCount { get; private set; }
 
+        public List<Uri> RequestUris { get; } = [];
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (request.RequestUri is { } requestUri)
+                RequestUris.Add(requestUri);
             var isV2 = request.RequestUri?.AbsolutePath.Contains(
                 "/public/v2/",
                 StringComparison.Ordinal) == true;
@@ -2632,6 +3354,34 @@ internal static class Program
                 RequestMessage = request,
                 Content = new ByteArrayContent(payload ?? [])
             };
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class RedirectHandler(Uri location, byte[]? payload = null) : HttpMessageHandler
+    {
+        public List<Uri> RequestUris { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (request.RequestUri is { } requestUri)
+                RequestUris.Add(requestUri);
+            if (RequestUris.Count > 1 && payload is not null)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    RequestMessage = request,
+                    Content = new ByteArrayContent(payload)
+                });
+            }
+            var response = new HttpResponseMessage(HttpStatusCode.Redirect)
+            {
+                RequestMessage = request
+            };
+            response.Headers.Location = location;
             return Task.FromResult(response);
         }
     }

@@ -4,6 +4,11 @@
 > 工作区的停靠与侧栏行为、用户个性化与持久化。
 > 想做可视化组件卡片，请继续看 [06 · 多边形组件开发](06-polygon-components.md)。
 
+> **范围说明：**本文第 2～11 节的 `FeatureAreaRegistry` / `ContentFactory` 是启动器源码内的
+> UI 贡献机制，不是第三方 Plugin API 契约。第三方插件不能注入任意 Avalonia `Control`；其唯一
+> 公共契约以 [`NyaLauncher.Plugin.Abstractions/README.md`](../NyaLauncher.Plugin.Abstractions/README.md)
+> 为准，并通过 `IPluginRegistrar.AddComponentArea` 注册声明式 Polygon 组件。
+
 ---
 
 ## 1. 插件能做什么
@@ -24,17 +29,17 @@
 
 ### 插件 API 版本
 
-宿主对外展示的插件 API 版本号为 `PluginSdk.ApiVersion`（当前 **v1-p2**，
-显示在插件管理页页头与插件详情中）。机器可读的兼容性判定以 plugin.json 的
-`apiVersion` 主版本号为准（当前主版本 1）：**同一主版本内，宿主对插件 API
-向前兼容**——旧插件在新宿主上原样可用，无需为 API 增量重新编译。
+宿主对外展示的插件 API 版本号为 `PluginSdk.ApiVersion`（当前为 **V1.1**，显示在插件管理页
+页头与插件详情中）。它独立于 NyaLauncher 应用版本，只有公共插件契约变化时才递增。机器值写在
+plugin.json 的 `apiVersion`：V1 为 `1.0`，V1.1 为 `1.1`。同一主版本内，新宿主兼容旧 minor，
+并拒绝自己尚未实现的未来 minor；V1 插件无需重编译。
 
 版本历史：
 
 | 版本 | 内容 |
 |------|------|
-| **v1-p1** | 初始 API 集：组件、实例扩展、启动参数注入、设置、存储 |
-| **v1-p2** | v1-p1 + `IPluginNotifications` 通知服务（NyaAlert / NyaPrompt），纯增量 |
+| **V1** | 初始公开 API：组件、实例扩展、启动参数注入、设置、存储与通知服务 |
+| **V1.1** | V1 + `IPluginTheme` 主题快照与 `IPluginLogger` 宿主日志，纯增量 |
 
 ### 通知服务（NyaAlert / NyaPrompt）
 
@@ -53,7 +58,31 @@ var id = await notify.PromptAsync("选择", "选一个",
     new PluginPromptButton("甲"), new PluginPromptButton("乙", IsDefault: true));
 ```
 
-全部方法可在任意线程调用（内部自动封送 UI 线程）。
+全部方法可在任意线程调用（内部自动封送 UI 线程）。插件运行时停止、失败、隔离或卸载后，旧服务
+引用不再显示 UI：Alert 被忽略，Prompt / Confirm 分别安全返回 `null` / `false`。
+
+### 主题与日志服务（V1.1）
+
+```csharp
+var theme = Context.GetService<IPluginTheme>();
+var log = Context.GetService<IPluginLogger>();
+
+log?.Log(PluginLogLevel.Information,
+    $"当前主题：{theme?.Current.Family}/{theme?.Current.EffectiveMode}");
+
+if (theme is not null)
+{
+    theme.Changed += (_, args) =>
+        log?.Log(PluginLogLevel.Debug,
+            $"主题已更新：revision={args.Theme.Revision}");
+}
+```
+
+两项服务都不要求能力授权，也不启用任何预留的系统能力。主题事件按顺序在工作线程分发，值对象不依赖
+Avalonia；Polygon 组件已由宿主动态主题资源渲染，通常无需自行重建。日志由宿主添加插件 ID、限制长度
+并限流；不要写入 Secret、token、个人路径或隐私数据。V1.1 的 API 名称已经独立确定，但首个承载它的
+启动器发行版尚未发布；依赖这两项服务的插件应写 `apiVersion: "1.1"`，并等真实宿主发行号确定后再填写
+`minimumLauncherVersion`。
 
 ---
 

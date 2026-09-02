@@ -28,21 +28,63 @@ public abstract class PolygonComponentInstanceBase : IPolygonComponentInstance
     /// <summary>实例是否已释放（释放后的状态发布与动作调用都应静默跳过）。</summary>
     protected bool IsDisposed => Volatile.Read(ref _isDisposed) != 0;
 
-    /// <summary>取下一个状态修订号（原子递增）。</summary>
-    protected long NextRevision() => Interlocked.Increment(ref _revision);
+    /// <summary>取下一个状态修订号（原子递增；到达 long.MaxValue 后饱和）。</summary>
+    protected long NextRevision()
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _revision);
+            if (current == long.MaxValue)
+                return current;
+            if (Interlocked.CompareExchange(ref _revision, current + 1, current) == current)
+                return current + 1;
+        }
+    }
 
     /// <summary>
     /// 发布新的状态快照：Revision 为 0 时自动分配修订号，已释放时静默忽略。
     /// </summary>
     protected void SetState(ComponentStateSnapshot next)
     {
+        ArgumentNullException.ThrowIfNull(next);
         if (IsDisposed)
             return;
 
-        if (next.Revision == 0)
-            next = next with { Revision = NextRevision() };
-        Volatile.Write(ref _currentState, next);
+        next = next with { Revision = ReserveRevision(next.Revision) };
+        while (true)
+        {
+            var current = Volatile.Read(ref _currentState);
+            if (next.Revision <= current.Revision)
+                return;
+            if (ReferenceEquals(
+                    Interlocked.CompareExchange(ref _currentState, next, current),
+                    current))
+            {
+                break;
+            }
+        }
+
         StateChanged?.Invoke(this, new ComponentStateChangedEventArgs(next));
+    }
+
+    /// <summary>
+    /// Keeps automatic revisions strictly above an explicitly supplied revision.
+    /// Only zero requests automatic allocation; explicit stale revisions retain
+    /// their identity and are ignored by SetState rather than reviving old data.
+    /// </summary>
+    private long ReserveRevision(long requested)
+    {
+        if (requested == 0)
+            return NextRevision();
+
+        while (true)
+        {
+            var current = Volatile.Read(ref _revision);
+            if (requested <= current)
+                return requested;
+            if (Interlocked.CompareExchange(ref _revision, requested, current) == current)
+                return requested;
+        }
     }
 
     /// <summary>

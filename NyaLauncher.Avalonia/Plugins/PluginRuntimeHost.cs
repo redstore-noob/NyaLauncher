@@ -10,6 +10,8 @@ using NyaLauncher.Plugin.Abstractions.Components;
 using NyaLauncher.Plugin.Abstractions.Minecraft;
 using NyaLauncher.Plugin.Abstractions.Plugins;
 using NyaLauncher.Avalonia.Framework;
+using NyaLauncher.Avalonia.Themes;
+using NyaLauncher.Core.Logs;
 
 namespace NyaLauncher.Avalonia.Plugins;
 
@@ -23,6 +25,9 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
     private readonly PluginLoadContext _loadContext;
     private readonly PluginContext _context;
     private readonly PluginSettingsLease _settingsLease;
+    private readonly PluginThemeLease _themeLease;
+    private readonly PluginNotifications _notifications;
+    private readonly PluginLogger _logger;
     private readonly object _lifecycleSync = new();
     private INyaLauncherPlugin? _plugin;
     private Task? _lifecycleTask;
@@ -58,11 +63,17 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
             settings,
             EnterInvocation,
             grantedCapabilities.Contains);
+        _themeLease = new PluginThemeLease(EnterInvocation);
+        _notifications = new PluginNotifications();
+        _logger = new PluginLogger(manifest.Id);
         _context = new PluginContext(
             manifest,
             storage,
             _settingsLease,
-            grantedCapabilities);
+            grantedCapabilities,
+            _themeLease,
+            _notifications,
+            _logger);
     }
 
     private static PluginManifest SnapshotManifest(PluginManifest source) => source with
@@ -165,6 +176,10 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
 
             var plugin = _plugin ?? throw new ObjectDisposedException(nameof(PluginRuntimeHost));
             EnsureRequiredCapabilitiesGranted();
+            _stopping = false;
+            _themeLease.Resume();
+            _notifications.Resume();
+            _logger.Resume();
             var registrar = new PluginRegistrar(Manifest.Id, _context.IsCapabilityGranted);
             _context.OpenRegistration(registrar);
             var task = RunStartAsync(plugin, registrar, cancellationToken);
@@ -209,6 +224,9 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
             _quarantined = true;
             _context.CloseRegistration();
             _settingsLease.Suspend();
+            _themeLease.Suspend();
+            _notifications.Suspend();
+            _logger.Suspend();
         }
     }
 
@@ -334,6 +352,9 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
         {
             _quarantined = true;
             _context.CloseRegistration();
+            _themeLease.Suspend();
+            _notifications.Suspend();
+            _logger.Suspend();
         }
     }
 
@@ -367,6 +388,9 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
         {
             registrar.CloseWithoutPublishing();
             await TryStopAfterFailedStartAsync(plugin).ConfigureAwait(false);
+            _themeLease.Suspend();
+            _notifications.Suspend();
+            _logger.Suspend();
             throw;
         }
         finally
@@ -396,6 +420,9 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
         finally
         {
             Volatile.Write(ref _isStarted, 0);
+            _themeLease.Suspend();
+            _notifications.Suspend();
+            _logger.Suspend();
             ComponentAreas = [];
             InstanceExtensions = [];
             LaunchContributors = [];
@@ -519,6 +546,9 @@ internal sealed class PluginRuntimeHost : IAsyncDisposable
 
             _unloaded = true;
             _plugin = null;
+            _themeLease.Suspend();
+            _notifications.Suspend();
+            _logger.Suspend();
             ComponentAreas = [];
             InstanceExtensions = [];
             LaunchContributors = [];
@@ -776,6 +806,271 @@ internal sealed class PluginSettingsLease : IPluginSettings
     }
 }
 
+/// <summary>
+/// Runtime-scoped theme subscription. Static host events must never retain a
+/// delegate from a retired collectible plugin load context, so handlers are
+/// cleared and the bridge is detached on stop/quarantine.
+/// </summary>
+internal sealed class PluginThemeLease(Func<IDisposable> enterInvocation) : IPluginTheme
+{
+    private readonly object _gate = new();
+    private EventHandler<PluginThemeChangedEventArgs>? _changed;
+    private Task _dispatchTail = Task.CompletedTask;
+    private bool _active;
+
+    public PluginThemeSnapshot Current => ThemeManager.CurrentPluginTheme;
+
+    public event EventHandler<PluginThemeChangedEventArgs>? Changed
+    {
+        add
+        {
+            lock (_gate)
+            {
+                if (!_active)
+                    throw new ObjectDisposedException(nameof(PluginThemeLease));
+                _changed += value;
+            }
+        }
+        remove
+        {
+            lock (_gate)
+                _changed -= value;
+        }
+    }
+
+    public void Resume()
+    {
+        lock (_gate)
+        {
+            if (_active)
+                return;
+            _active = true;
+            ThemeManager.ThemeChanged += OnThemeChanged;
+        }
+    }
+
+    public void Suspend()
+    {
+        lock (_gate)
+        {
+            if (!_active)
+                return;
+            _active = false;
+            _changed = null;
+            ThemeManager.ThemeChanged -= OnThemeChanged;
+        }
+    }
+
+    private void OnThemeChanged()
+    {
+        EventHandler<PluginThemeChangedEventArgs>[] handlers;
+        PluginThemeSnapshot snapshot;
+        lock (_gate)
+        {
+            if (!_active || _changed is null)
+                return;
+            handlers = _changed.GetInvocationList()
+                .OfType<EventHandler<PluginThemeChangedEventArgs>>()
+                .ToArray();
+            snapshot = ThemeManager.CurrentPluginTheme;
+        }
+
+        foreach (var handler in handlers)
+        {
+            IDisposable invocation;
+            try
+            {
+                invocation = enterInvocation();
+            }
+            catch (ObjectDisposedException)
+            {
+                continue;
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
+
+            lock (_gate)
+            {
+                _dispatchTail = _dispatchTail.ContinueWith(
+                    _ =>
+                    {
+                        using (invocation)
+                        {
+                            try
+                            {
+                                handler(
+                                    this,
+                                    new PluginThemeChangedEventArgs(snapshot));
+                            }
+                            catch (Exception)
+                            {
+                                // A plugin observer cannot break the host theme switch.
+                            }
+                        }
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.None,
+                    TaskScheduler.Default);
+            }
+        }
+    }
+}
+
+/// <summary>Runtime-scoped, bounded bridge into the process-wide launcher log.</summary>
+internal sealed class PluginLogger : IPluginLogger
+{
+    private const int MaximumMessageLength = 8192;
+    private const int MaximumExceptionLength = 16384;
+    private const int MaximumEntriesPerWindow = 200;
+    private const long RateWindowMilliseconds = 60_000;
+
+    private readonly string _pluginId;
+    private readonly Func<string, string, bool> _write;
+    private readonly object _gate = new();
+    private long _windowStarted = Environment.TickCount64;
+    private int _windowEntries;
+    private int _suppressedEntries;
+    private bool _active;
+
+    public PluginLogger(
+        string pluginId,
+        Func<string, string, bool>? write = null)
+    {
+        _pluginId = pluginId;
+        _write = write ?? ((message, level) => LogsWrite.Write(message, level));
+    }
+
+    public void Resume()
+    {
+        lock (_gate)
+        {
+            _active = true;
+            _windowStarted = Environment.TickCount64;
+            _windowEntries = 0;
+            _suppressedEntries = 0;
+        }
+    }
+
+    public void Suspend()
+    {
+        lock (_gate)
+            _active = false;
+    }
+
+    public void Log(
+        PluginLogLevel level,
+        string message,
+        Exception? exception = null)
+    {
+        int suppressed = 0;
+        lock (_gate)
+        {
+            if (!_active)
+                return;
+
+            var now = Environment.TickCount64;
+            if (now - _windowStarted >= RateWindowMilliseconds)
+            {
+                suppressed = _suppressedEntries;
+                _windowStarted = now;
+                _windowEntries = 0;
+                _suppressedEntries = 0;
+            }
+
+            if (_windowEntries >= MaximumEntriesPerWindow)
+            {
+                _suppressedEntries++;
+                return;
+            }
+
+            _windowEntries++;
+        }
+
+        if (suppressed > 0)
+        {
+            TryWrite(
+                $"[plugin:{_pluginId}] suppressed {suppressed} log records due to rate limiting",
+                "WARN");
+        }
+
+        var text = EscapeAndBound(message ?? string.Empty, MaximumMessageLength);
+        if (exception is not null)
+        {
+            string details;
+            try
+            {
+                details = exception.ToString();
+            }
+            catch (Exception formattingFailure)
+            {
+                details = $"{exception.GetType().FullName} (formatting failed: " +
+                          $"{formattingFailure.GetType().FullName})";
+            }
+
+            text += " | exception=" + EscapeAndBound(details, MaximumExceptionLength);
+        }
+
+        TryWrite($"[plugin:{_pluginId}] {text}", MapLevel(level));
+    }
+
+    private void TryWrite(string message, string level)
+    {
+        try
+        {
+            _write(message, level);
+        }
+        catch (Exception)
+        {
+            // Logging must remain diagnostic-only. A failing host sink cannot
+            // take down third-party plugin code or its caller.
+        }
+    }
+
+    private static string MapLevel(PluginLogLevel level) => level switch
+    {
+        PluginLogLevel.Trace => "TRACE",
+        PluginLogLevel.Debug => "DEBUG",
+        PluginLogLevel.Warning => "WARN",
+        PluginLogLevel.Error => "ERROR",
+        PluginLogLevel.Critical => "CRITICAL",
+        _ => "INFO"
+    };
+
+    private static string EscapeAndBound(string value, int maximumLength)
+    {
+        var length = Math.Min(value.Length, maximumLength);
+        var builder = new System.Text.StringBuilder(length + 16);
+        for (var index = 0; index < length; index++)
+        {
+            var character = value[index];
+            switch (character)
+            {
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+                case '\t':
+                    builder.Append("\\t");
+                    break;
+                default:
+                    if (char.IsControl(character))
+                        builder.Append($"\\u{(int)character:X4}");
+                    else
+                        builder.Append(character);
+                    break;
+            }
+        }
+
+        if (value.Length > maximumLength)
+            builder.Append('…');
+        return builder.ToString();
+    }
+}
+
 internal sealed class PluginStorage : IPluginStorage
 {
     public PluginStorage(string packageDirectory, string dataDirectory)
@@ -815,7 +1110,10 @@ internal sealed class PluginContext(
     PluginManifest manifest,
     IPluginStorage storage,
     IPluginSettings settings,
-    IReadOnlySet<string> grantedCapabilities) : IPluginContext
+    IReadOnlySet<string> grantedCapabilities,
+    IPluginTheme theme,
+    IPluginNotifications notifications,
+    IPluginLogger logger) : IPluginContext
 {
     private IPluginRegistrar? _registrar;
 
@@ -833,12 +1131,18 @@ internal sealed class PluginContext(
 
     public TService? GetService<TService>() where TService : class
     {
+        if (typeof(TService) == typeof(IPluginTheme))
+            return (TService)(object)theme;
+
+        if (typeof(TService) == typeof(IPluginLogger))
+            return (TService)(object)logger;
+
         if (typeof(TService) == typeof(IPluginNotifications))
         {
             // 通知 UI 由启动器渲染（NyaAlert/NyaPrompt），归入 ui.native 能力；
             // 未授权时按契约返回 null，而不是抛异常或暴露宿主内部。
             return IsCapabilityGranted(PluginCapabilities.NativeUi)
-                ? (TService)(object)PluginNotifications.Instance
+                ? (TService)(object)notifications
                 : null;
         }
         return null;
@@ -856,27 +1160,45 @@ internal sealed class PluginContext(
 /// </summary>
 internal sealed class PluginNotifications : IPluginNotifications
 {
-    public static readonly PluginNotifications Instance = new();
+    private int _active;
 
-    private PluginNotifications()
+    public void Alert(PluginNoticeSeverity severity, string message, TimeSpan? duration = null)
     {
-    }
+        if (!IsActive)
+            return;
 
-    public void Alert(PluginNoticeSeverity severity, string message, TimeSpan? duration = null) =>
         NyaAlert.Show(message, Map(severity), duration);
+    }
 
     public Task<string?> PromptAsync(
         string title,
         string message = "",
         PluginNoticeSeverity severity = PluginNoticeSeverity.Info,
         params PluginPromptButton[] buttons) =>
-        NyaPrompt.ShowAsync(title, message, Map(severity), Convert(buttons));
+        IsActive
+            ? NyaPrompt.ShowAsync(
+                title,
+                message,
+                Map(severity),
+                Convert(buttons))
+            : Task.FromResult<string?>(null);
 
     public Task<bool> ConfirmAsync(
         string title,
         string message = "",
         PluginNoticeSeverity severity = PluginNoticeSeverity.Warning) =>
-        NyaPrompt.ConfirmAsync(title, message, severity: Map(severity));
+        IsActive
+            ? NyaPrompt.ConfirmAsync(
+                title,
+                message,
+                severity: Map(severity))
+            : Task.FromResult(false);
+
+    private bool IsActive => Volatile.Read(ref _active) != 0;
+
+    public void Resume() => Volatile.Write(ref _active, 1);
+
+    public void Suspend() => Volatile.Write(ref _active, 0);
 
     private static NyaNoticeSeverity Map(PluginNoticeSeverity severity) => severity switch
     {
@@ -886,12 +1208,18 @@ internal sealed class PluginNotifications : IPluginNotifications
         _ => NyaNoticeSeverity.Info,
     };
 
-    private static NyaPromptButton[] Convert(PluginPromptButton[] buttons) =>
-        buttons is { Length: > 0 }
-            ? Array.ConvertAll(
-                buttons,
-                button => new NyaPromptButton(button.Label, button.Id, button.IsDefault))
-            : [];
+    private static NyaPromptButton[] Convert(PluginPromptButton[]? buttons)
+    {
+        if (buttons is not { Length: > 0 })
+            return [];
+
+        return buttons
+            .Select(button => new NyaPromptButton(
+                button.Label,
+                button.Id,
+                button.IsDefault))
+            .ToArray();
+    }
 }
 
 internal sealed class PluginRegistrar(

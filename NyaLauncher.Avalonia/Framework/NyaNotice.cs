@@ -140,21 +140,24 @@ public static class NyaPrompt
     /// <param name="cancel">取消按钮文字。</param>
     /// <param name="severity">严重级别，默认 <see cref="NyaNoticeSeverity.Warning"/>。</param>
     /// <returns>点了确认返回 <c>true</c>，点了取消或宿主缺失返回 <c>false</c>。</returns>
-    public static Task<bool> ConfirmAsync(
+    public static async Task<bool> ConfirmAsync(
         string title,
         string message,
         string confirm = "确定",
         string cancel = "取消",
         NyaNoticeSeverity severity = NyaNoticeSeverity.Warning)
     {
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _ = ShowAsync(title, message, severity,
+        // Await directly so a rendering failure completes the returned task with
+        // that exception. The previous ContinueWith(t.Result) path could fault its
+        // private continuation and leave the caller's TaskCompletionSource pending forever.
+        var result = await ShowAsync(
+                title,
+                message,
+                severity,
                 new NyaPromptButton(cancel, "cancel"),
                 new NyaPromptButton(confirm, "confirm", IsDefault: true))
-            .ContinueWith(
-                t => tcs.TrySetResult(string.Equals(t.Result, "confirm", StringComparison.Ordinal)),
-                TaskContinuationOptions.ExecuteSynchronously);
-        return tcs.Task;
+            .ConfigureAwait(false);
+        return string.Equals(result, "confirm", StringComparison.Ordinal);
     }
 
     private static NyaPromptButton[] Normalize(NyaPromptButton[] buttons)

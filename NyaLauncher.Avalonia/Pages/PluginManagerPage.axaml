@@ -48,7 +48,7 @@
                   CornerRadius="8"
                   Padding="10,4"
                   VerticalAlignment="Center"
-                  ToolTip.Tip="当前宿主支持的插件 API 版本；自 v1-p1 起向前兼容，旧插件无需重编译">
+                  ToolTip.Tip="独立的插件 API 版本；当前 V1.1 兼容 V1，不随启动器应用版本递增">
             <TextBlock Text="{x:Static pab:PluginSdk.ApiVersion}"
                        FontSize="11"
                        FontWeight="Bold"

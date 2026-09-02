@@ -3,6 +3,11 @@
 > 全局通知框架，包含 **警示条（NyaAlert）** 与 **弹窗提示（NyaPrompt）** 两套入口。
 > 统一命名空间：`NyaLauncher.Avalonia.Framework`
 
+> 以下静态门面仅供启动器源码使用，不是第三方 SDK。第三方插件请经
+> `Context.GetService<IPluginNotifications>()` 使用同一套宿主 UI（需授权 `ui.native`），
+> 不要引用 Avalonia 宿主程序集。完整契约见
+> [插件 API 手册](../NyaLauncher.Plugin.Abstractions/README.md)。
+
 ```csharp
 using NyaLauncher.Avalonia.Framework;
 ```
@@ -140,23 +145,16 @@ if (id == "copy") { /* …… */ }
 
 ## 5. 插件中的使用建议
 
-- **短反馈用 `NyaAlert`**："已复制路径"、"下载已开始" 这类一闪而过的信息
-- **需要用户决策用 `NyaPrompt`**：删除确认、操作多选
-- **必须等待结果时用 `ShowAsync` / `ConfirmAsync`**，不要用 `Show` 然后去猜结果
-- **总是处理 `null`**：`ShowAsync` 在宿主缺失或被新提示顶掉时返回 `null`
-- 在组件动作里调用是安全的——动作运行在后台线程，门面会自动封送到 UI 线程
+- 短反馈用 `IPluginNotifications.Alert`；需要用户决策用 `PromptAsync` / `ConfirmAsync`。
+- 总是处理 `null` / `false`：宿主缺失、提示被替换或插件运行时已经退役都可能安全降级。
+- 在插件 `StartAsync` 中获取服务并传给需要通知的组件；没有 `ui.native` 授权时服务为 `null`。
+- 方法会自动封送 UI 线程；没有因此开放任意 Control、页面或窗口注入。
 
 ```csharp
-// 在 Polygon 组件的动作里使用
-public override async ValueTask<ComponentActionResult> InvokeAsync(
-    ComponentActionInvocation invocation, CancellationToken cancellationToken)
+var notify = Context.GetService<IPluginNotifications>();
+if (notify is not null && await notify.ConfirmAsync("重置", "确定要重置进度吗？"))
 {
-    var ok = await NyaPrompt.ConfirmAsync("重置", "确定要重置进度吗？");
-    if (!ok)
-        return ComponentActionResult.Failed("已取消。");
-
     Reset();
-    NyaAlert.Success("进度已重置");
-    return ComponentActionResult.Completed();
+    notify.Alert(PluginNoticeSeverity.Success, "进度已重置");
 }
 ```
