@@ -10,6 +10,7 @@ internal static class ThemeSettings
     private const string ThemeFamilyKey = "themeFamily";
     private const string ThemeModeKey = "themeMode";
     private const string LegacyThemeKey = "theme";
+    private const string CodexBlueUnlockedKey = "codexBlueUnlocked";
     private const string AmbientGradientKey = "ambientGradient";
     private const string SparkleTrailKey = "sparkleTrail";
     private const string ClickRingKey = "clickRing";
@@ -18,6 +19,29 @@ internal static class ThemeSettings
     private const string CustomBackgroundBlurKey = "customBackgroundBlur";
     private const string DefaultFamily = "HatsuneMiku";
     private const string DefaultMode = "Dark";
+
+    public static event Action? ThemeAvailabilityChanged;
+
+    public static bool IsCodexBlueUnlocked() =>
+        string.Equals(LauncherConfig.GetValue(CodexBlueUnlockedKey), "true", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsThemeFamilyAvailable(string family) =>
+        !string.Equals(family.Trim(), "CodexBlue", StringComparison.OrdinalIgnoreCase) || IsCodexBlueUnlocked();
+
+    /// <summary>彩蛋解锁随启动器配置保存；保存失败时保持锁定。</summary>
+    public static bool UnlockCodexBlue()
+    {
+        if (IsCodexBlueUnlocked())
+            return true;
+        if (!LauncherConfig.SetValue(CodexBlueUnlockedKey, "true"))
+            return false;
+
+        ThemeAvailabilityChanged?.Invoke();
+        return true;
+    }
+
+    private static string AvailableFamily(string family) =>
+        IsThemeFamilyAvailable(family) ? family.Trim() : DefaultFamily;
 
     public static string LoadTheme()
     {
@@ -28,7 +52,13 @@ internal static class ThemeSettings
     {
         var family = LauncherConfig.GetValue(ThemeFamilyKey);
         if (!string.IsNullOrWhiteSpace(family))
-            return family;
+        {
+            var availableFamily = AvailableFamily(family);
+            // 旧版本选中过隐藏主题时，恢复到可用主题，等待用户完成彩蛋。
+            if (family != availableFamily)
+                SaveThemeFamily(availableFamily);
+            return availableFamily;
+        }
 
         var legacy = LauncherConfig.GetValue(LegacyThemeKey);
         if (!string.IsNullOrWhiteSpace(legacy))
@@ -36,9 +66,10 @@ internal static class ThemeSettings
             var parts = legacy.Split('_', 2);
             if (parts.Length == 2)
             {
-                SaveThemeFamily(parts[0]);
+                var availableFamily = AvailableFamily(parts[0]);
+                SaveThemeFamily(availableFamily);
                 SaveThemeMode(parts[1]);
-                return parts[0];
+                return availableFamily;
             }
         }
 
@@ -84,7 +115,7 @@ internal static class ThemeSettings
     public static void SaveThemeFamily(string family)
     {
         if (!string.IsNullOrWhiteSpace(family))
-            LauncherConfig.SetValue(ThemeFamilyKey, family.Trim());
+            LauncherConfig.SetValue(ThemeFamilyKey, AvailableFamily(family));
     }
 
     public static void SaveThemeMode(string mode)

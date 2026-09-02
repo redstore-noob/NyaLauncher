@@ -1,6 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:helpers="using:NyaLauncher.Avalonia.Animations.Helpers"
              x:Class="NyaLauncher.Avalonia.Pages.AboutPage"
              Loaded="Control_OnLoaded">
   <Grid x:Name="RootGrid">
@@ -18,30 +17,30 @@
                    Foreground="{DynamicResource HintTextBrush}" />
       </StackPanel>
 
-      <!-- 开发者名单（3D 翻转：hover 翻面显示致谢，最后一个子元素为背面）。
-           注意：不能与 nya-shimmer 同挂——OverlayHost 会包一层 wrapper 把正/背面结构打乱。
-           连点卡片 7 次触发「猫娘登场」彩蛋（DevCard_OnPointerPressed） -->
+      <!-- 开发者名单保持静态，名字在悬停时也可点击。
+           除 TouristH 外，连点卡片 7 次仍触发「猫娘登场」彩蛋。 -->
       <Border Background="{DynamicResource PanelBgBrush}"
               CornerRadius="16"
               Padding="24,20"
-              Classes="nya-flip"
               PointerPressed="DevCard_OnPointerPressed">
-        <Grid>
+        <StackPanel Spacing="20">
           <StackPanel Spacing="12">
             <TextBlock Text="开发者名单"
                        FontSize="18"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource PrimaryTextBrush}" />
-            <TextBlock FontSize="13"
-                       Foreground="{DynamicResource BodyTextBrush}"
-                       TextWrapping="Wrap">
-              <Run Text="redstore_noob" FontWeight="SemiBold" /><LineBreak />
-              <Run Text="TouristH" FontWeight="SemiBold" /><LineBreak />
-              <Run Text="ReGlaze" FontWeight="SemiBold" />
-            </TextBlock>
+            <StackPanel>
+              <TextBlock Text="redstore_noob" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{DynamicResource BodyTextBrush}" />
+              <TextBlock x:Name="TouristHName" Text="TouristH"
+                         HorizontalAlignment="Left"
+                         FontSize="13" FontWeight="SemiBold"
+                         Foreground="{DynamicResource BodyTextBrush}" />
+              <TextBlock Text="ReGlaze" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{DynamicResource BodyTextBrush}" />
+            </StackPanel>
           </StackPanel>
-          <StackPanel Spacing="10" IsVisible="False"
-                      helpers:Flip.IsBack="True">
+          <StackPanel Spacing="10">
             <TextBlock Text="喵～感谢每一位使用者"
                        FontSize="18"
                        FontWeight="SemiBold"
@@ -52,7 +51,7 @@
               如果喜欢这个启动器，去 GitHub 给项目点个 Star 就是最大的支持啦～
             </TextBlock>
           </StackPanel>
-        </Grid>
+        </StackPanel>
       </Border>
 
       <!-- 引用的库与资源 -->

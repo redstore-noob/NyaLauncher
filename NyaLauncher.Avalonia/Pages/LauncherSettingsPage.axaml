@@ -331,6 +331,37 @@
                       <TextBlock Grid.Row="2" Text="幻紫 × 樱粉语义" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" />
                     </Grid>
                   </RadioButton>
+                  <RadioButton x:Name="ThemeCardCodexBlue"
+                               Classes="theme-card"
+                               GroupName="ThemeFamily"
+                               Tag="CodexBlue"
+                               IsVisible="False"
+                               Margin="0,0,10,10"
+                               IsCheckedChanged="OnThemeFamilyChecked">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="7">
+                      <Border Height="5" CornerRadius="2.5">
+                        <Border.Background>
+                          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#7C8CFF" />
+                            <GradientStop Color="#AAB3FF" Offset="1" />
+                          </LinearGradientBrush>
+                        </Border.Background>
+                      </Border>
+                      <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Codex蓝" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <Border Classes="theme-check"
+                                Grid.Column="1"
+                                Width="16" Height="16"
+                                CornerRadius="8"
+                                Background="{DynamicResource AccentBrush}"
+                                VerticalAlignment="Center"
+                                IsVisible="False">
+                          <mi:MaterialIcon Kind="Check" Width="10" Height="10" Foreground="{DynamicResource WhiteBrush}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Grid.Row="2" Text="柔蓝 × 淡紫" FontSize="10" Foreground="{DynamicResource MutedTextBrush}" />
+                    </Grid>
+                  </RadioButton>
                   <RadioButton x:Name="ThemeCardZhiShu"
                                Classes="theme-card"
                                GroupName="ThemeFamily"

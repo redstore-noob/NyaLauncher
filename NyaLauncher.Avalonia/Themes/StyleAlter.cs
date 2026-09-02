@@ -15,8 +15,8 @@ public class StyleAlter
     /// 应用主题：中性兜底基底（按明暗模式）+ 家族强调色与背景搭配 + 强调派生键。
     /// <para>
     /// 结构：BasePalette.axaml 提供深/浅两套中性兜底基底；{family}_Accents.axaml
-    /// 直接键提供强调色阶梯、Material 次色与语义色（不区分深浅），其 ThemeDictionaries
-    /// 必须写出家族专属的暗色 / 浅色背景搭配并按当前模式覆盖基底；
+    /// 直接键提供默认强调色阶梯、Material 次色与语义色，其 ThemeDictionaries
+    /// 必须写出家族专属的暗色 / 浅色背景搭配，也可按当前模式覆盖强调色与语义色；
     /// 强调色的衍生键（强调文字、主按钮、拖放预览等）由
     /// <see cref="ApplyDerivedAccentKeys"/> 按「明暗模式 × 家族强调色」派生写入。
     /// 家族文件缺失时自动降级到 HatsuneMiku。
@@ -77,8 +77,8 @@ public class StyleAlter
                 app.Resources[entry.Key] = entry.Value;
         }
 
-        // 2. 家族主题：直接键（强调色 / 次色 / 语义色，不分深浅）
-        //    + ThemeDictionaries（家族专属的暗 / 浅背景搭配，按当前模式覆盖基底）
+        // 2. 家族主题：直接键（默认强调色 / 次色 / 语义色）
+        //    + ThemeDictionaries（家族专属的暗 / 浅配色，按当前模式覆盖）
         var familyDict = AvaloniaXamlLoader.Load(familyUri) as ResourceDictionary;
         if (familyDict is not null)
         {
@@ -89,7 +89,11 @@ public class StyleAlter
                 famProvider is ResourceDictionary famVariant)
             {
                 foreach (var entry in famVariant)
+                {
+                    // 派生色与 Material 同样读取当前模式的覆盖值，避免浅色仍使用暗色强调色。
+                    familyDict[entry.Key] = entry.Value;
                     app.Resources[entry.Key] = entry.Value;
+                }
             }
         }
 
@@ -101,7 +105,7 @@ public class StyleAlter
     }
 
     /// <summary>
-    /// 派生强调相关资源键。家族只声明强调色阶梯（模式无关），
+    /// 派生强调相关资源键。家族声明当前模式的强调色阶梯，
     /// 而「强调色上的文字」「主按钮底色」「拖放预览」等消费键的取值需要同时
     /// 考虑明暗底色，因此在此按模式从阶梯推导（暗底取亮端，亮底取深端），
     /// Color 与 Brush 两键同时写入（基底 Brush 的 StaticResource 引用在

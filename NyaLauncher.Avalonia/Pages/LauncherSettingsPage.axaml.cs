@@ -28,9 +28,16 @@ public partial class LauncherSettingsPage : UserControl
         InitializeThemeSettings();
         ReloadHotkeys();
 
+        AttachedToVisualTree += (_, _) =>
+        {
+            ThemeSettings.ThemeAvailabilityChanged += RefreshThemeAvailability;
+            RefreshThemeAvailability();
+        };
+
         // 离开设置页时中止快捷键录制，避免按键继续被吞
         DetachedFromVisualTree += (_, _) =>
         {
+            ThemeSettings.ThemeAvailabilityChanged -= RefreshThemeAvailability;
             if (AppHotkeys.IsCapturing)
             {
                 AppHotkeys.EndCapture();
@@ -192,10 +199,12 @@ public partial class LauncherSettingsPage : UserControl
     {
         var currentFamily = ThemeSettings.LoadThemeFamily();
         var currentMode = ThemeSettings.LoadThemeMode();
+        RefreshThemeAvailability();
 
         // 主题色卡：同步选中态（_initializingThemeSettings 守卫避免触发应用逻辑）
         ThemeCardMiku.IsChecked = currentFamily == "HatsuneMiku";
         ThemeCardDeepSeek.IsChecked = currentFamily == "DeepSeekPurple";
+        ThemeCardCodexBlue.IsChecked = currentFamily == "CodexBlue";
         ThemeCardZhiShu.IsChecked = currentFamily == "ZhiShuBlue";
         ThemeCardMojang.IsChecked = currentFamily == "MojangRed";
 
@@ -219,6 +228,9 @@ public partial class LauncherSettingsPage : UserControl
         UpdateCustomBgState(customBg);
         _initializingThemeSettings = false;
     }
+
+    private void RefreshThemeAvailability() =>
+        ThemeCardCodexBlue.IsVisible = ThemeSettings.IsCodexBlueUnlocked();
 
     private void OnAmbientChanged(object? sender, RoutedEventArgs e)
     {
@@ -348,8 +360,13 @@ public partial class LauncherSettingsPage : UserControl
     {
         if (_initializingThemeSettings) return;
         // IsCheckedChanged 在取消选中时也会触发，只响应选中
-        if (sender is RadioButton { Tag: string family, IsChecked: true })
+        if (sender is RadioButton { Tag: string family, IsChecked: true } card)
         {
+            if (!ThemeSettings.IsThemeFamilyAvailable(family))
+            {
+                card.IsChecked = false;
+                return;
+            }
             ThemeSettings.SaveThemeFamily(family);
             ApplyThemeHot(family, ThemeSettings.LoadThemeMode());
         }
