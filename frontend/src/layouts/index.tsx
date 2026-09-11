@@ -22,21 +22,33 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+import React, { useState } from 'react';
+import Sidebar, { PageKey } from './Sidebar';
+import HomePage from './home';
+import SettingsPage from './settings';
+import { TitleBar } from '../components/title-bar.tsx';
 
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+const Layouts: React.FC = () => {
+  const [activeKey, setActiveKey] = useState<PageKey>('home');
 
-import App from "./App.tsx";
-import { Provider } from "./provider.tsx";
-import "@/styles/globals.css";
+  return (
+    <div className="flex h-screen w-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 overflow-hidden">
+      {/*全局标题栏，也就是窗口标题*/}
+      <TitleBar title="NyaLauncher" />
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Provider>
-        <App />
-      </Provider>
-    </BrowserRouter>
-  </React.StrictMode>,
-);
+      {/*标题栏下方的内容区*/}
+      <div className="flex flex-1 w-full pt-10 relative">
+        {/*全局左侧栏*/}
+        <Sidebar activeKey={activeKey} onNavigate={setActiveKey} />
+
+        {/*内容区*/}
+        <div className="flex-1 ml-16 relative">
+          {activeKey === 'home' && <HomePage />}
+          {activeKey === 'settings' && <SettingsPage />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Layouts;

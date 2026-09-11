@@ -22,21 +22,42 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+import React from 'react';
 
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+interface SectionProps {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}
 
-import App from "./App.tsx";
-import { Provider } from "./provider.tsx";
-import "@/styles/globals.css";
+const Section: React.FC<SectionProps> = ({ title, description, children }) => {
+  return (
+    <section>
+      <div className="mb-3">
+        <h2 className="text-md font-semibold text-black dark:text-gray-400">
+          {title}
+        </h2>
+        {description && (
+          <p className="text-xs text-gray-400 mt-0.5">{description}</p>
+        )}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+};
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Provider>
-        <App />
-      </Provider>
-    </BrowserRouter>
-  </React.StrictMode>,
+export default Section;
+
+export const SettingRow: React.FC<{
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}> = ({ label, hint, children }) => (
+  <div className="flex items-center justify-between py-2 gap-4">
+    <div className="min-w-0">
+      <div className="text-sm text-gray-800 dark:text-gray-200">{label}</div>
+      {hint && <div className="text-xs text-gray-400 mt-0.5">{hint}</div>}
+    </div>
+    <div className="flex-shrink-0">{children}</div>
+  </div>
 );
