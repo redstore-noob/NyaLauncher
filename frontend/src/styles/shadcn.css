@@ -1,0 +1,199 @@
+/*
+ * shadcn-vue / Tailwind CSS v4 主题映射层。
+ *
+ * 颜色来源：themes.css（scripts/gen-themes.mjs 生成）中按
+ * body[data-theme][data-mode] 级联的家族令牌（--base-bg / --accent / --primary-text …）。
+ * 本文件把 shadcn 语义变量绑定到这些家族令牌上：
+ *   - `@theme inline` 里 --color-* 直接引用家族令牌（inline 模式下工具类
+ *     bg-primary 等会原样内联 var(--accent)，随 data-theme/data-mode 实时切换）。
+ *   - body 级同时暴露 shadcn 原名变量（--background/--foreground/--primary…，
+ *     供 vue-sonner 等第三方库与手写样式引用）；注意 shadcn 的 `--accent`
+ *     （hover 弱底色）与我们的家族强调色 `--accent` 重名，家族选择器
+ *     body[data-theme=x] 优先级更高会覆盖它，因此 shadcn 语义通过
+ *     `--color-accent` 工具类（bg-accent → highlight-bg）使用，勿裸写 var(--accent) 当弱底色。
+ * 另含旧命名兼容别名（--xxx-color → --xxx），修复 base.css/旧页面使用的
+ * gen-themes 改名前的令牌名（CardBgColor → card-bg-color → 现为 card-bg）。
+ *
+ * 动画令牌（--ease-emphasized* / --dur-* / nya-bounce）沿用 base.css，此处只新增
+ * 弹层进出场动画 .nya-pop（对话框 / Select / DropdownMenu 共用）。
+ */
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* ===== shadcn 语义色 → 家族令牌（Tailwind 工具类映射） ===== */
+@theme inline {
+  --color-background: var(--base-bg);
+  --color-foreground: var(--primary-text);
+  --color-card: var(--card-bg);
+  --color-card-foreground: var(--primary-text);
+  --color-popover: var(--dialog-bg);
+  --color-popover-foreground: var(--primary-text);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-text-color);
+  --color-secondary: var(--button-bg);
+  --color-secondary-foreground: var(--primary-text);
+  --color-muted: var(--control-bg);
+  --color-muted-foreground: var(--muted-text);
+  /* shadcn accent = 列表/hover 弱底色（对应 HighlightBgBrush），非主题强调色 */
+  --color-accent: var(--highlight-bg);
+  --color-accent-foreground: var(--primary-text);
+  --color-destructive: var(--error);
+  --color-destructive-foreground: var(--white);
+  --color-border: var(--medium-border);
+  --color-input: var(--default-border);
+  --color-ring: var(--accent);
+  /* 扩展：家族特殊色直接进 Tailwind 调色板（对照 themes.css 令牌名） */
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-dark: var(--accent-dark);
+  --color-accent-light: var(--accent-light);
+  --color-secondary-accent: var(--secondary-accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-overlay: var(--overlay-bg);
+  --color-badge: var(--badge-bg);
+  --color-surface: var(--surface-bg);
+  --color-card-border: var(--card-border);
+  --color-subtle-border: var(--subtle-border);
+  --color-default-border: var(--default-border);
+  --color-medium-border: var(--medium-border);
+  --color-strong-border: var(--strong-border);
+  --color-emphasized-border: var(--emphasized-border);
+  --color-primary-text: var(--primary-text);
+  --color-secondary-text: var(--secondary-text);
+  --color-body-text: var(--body-text);
+  --color-subtext-text: var(--subtext-text);
+  --color-hint-text: var(--hint-text);
+  --color-muted-text: var(--muted-text);
+  --color-placeholder-text: var(--placeholder-text);
+
+  /* 圆角：覆盖 Tailwind 默认，对齐 base.css 圆角体系 */
+  --radius-sm: var(--radius-xs); /* 6 */
+  --radius-md: var(--radius-md-alias, 9px);
+  --radius-lg: var(--radius-lg-alias, 10px);
+  --radius-xl: var(--radius-xl-alias, 16px);
+  --radius-2xl: var(--radius-2xl-alias, 20px);
+  --radius-4xl: var(--radius-2xl-alias, 20px);
+}
+
+/* ===== 圆角别名（--radius-md 等在 @theme 内与 Tailwind 键重名，借中转变量引用） ===== */
+:root {
+  --radius-md-alias: 9px;
+  --radius-lg-alias: 10px;
+  --radius-xl-alias: 16px;
+  --radius-2xl-alias: 20px;
+}
+
+/* ===== shadcn 原名变量（body 级，供第三方库 / 裸 var() 引用） ===== */
+body {
+  --background: var(--base-bg);
+  --foreground: var(--primary-text);
+  --card: var(--card-bg);
+  --card-foreground: var(--primary-text);
+  --popover: var(--dialog-bg);
+  --popover-foreground: var(--primary-text);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-text-color);
+  --secondary: var(--button-bg);
+  --secondary-foreground: var(--primary-text);
+  --muted: var(--control-bg);
+  --muted-foreground: var(--muted-text);
+  --destructive: var(--error);
+  --border: var(--medium-border);
+  --input: var(--default-border);
+  --ring: var(--accent);
+  /* 注意：不在此定义 shadcn --accent（与家族强调色重名）；需要弱底色用 bg-accent 工具类 */
+}
+
+/* ===== 旧命名兼容别名（base.css 与既有页面使用 --xxx-color） =====
+   themes.css 由 gen-themes.mjs 生成时去掉 Color 后缀（CardBgColor → card-bg），
+   此处补回旧名，使 base.css / SettingRow.vue 等既有引用继续生效；
+   同时修复生成物内部 --accent-text-color 引用的 --accent-bright-color 断链。 */
+body {
+  --window-bg-color: var(--window-bg);
+  --base-bg-color: var(--base-bg);
+  --card-bg-color: var(--card-bg);
+  --card-bg2-color: var(--card-bg-color2);
+  --card-bg-color2-color: var(--card-bg-color2);
+  --panel-bg-color: var(--panel-bg);
+  --surface-bg-color: var(--surface-bg);
+  --highlight-bg-color: var(--highlight-bg);
+  --button-bg-color: var(--button-bg);
+  --control-bg-color: var(--control-bg);
+  --badge-bg-color: var(--badge-bg);
+  --subtle-border-color: var(--subtle-border);
+  --default-border-color: var(--default-border);
+  --medium-border-color: var(--medium-border);
+  --strong-border-color: var(--strong-border);
+  --emphasized-border-color: var(--emphasized-border);
+  --primary-text-color: var(--primary-text);
+  --secondary-text-color: var(--secondary-text);
+  --tertiary-text-color: var(--tertiary-text);
+  --body-text-color: var(--body-text);
+  --muted-text-color: var(--muted-text);
+  --subtext-text-color: var(--subtext-text);
+  --hint-text-color: var(--hint-text);
+  --disabled-text-color: var(--disabled-text);
+  --placeholder-text-color: var(--placeholder-text);
+  --dialog-bg-color: var(--dialog-bg);
+  --dialog-alt-bg-color: var(--dialog-alt-bg);
+  --header-bg-color: var(--header-bg);
+  --card-border-color: var(--card-border);
+  --overlay-bg-color: var(--overlay-bg);
+  --dock-hint-bg-color: var(--dock-hint-bg);
+  --icon-box-bg-color: var(--icon-box-bg);
+  --component-bg-color: var(--component-bg);
+  --component-border-color: var(--component-border);
+  --component-hover-bg-color: var(--component-hover-bg);
+  --sidebar-border-color: var(--sidebar-border);
+  --drag-handle-bg-color: var(--drag-handle-bg);
+  --drag-handle-glyph-color: var(--drag-handle-glyph);
+  --seam-idle-color: var(--seam-idle);
+  --accent-color: var(--accent);
+  --accent-dark-color: var(--accent-dark);
+  --accent-darker-color: var(--accent-darker);
+  --accent-deep-color: var(--accent-deep);
+  --accent-deep-dark-color: var(--accent-deep-dark);
+  --accent-light-color: var(--accent-light);
+  --accent-bright-color: var(--accent-bright);
+  --secondary-accent-color: var(--secondary-accent);
+  --success-color: var(--success);
+  --error-color: var(--error);
+  --error-dark-color: var(--error-dark);
+  --warning-color: var(--warning);
+  --info-color: var(--info);
+  --white-color: var(--white);
+  --transparent-color: var(--transparent);
+}
+
+/* ===== 深浅模式（供需要 dark: 前缀的场景；实际配色由 data-mode 级联承担） ===== */
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
+/* ===== 弹层进出场（原版动画风格：进入 decelerate 落座 / 退出 accelerate 收缩） ===== */
+@keyframes nya-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+@keyframes nya-pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+.nya-pop[data-state='open'] {
+  animation: nya-pop-in 220ms var(--ease-emphasized-decelerate);
+}
+.nya-pop[data-state='closed'] {
+  animation: nya-pop-out 150ms var(--ease-emphasized-accelerate);
+  pointer-events: none;
+}
+
+/* ===== vue-sonner 主题跟随 ===== */
+[data-sonner-toaster] {
+  --normal-bg: var(--dialog-bg);
+  --normal-text: var(--primary-text);
+  --normal-border: var(--medium-border);
+}

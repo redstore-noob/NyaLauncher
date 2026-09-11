@@ -1,0 +1,29 @@
+# Go
+*.exe
+*.exe~
+*.test
+*.out
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend-react/node_modules/
+frontend-react/dist/
+
+# Wails 构建产物
+build/bin/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 本地调试
+*.log
+debug/
+
+# 旧版前端备份（node_modules 体积过大，不入库）
+frontend-vue-backup/node_modules/
+frontend-vue-backup/dist/
+frontend-vue-backup/package.json.md5

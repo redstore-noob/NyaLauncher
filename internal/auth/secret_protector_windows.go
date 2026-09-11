@@ -1,0 +1,89 @@
+//go:build windows
+
+package auth
+
+import (
+	"encoding/base64"
+	"runtime"
+	"syscall"
+	"unsafe"
+)
+
+func runtimeIsWindows() bool { return runtime.GOOS == "windows" }
+
+var (
+	crypt32                = syscall.NewLazyDLL("crypt32.dll")
+	procCryptProtectData   = crypt32.NewProc("CryptProtectData")
+	procCryptUnprotectData = crypt32.NewProc("CryptUnprotectData")
+)
+
+// cryptProtectUiForbidden 对应 CRYPTPROTECT_UI_FORBIDDEN。
+const cryptProtectUiForbidden = 0x1
+
+// dataBlob 对应 Win32 CRYPTOAPI_BLOB（与 C# DATA_BLOB 布局一致）。
+type dataBlob struct {
+	cbData uint32
+	pbData *byte
+}
+
+// dpapiProtect 使用 DPAPI（CurrentUser）加密，返回去掉前缀后的 Base64 密文；
+// 失败返回空串。
+func dpapiProtect(plaintext string) string {
+	plain := []byte(plaintext)
+	var in, entropy, out dataBlob
+	in.cbData = uint32(len(plain))
+	in.pbData = &plain[0]
+	entropy.cbData = uint32(len(additionalEntropy))
+	entropy.pbData = &additionalEntropy[0]
+
+	ret, _, _ := procCryptProtectData.Call(
+		uintptr(unsafe.Pointer(&in)),
+		0, // szDataDescr
+		uintptr(unsafe.Pointer(&entropy)),
+		0, 0,
+		uintptr(cryptProtectUiForbidden),
+		uintptr(unsafe.Pointer(&out)),
+	)
+	if ret == 0 {
+		return ""
+	}
+	defer localFree(out.pbData)
+	result := make([]byte, out.cbData)
+	copy(result, unsafe.Slice(out.pbData, out.cbData))
+	return base64.StdEncoding.EncodeToString(result)
+}
+
+// dpapiUnprotect 解密 dpapiProtect 产出的 Base64 密文（无前缀）；失败返回空串。
+func dpapiUnprotect(encodedBase64 string) string {
+	cipherBytes, err := base64.StdEncoding.DecodeString(encodedBase64)
+	if err != nil || len(cipherBytes) == 0 {
+		return ""
+	}
+	var in, entropy, out dataBlob
+	in.cbData = uint32(len(cipherBytes))
+	in.pbData = &cipherBytes[0]
+	entropy.cbData = uint32(len(additionalEntropy))
+	entropy.pbData = &additionalEntropy[0]
+
+	ret, _, _ := procCryptUnprotectData.Call(
+		uintptr(unsafe.Pointer(&in)),
+		0, // ppszDataDescr
+		uintptr(unsafe.Pointer(&entropy)),
+		0, 0,
+		uintptr(cryptProtectUiForbidden),
+		uintptr(unsafe.Pointer(&out)),
+	)
+	if ret == 0 {
+		return ""
+	}
+	defer localFree(out.pbData)
+	plain := make([]byte, out.cbData)
+	copy(plain, unsafe.Slice(out.pbData, out.cbData))
+	return string(plain)
+}
+
+func localFree(pointer *byte) {
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	proc := kernel32.NewProc("LocalFree")
+	proc.Call(uintptr(unsafe.Pointer(pointer)))
+}

@@ -1,0 +1,223 @@
+package auth
+
+import (
+	"context"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"nyalauncher/internal/logs"
+)
+
+// 注入器 latest.json 的官方源与 BMCLAPI 镜像。
+const (
+	officialLatestJsonUrl = "https://authlib-injector.yushi.moe/artifact/latest.json"
+	mirrorLatestJsonUrl   = "https://bmclapi2.bangbang93.com/mirrors/authlib-injector/artifact/latest.json"
+)
+
+// injectorClient 注入器下载专用客户端：2 分钟整体超时（jar 体积小但网络可能慢），
+// 统一 User-Agent。
+var injectorClient = &http.Client{Timeout: 2 * time.Minute}
+
+// AuthlibArtifact latest.json 的产物描述；sha256 为新版字段，旧版仅提供 sha1。
+type AuthlibArtifact struct {
+	Version string `json:"version"`
+	Url     string `json:"url"`
+	Sha256  string `json:"sha256"`
+	Sha1    string `json:"sha1"`
+}
+
+// EnsureInjector 确保 minecraftDirectory 下存在可用的 authlib-injector 注入器 jar，
+// 返回其绝对路径。官方源优先，BMCLAPI 镜像兜底；已缓存且哈希一致时直接复用，
+// 全源失败时回退到任意已存在的旧版 jar（外置登录多数场景下仍可用）。
+func EnsureInjector(ctx context.Context, minecraftDirectory string, log func(string)) (string, error) {
+	if strings.TrimSpace(minecraftDirectory) == "" {
+		panic("minecraftDirectory 不能为空")
+	}
+	installDirectory := filepath.Join(minecraftDirectory, "authlib-injector")
+	if err := os.MkdirAll(installDirectory, 0o755); err != nil {
+		return "", err
+	}
+
+	var lastError error
+	for _, latestJsonUrl := range []string{officialLatestJsonUrl, mirrorLatestJsonUrl} {
+		result, err := ensureFromSource(ctx, latestJsonUrl, installDirectory, log)
+		if err == nil {
+			return result, nil
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		lastError = err
+		logLog(log, fmt.Sprintf("注入器下载源 %s 不可用：%v", hostOf(latestJsonUrl), err))
+	}
+
+	// 全部下载源失败：回退到本地任意旧版注入器（外置登录多数场景下仍可用）
+	entries, _ := os.ReadDir(installDirectory)
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() && strings.HasPrefix(name, "authlib-injector-") && strings.HasSuffix(name, ".jar") {
+			logLog(log, fmt.Sprintf("警告：无法获取最新注入器，使用本地已有的 %s。", name))
+			return filepath.Join(installDirectory, name), nil
+		}
+	}
+
+	return "", fmt.Errorf("获取 authlib-injector 注入器失败：%v", lastError)
+}
+
+func ensureFromSource(
+	ctx context.Context,
+	latestJsonUrl, installDirectory string,
+	log func(string),
+) (string, error) {
+	artifact, err := fetchLatestArtifact(ctx, latestJsonUrl)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(artifact.Url) == "" || strings.TrimSpace(artifact.Version) == "" {
+		return "", fmt.Errorf("latest.json 缺少 url 或 version 字段。")
+	}
+
+	targetPath := filepath.Join(installDirectory, fmt.Sprintf("authlib-injector-%s.jar", artifact.Version))
+
+	if _, statErr := os.Stat(targetPath); statErr == nil {
+		if !hasKnownHash(artifact) {
+			logLog(log, fmt.Sprintf("authlib-injector %s 已就绪。", artifact.Version))
+			return targetPath, nil
+		}
+		if matches, hashErr := matchesHash(targetPath, artifact); hashErr == nil && matches {
+			logLog(log, fmt.Sprintf("authlib-injector %s 已就绪。", artifact.Version))
+			return targetPath, nil
+		}
+		// 缓存损坏（校验失败）：删除后重新下载
+		logLog(log, "本地注入器缓存校验失败，正在重新下载。")
+		_ = os.Remove(targetPath)
+	}
+
+	downloadUrl := resolveInjectorDownloadUrl(latestJsonUrl, artifact.Url)
+	logLog(log, fmt.Sprintf("正在下载 authlib-injector %s…", artifact.Version))
+	if err := downloadInjectorFile(ctx, downloadUrl, targetPath); err != nil {
+		return "", err
+	}
+
+	if hasKnownHash(artifact) {
+		matches, hashErr := matchesHash(targetPath, artifact)
+		if hashErr != nil || !matches {
+			_ = os.Remove(targetPath)
+			return "", fmt.Errorf("注入器哈希校验失败。")
+		}
+	}
+
+	logLog(log, "authlib-injector 下载完成。")
+	return targetPath, nil
+}
+
+func fetchLatestArtifact(ctx context.Context, latestJsonUrl string) (*AuthlibArtifact, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, latestJsonUrl, nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := injectorClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("latest.json 请求失败（HTTP %d）", response.StatusCode)
+	}
+	var artifact AuthlibArtifact
+	if err := json.NewDecoder(response.Body).Decode(&artifact); err != nil {
+		return nil, fmt.Errorf("latest.json 解析结果为空：%w", err)
+	}
+	return &artifact, nil
+}
+
+// resolveInjectorDownloadUrl 把官方源的产物地址映射到对应镜像（BMCLAPI 的
+// authlib-injector 镜像与官方目录结构一致，仅替换主机与 /mirrors/authlib-injector 前缀）。
+func resolveInjectorDownloadUrl(latestJsonUrl, artifactUrl string) string {
+	if latestJsonUrl != officialLatestJsonUrl ||
+		!(strings.HasPrefix(artifactUrl, "http://") || strings.HasPrefix(artifactUrl, "https://")) {
+		return artifactUrl
+	}
+	mirrorBase := mirrorLatestJsonUrl[:strings.LastIndex(mirrorLatestJsonUrl, "/")]
+	path := artifactUrl
+	if index := strings.Index(path[8:], "/"); index >= 0 {
+		path = path[8+index:]
+	} else {
+		path = "/"
+	}
+	return mirrorBase + path
+}
+
+func hasKnownHash(artifact *AuthlibArtifact) bool {
+	return strings.TrimSpace(artifact.Sha256) != "" || strings.TrimSpace(artifact.Sha1) != ""
+}
+
+func matchesHash(filePath string, artifact *AuthlibArtifact) (bool, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(artifact.Sha256) != "" {
+		sum := sha256.Sum256(data)
+		return hashMatches(hex.EncodeToString(sum[:]), artifact.Sha256), nil
+	}
+	if strings.TrimSpace(artifact.Sha1) != "" {
+		sum := sha1.Sum(data)
+		return hashMatches(hex.EncodeToString(sum[:]), artifact.Sha1), nil
+	}
+	return false, nil
+}
+
+func hashMatches(actual, expected string) bool {
+	return strings.EqualFold(actual, strings.TrimSpace(expected))
+}
+
+// downloadInjectorFile 流式下载到 .download 临时文件后原子替换。
+func downloadInjectorFile(ctx context.Context, url, targetPath string) error {
+	temporaryPath := targetPath + ".download"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	response, err := injectorClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("下载失败（HTTP %d）", response.StatusCode)
+	}
+
+	target, err := os.Create(temporaryPath)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(target, response.Body)
+	closeErr := target.Close()
+	if copyErr != nil || closeErr != nil {
+		_ = os.Remove(temporaryPath)
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	}
+
+	return os.Rename(temporaryPath, targetPath)
+}
+
+func logLog(log func(string), message string) {
+	if log != nil {
+		log(message)
+	}
+	// 与 C# 行为一致：注入器下载日志只进启动日志回调，不额外写文件
+	logs.Write("LAUNCH", message)
+}

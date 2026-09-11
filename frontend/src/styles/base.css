@@ -1,0 +1,232 @@
+/*
+ * 全局基础样式：间距/交互令牌、圆角与字号体系、通用控件类、动效。
+ * 颜色变量在 themes.css（由 scripts/gen-themes.mjs 生成）中按 data-theme/data-mode 提供。
+ */
+
+/* ===== 间距令牌（App.axaml 4dp 网格） ===== */
+:root {
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  /* 语义化 Thickness */
+  --page-margin: 40px 40px 40px 32px; /* PageMargin */
+  --card-padding: 24px 20px;          /* CardPadding */
+  --subcard-padding: 16px 12px;       /* SubCardPadding */
+  --listitem-padding: 16px 12px;      /* ListItemPadding */
+
+  /* ===== 交互状态令牌 ===== */
+  --hover-opacity: 0.92;
+  --pressed-opacity: 0.82;
+
+  /* ===== 圆角体系（自各页 AXAML 归纳） ===== */
+  --radius-xs: 6px;   /* 小控件：chip 内嵌、迷你按钮 */
+  --radius-sm: 7px;   /* 徽标 / 小按钮（AddComponentButton） */
+  --radius-md: 9px;   /* 标准按钮 / 窗口控制按钮 / 返回按钮 */
+  --radius-lg: 10px;  /* 导航项 / 卡片内块 */
+  --radius-xl: 16px;  /* 对话框 / 大卡片 */
+  --radius-2xl: 20px; /* MD3 大动作卡 / 设置卡 */
+
+  /* ===== 字号体系 ===== */
+  --font-micro: 9px;    /* 水印 */
+  --font-caption: 10px; /* 徽标 / 版本小字 */
+  --font-meta: 11px;    /* 辅助说明 */
+  --font-body: 13px;    /* 正文 / 导航项 */
+  --font-title: 15px;   /* 标题栏标题 / 区块标题 */
+  --font-page: 21px;    /* 页面主标题 */
+
+  /* ===== M3 motion 令牌（MaterialMotion.cs） ===== */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);           /* 悬浮/位移 */
+  --ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1); /* 进入/落座 */
+  --ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15); /* 退出/收缩 */
+  --dur-medium: 300ms; /* 页面/对话框出入场 */
+  --dur-large: 400ms;  /* 布局重排 */
+
+  /* 窗口壳尺寸（MainWindow.axaml） */
+  --titlebar-height: 58px;
+  --statusbar-height: 30px;
+  --navrail-collapsed: 52px;
+  --navrail-expanded: 176px;
+  --windowbutton-width: 42px;
+  --windowbutton-height: 34px;
+}
+
+/* ===== 全局基础 ===== */
+* { box-sizing: border-box; }
+html, body, #app, #root { height: 100%; margin: 0; overflow: hidden; }
+body {
+  font-family: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: var(--font-body);
+  color: var(--primary-text-color);
+  background: var(--window-bg-color);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ===== 全局交互过渡（App.axaml：opacity 0.12s / bg 0.15s / border 0.15s） ===== */
+button, .interactive, a, input, select, textarea {
+  transition:
+    opacity 0.12s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; padding: 0; }
+
+button:hover:not(:disabled), .interactive:hover { opacity: var(--hover-opacity); }
+button:active:not(:disabled), .interactive:active { opacity: var(--pressed-opacity); }
+
+/* ===== Button 弹性动效（AnimationHelper.cs：hover 1.02 / 按压 0.97 / 三段回弹 1→1.06→0.98→1） ===== */
+.btn-anim {
+  transform-origin: center;
+  transition: transform 200ms var(--ease-emphasized-decelerate);
+}
+.btn-anim:hover:not(:disabled) { transform: scale(1.02); }
+.btn-anim:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 120ms;
+  transition-timing-function: var(--ease-emphasized-accelerate);
+}
+/* 点击回弹：松开时追加 .btn-bounce（JS 或 CSS :not(:active) 配合），
+   三段式 Q 弹曲线（CubicOut→CubicIn→CubicOut） */
+@keyframes nya-bounce {
+  0%   { transform: scale(0.97); animation-timing-function: var(--ease-emphasized-decelerate); }
+  33%  { transform: scale(1.06); animation-timing-function: var(--ease-emphasized-accelerate); }
+  66%  { transform: scale(0.98); animation-timing-function: var(--ease-emphasized-decelerate); }
+  100% { transform: scale(1); }
+}
+.btn-bounce { animation: nya-bounce 300ms both; }
+
+/* ===== 通用控件类（自 AXAML 样式归纳） ===== */
+
+/* MD3 动作卡 / 设置卡（CardBgBrush + CardPadding + radius 20） */
+.card {
+  background: var(--card-bg-color);
+  border: 1px solid var(--card-border-color);
+  border-radius: var(--radius-2xl);
+  padding: var(--card-padding);
+}
+/* 子卡片 / 内嵌块（SubCardPadding + radius 10~16） */
+.subcard {
+  background: var(--panel-bg-color);
+  border: 1px solid var(--subtle-border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--subcard-padding);
+}
+/* 设置行 / 列表项（ListItemPadding + hover 高亮） */
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--listitem-padding);
+  border-radius: var(--radius-md);
+  background: transparent;
+  transition: background-color 0.15s var(--ease-emphasized), opacity 0.12s ease;
+}
+.list-item:hover { background: var(--highlight-bg-color); }
+
+/* 标准按钮（ButtonBg 底 + MediumBorder 边 + radius 9） */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  height: 34px;
+  padding: 0 14px;
+  background: var(--button-bg-color);
+  border: 1px solid var(--medium-border-color);
+  border-radius: var(--radius-md);
+  color: var(--primary-text-color);
+}
+/* 主按钮（强调色填充） */
+.btn-accent {
+  background: var(--accent-color);
+  border-color: transparent;
+  color: var(--accent-text-color);
+}
+
+/* 窗口控制按钮（MainWindow.axaml Button.WindowButton：42×34 / r9 / 120ms 过渡） */
+.window-button {
+  width: var(--windowbutton-width);
+  height: var(--windowbutton-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--subtext-text-color);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    opacity 0.12s ease;
+}
+.window-button:hover {
+  background: var(--control-bg-color);
+  color: var(--primary-text-color);
+  opacity: 1;
+}
+.window-button:active { background: var(--surface-bg-color); opacity: 1; }
+/* 关闭钮：hover 红底白字 */
+.window-button.close:hover { background: var(--error-color); color: var(--white-color); }
+.window-button.close:active { background: var(--error-dark-color); }
+
+/* 返回按钮（Button.NavigationBackButton：高32 / r9 / SurfaceBg 底） */
+.nav-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 32px;
+  padding: 0 13px;
+  background: var(--surface-bg-color);
+  border: 1px solid var(--strong-border-color);
+  border-radius: var(--radius-md);
+  color: var(--body-text-color);
+}
+
+/* 编辑模式小按钮（Button.AddComponentButton：高24 / 字号10 / 强调边框 / 激活态填充） */
+.add-component-button {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  background: var(--button-bg-color);
+  border: 1px solid var(--emphasized-border-color);
+  border-radius: var(--radius-sm);
+  color: var(--link-text-color);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+.add-component-button.edit-active {
+  background: var(--accent-dark-color);
+  border-color: var(--accent-light-color);
+  color: var(--white-color);
+}
+
+/* ===== 页面切换过渡（AnimationHelper.SlideFadeIn/OutAsync：
+   入场 300ms 淡入+上浮24px，出场 180ms 淡出+下沉16px） ===== */
+.page-enter-active {
+  transition:
+    opacity 300ms linear,
+    transform 300ms var(--ease-emphasized-decelerate);
+}
+.page-leave-active {
+  transition:
+    opacity 180ms linear,
+    transform 180ms var(--ease-emphasized-accelerate);
+}
+.page-enter-from { opacity: 0; transform: translateY(24px); }
+.page-leave-to { opacity: 0; transform: translateY(16px); }
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--medium-border-color); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===== 占位页通用布局（移植时替换为页面自身样式） ===== */
+.page { padding: var(--page-margin); }
+.page-heading { font-size: var(--font-page); font-weight: 600; margin: 0 0 var(--space-16); color: var(--primary-text-color); }
+.page-placeholder { color: var(--muted-text-color); }

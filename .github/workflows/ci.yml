@@ -1,0 +1,164 @@
+name: NyaLauncher CI
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: NyaLauncher
+  GO_VERSION: '1.27'
+  NODE_VERSION: '22'
+
+jobs:
+  checks:
+    name: Vet & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+          - os: ubuntu-22.04
+            platform: linux/amd64
+          - os: macos-latest
+            platform: darwin/universal
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install Linux dependencies (webkit2gtk)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libnss3-dev libasound2t64 pkg-config imagemagick
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          wails build -platform windows/amd64 -webview2 embed
+          # 额外产出 NSIS/便携 zip：压缩 build/bin 下除安装器外的主要内容
+          7z a -tzip "NyaLauncher-windows-amd64-portable.zip" \
+            "./build/bin/NyaLauncher.exe"
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          wails build -platform linux/amd64
+          chmod +x build/bin/NyaLauncher
+          # ---- AppImage 打包 ----
+          # 注意：linuxdeploy 校验图标必须为标准尺寸（历史上 63x63 图标被打回），
+          # 这里用 ImageMagick 从 appicon 生成 256x256 标准图标并按 basename 部署。
+          convert build/appicon.png -resize 256x256 nya-launcher.png
+          mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/256x256/apps
+          cp build/bin/NyaLauncher AppDir/usr/bin/
+          cp nya-launcher.png AppDir/usr/share/icons/hicolor/256x256/apps/
+          cat > AppDir/nya-launcher.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=NyaLauncher
+          Comment=Minecraft Java 版启动器
+          Exec=NyaLauncher
+          Icon=nya-launcher
+          Categories=Game;
+          Terminal=false
+          EOF
+          curl -L -o linuxdeploy.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy.AppImage
+          # AppImage 运行需要 FUSE；runner 上用 --appimage-extract-and-run 兜底
+          sudo mv linuxdeploy.AppImage /usr/local/bin/
+          linuxdeploy.AppImage --appimage-extract-and-run \
+            --appdir AppDir --desktop-file=nya-launcher.desktop \
+            --icon-file=nya-launcher.png --output appimage
+          mv NyaLauncher*.AppImage "NyaLauncher-linux-amd64.AppImage"
+          # 同时提供裸二进制 tar.gz（无 FUSE 环境兜底）
+          tar -czf "NyaLauncher-linux-amd64.tar.gz" -C build/bin NyaLauncher
+
+      - name: Build (macOS)
+        if: runner.os == 'MacOS'
+        shell: bash
+        run: |
+          wails build -platform darwin/universal
+          # 未签名 app 打成 zip；签名/公证需要 Apple 开发者证书，暂不配置
+          cd build/bin
+          zip -r "../../NyaLauncher-darwin-universal.zip" NyaLauncher.app
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          # 各平台把产物集中到 dist/
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp build/bin/NyaLauncher.exe dist/ 2>/dev/null || true
+            cp NyaLauncher-windows-amd64-portable.zip dist/ 2>/dev/null || true
+          elif [ "$RUNNER_OS" = "Linux" ]; then
+            cp NyaLauncher-linux-amd64.AppImage dist/ 2>/dev/null || true
+            cp NyaLauncher-linux-amd64.tar.gz dist/ 2>/dev/null || true
+          else
+            cp NyaLauncher-darwin-universal.zip dist/ 2>/dev/null || true
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NyaLauncher-${{ matrix.os }}
+          path: dist/*
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: dist/**/*
