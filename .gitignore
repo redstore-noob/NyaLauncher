@@ -27,3 +27,6 @@ debug/
 frontend-vue-backup/node_modules/
 frontend-vue-backup/dist/
 frontend-vue-backup/package.json.md5
+/build/
+/build/
+/frontend/wailsjs/

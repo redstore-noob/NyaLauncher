@@ -23,20 +23,28 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import React from 'react';
+import GameDirectorySection from './settings/GameDirectorySection';
+import JavaSection from './settings/JavaSection';
+import LaunchSection from './settings/LaunchSection';
+import MemorySection from './settings/MemorySection';
+import DownloadSection from './settings/DownloadSection';
+import AboutSection from './settings/AboutSection';
 
-import App from "./App.tsx";
-import { Provider } from "./provider.tsx";
-import "@/styles/globals.css";
+const SettingsPage: React.FC = () => {
+  return (
+    <div className="h-full w-full overflow-y-auto">
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-10">
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-200">设置</h1>
+        <GameDirectorySection />
+        <JavaSection />
+        <LaunchSection />
+        <MemorySection />
+        <DownloadSection />
+        <AboutSection />
+      </div>
+    </div>
+  );
+};
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Provider>
-        <App />
-      </Provider>
-    </BrowserRouter>
-  </React.StrictMode>,
-);
+export default SettingsPage;

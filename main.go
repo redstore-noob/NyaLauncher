@@ -20,10 +20,11 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:     "NyaLauncher",
-		Width:     1280,
-		Height:    760,
-		MinWidth:  800,
-		MinHeight: 600,
+		Frameless: true, //取消窗口标题
+		Width:     760,
+		Height:    480,
+		MinWidth:  400,
+		MinHeight: 300,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 			// 本地音频流回退路由：内嵌资源未命中时交给 bindings.NewLocalFileHandler，
@@ -41,7 +42,7 @@ func main() {
 			api.Music, api.Monitor, api.Server, api.System,
 		},
 		Windows: &windows.Options{
-			WindowIsTranslucent: false,
+			WindowIsTranslucent:  false,
 			WebviewIsTransparent: false,
 		},
 	})

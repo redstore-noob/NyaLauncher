@@ -23,20 +23,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import type { NavigateOptions } from "react-router-dom";
 
-import App from "./App.tsx";
-import { Provider } from "./provider.tsx";
-import "@/styles/globals.css";
+import { HeroUIProvider } from "@heroui/system";
+import { useHref, useNavigate } from "react-router-dom";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Provider>
-        <App />
-      </Provider>
-    </BrowserRouter>
-  </React.StrictMode>,
-);
+declare module "@react-types/shared" {
+  interface RouterConfig {
+    routerOptions: NavigateOptions;
+  }
+}
+
+export function Provider({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+
+  return (
+    <HeroUIProvider navigate={navigate} useHref={useHref}>
+      {children}
+    </HeroUIProvider>
+  );
+}
